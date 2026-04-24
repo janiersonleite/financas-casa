@@ -1,4 +1,65 @@
 const OCR = {
+
+    // ── PDF: extrai texto via PDF.js, com fallback para OCR se PDF for escaneado ──
+    async processPDF(file, onProgress) {
+        if (onProgress) onProgress(10);
+
+        // Carrega PDF.js sob demanda
+        if (!window.pdfjsLib) {
+            await new Promise((resolve, reject) => {
+                const s = document.createElement('script');
+                s.src = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js';
+                s.onload = resolve; s.onerror = reject;
+                document.head.appendChild(s);
+            });
+            window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+                'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+        }
+
+        if (onProgress) onProgress(25);
+
+        try {
+            const arrayBuffer = await file.arrayBuffer();
+            const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+
+            // 1. Tenta extrair texto (PDFs digitais têm texto embutido)
+            let fullText = '';
+            for (let i = 1; i <= Math.min(pdf.numPages, 5); i++) {
+                const page = await pdf.getPage(i);
+                const content = await page.getTextContent();
+                const pageText = content.items.map(it => it.str).join(' ');
+                fullText += pageText + '\n';
+            }
+            console.log('=== PDF TEXT ===\n', fullText);
+
+            if (onProgress) onProgress(70);
+
+            if (fullText.trim().length > 30) {
+                // PDF digital: texto extraído com sucesso
+                if (onProgress) onProgress(100);
+                return this.parseComprovante(fullText);
+            }
+
+            // 2. PDF escaneado: renderiza primeira página como imagem e roda OCR
+            if (onProgress) onProgress(50);
+            const page1   = await pdf.getPage(1);
+            const vp      = page1.getViewport({ scale: 2.0 });
+            const canvas  = document.createElement('canvas');
+            canvas.width  = vp.width;
+            canvas.height = vp.height;
+            await page1.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
+
+            const blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
+            return await this.processImage(blob, pct => {
+                if (onProgress) onProgress(60 + Math.round(pct * 0.4));
+            });
+
+        } catch (err) {
+            console.error('PDF error:', err);
+            throw new Error('Não foi possível ler o PDF. Tente tirar um print do comprovante e enviar a imagem.');
+        }
+    },
+
     async processImage(file, onProgress) {
         try {
             const worker = await Tesseract.createWorker('por', 1, {
@@ -144,6 +205,10 @@ const OCR = {
                lower.includes('banco do brasil') ||
                lower.includes('bradesco') ||
                lower.includes('nubank') ||
+               lower.includes('picpay') ||
+               lower.includes('mercado pago') ||
+               lower.includes('pagbank') ||
+               lower.includes('c6 bank') ||
                lower.includes('itau') ||
                lower.includes('itaú') ||
                lower.includes('santander') ||
@@ -151,9 +216,9 @@ const OCR = {
                lower.includes('sicoob') ||
                lower.includes('caixa econômica') ||
                lower.includes('caixa economica') ||
-               lower.includes('inter') && lower.includes('transferência') ||
                lower.includes('chave pix') ||
                lower.includes('comprovante de transferência') ||
+               lower.includes('comprovante de transferencia') ||
                lower.includes('comprovante de depósito') ||
                lower.includes('comprovante de deposito');
     },

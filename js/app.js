@@ -637,15 +637,29 @@ const App = {
         const progress    = document.getElementById('ocr-progress');
         const progressBar = document.getElementById('ocr-progress-bar');
         const progressTxt = document.getElementById('ocr-progress-text');
-        preview.src = URL.createObjectURL(file);
-        preview.classList.remove('hidden');
+
+        const isPDF = file.type === 'application/pdf' || file.name?.toLowerCase().endsWith('.pdf');
+
+        if (isPDF) {
+            // Mostra ícone de PDF em vez de preview de imagem
+            preview.classList.add('hidden');
+        } else {
+            preview.src = URL.createObjectURL(file);
+            preview.classList.remove('hidden');
+        }
+
         progress.classList.remove('hidden');
         document.getElementById('ocr-result').classList.add('hidden');
+
+        const onProgress = pct => {
+            progressBar.style.width = `${pct}%`;
+            progressTxt.textContent = `${pct}%`;
+        };
+
         try {
-            const result = await OCR.processImage(file, pct => {
-                progressBar.style.width = `${pct}%`;
-                progressTxt.textContent = `${pct}%`;
-            });
+            const result = isPDF
+                ? await OCR.processPDF(file, onProgress)
+                : await OCR.processImage(file, onProgress);
             progress.classList.add('hidden');
             this.showOCRResult(result);
         } catch (err) {
