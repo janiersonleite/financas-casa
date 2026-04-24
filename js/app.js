@@ -31,6 +31,8 @@ const App = {
         await this.loadCategories();
         await this.renderHome();
         this.refreshMonthDisplay();
+        // Aquece o cache offline em segundo plano (não bloqueia a UI)
+        if (navigator.onLine) this._warmOfflineCache();
         // Verifica se há comprovante compartilhado (PWA share target)
         if (window.__pendingShared) await this.checkSharedContent();
     },
@@ -184,6 +186,7 @@ const App = {
                 this.closeFinancaModal();
                 this.renderFinancaSwitcher();
                 await this.renderCurrentTab();
+                if (navigator.onLine) this._warmOfflineCache();
                 if (this.currentTab !== 'home') await this.renderHome();
             });
         });
@@ -569,6 +572,7 @@ const App = {
         this.recognition.onerror = e => {
             this.stopListening();
             const msgs = {
+                'network':        'Reconhecimento de voz requer conexão com a internet.',
                 'not-allowed':    'Permissão de microfone negada. Clique no 🔒 da barra de endereço e permita o microfone.',
                 'no-speech':      'Nenhuma fala detectada. Tente novamente.',
                 'network':        'Erro de rede. A API de voz requer conexão com a internet.',
@@ -585,6 +589,10 @@ const App = {
     },
 
     startListening() {
+        if (!navigator.onLine) {
+            this.showToast('🎤 Reconhecimento de voz requer conexão com a internet.', true);
+            return;
+        }
         this.isListening = true;
         this.recognition.start();
         const btn = document.getElementById('voice-btn');
@@ -1582,6 +1590,12 @@ const App = {
         document.querySelectorAll('.month-display').forEach(el => {
             el.textContent = this.formatMonth(this.currentMonth);
         });
+    },
+
+    // ─── Offline Cache Warm-up ────────────────────────────────────────────────
+    async _warmOfflineCache() {
+        if (!Storage.isCloud) return;
+        try { await Storage.warmCache(); } catch (e) { console.warn('Cache warm-up failed:', e.message); }
     },
 
     // ─── Offline Sync ─────────────────────────────────────────────────────────
