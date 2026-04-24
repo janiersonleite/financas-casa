@@ -129,7 +129,15 @@
 <div id="tab-home" class="tab-page pb-24 overflow-y-auto">
 
     <!-- Header / Balance -->
-    <div class="bg-gradient-to-br from-blue-600 to-blue-800 text-white px-4 pt-5 pb-6 rounded-b-3xl shadow-lg">
+    <div class="bg-gradient-to-br from-blue-600 to-blue-800 text-white px-4 pt-4 pb-6 rounded-b-3xl shadow-lg">
+        <!-- User greeting -->
+        <div id="user-greeting" class="flex items-center gap-2 mb-3">
+            <div id="user-avatar" class="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-sm font-bold flex-shrink-0">?</div>
+            <div class="flex-1 min-w-0">
+                <p class="text-xs text-blue-200 leading-none mb-0.5">Olá,</p>
+                <p id="user-name" class="text-sm font-semibold leading-none truncate">Carregando...</p>
+            </div>
+        </div>
         <!-- Finance Switcher -->
         <div class="flex items-center justify-between mb-3">
             <button id="financa-switcher"
@@ -865,7 +873,7 @@
 </div><!-- /#main-app -->
 
 <script src="js/config.js?v=20260423j"></script>
-<script src="js/auth.js?v=20260423j"></script>
+<script src="js/auth.js?v=20260424n"></script>
 <script src="js/storage.js?v=20260424l"></script>
 <script src="js/nlp.js?v=20260424b"></script>
 <script src="js/ocr.js?v=20260424h"></script>
