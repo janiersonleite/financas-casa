@@ -843,6 +843,13 @@
     </div>
 </div>
 
+<!-- Offline Bar -->
+<div id="offline-bar" class="hidden fixed top-0 left-0 right-0 z-50 bg-gray-900/95 backdrop-blur-sm text-white text-xs py-2 px-3 flex items-center justify-center gap-2">
+    <span>📵</span>
+    <span id="offline-bar-text">Sem conexão — modo offline</span>
+    <button id="offline-sync-btn" class="hidden bg-white/20 hover:bg-white/30 rounded-full px-2.5 py-0.5 font-semibold transition-colors">↑ Sincronizar</button>
+</div>
+
 <!-- Toast -->
 <div id="toast" class="hidden fixed bottom-24 left-1/2 -translate-x-1/2 px-4 py-2 rounded-full text-white text-sm font-medium shadow-lg z-50 bg-green-500 transition-all opacity-0"></div>
 
@@ -850,10 +857,10 @@
 
 <script src="js/config.js?v=20260423j"></script>
 <script src="js/auth.js?v=20260423j"></script>
-<script src="js/storage.js?v=20260424i"></script>
+<script src="js/storage.js?v=20260424j"></script>
 <script src="js/nlp.js?v=20260424b"></script>
 <script src="js/ocr.js?v=20260424h"></script>
-<script src="js/app.js?v=20260424e"></script>
+<script src="js/app.js?v=20260424j"></script>
 
 <script>
 // ── Service Worker + PWA ──────────────────────────────────────────────────────
