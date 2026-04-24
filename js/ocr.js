@@ -20,7 +20,9 @@ const OCR = {
 
     parseComprovante(text) {
         const lower = text.toLowerCase();
-        const isReceipt = this.isNotaFiscal(lower);
+        // Comprovante bancário tem prioridade sobre nota fiscal
+        const isBankReceipt = this.isBankReceipt(lower);
+        const isReceipt     = !isBankReceipt && this.isNotaFiscal(lower);
 
         const result = {
             value:       null,
@@ -34,7 +36,6 @@ const OCR = {
 
         // ── Valor ────────────────────────────────────────────────────────────
         if (isReceipt) {
-            // Nota fiscal: prioriza "Total a Pagar" ou "Total"
             result.value = this.extractReceiptTotal(text);
         }
         if (!result.value) {
@@ -48,8 +49,11 @@ const OCR = {
 
         // ── Tipo (entrada / saída) ────────────────────────────────────────────
         if (!isReceipt) {
-            const incomeSignals = ['recebid', 'pix recebido', 'transferência recebida',
-                'transferencia recebida', 'crédito', 'credito', 'você recebeu', 'remetente'];
+            const incomeSignals = [
+                'recebid', 'pix recebido', 'transferência recebida', 'transferencia recebida',
+                'crédito', 'credito', 'você recebeu', 'remetente', 'depósito recebido',
+                'deposito recebido', 'ted recebido'
+            ];
             for (const s of incomeSignals) {
                 if (lower.includes(s)) { result.type = 'entrada'; result.confidence++; break; }
             }
@@ -60,14 +64,34 @@ const OCR = {
             result.description = this.extractStoreName(text);
             result.category    = this.guessReceiptCategory(lower);
         } else {
-            const pixPatterns = [
-                /(?:para|destinatário|destinatario)[:\s]+([^\n\r]{3,40})/i,
-                /(?:\bde\b|remetente|origem)[:\s]+([^\n\r]{3,40})/i,
-                /(?:\bnome\b)[:\s]+([^\n\r]{3,40})/i
+            // Padrões para comprovantes bancários (PIX, TED, DOC, depósito)
+            const bankPatterns = [
+                // Campos explícitos de nome
+                /(?:para|destinatário|destinatario|favorecido|beneficiário|beneficiario)\s*:?\s*([^\n\r]{3,50})/i,
+                /(?:remetente|origem|pagador|depositante)\s*:?\s*([^\n\r]{3,50})/i,
+                /(?:\bnome\b|titular)\s*:?\s*([^\n\r]{3,50})/i,
+                // Histórico / descrição (muito comum em BB, Bradesco)
+                /(?:histórico|historico|descrição|descricao|finalidade|motivo|memo)\s*:?\s*([^\n\r]{3,60})/i,
+                // "Depósito [de] Nome" ou "Depósito Nome" em linha
+                /depósito\s+(?:de\s+)?([A-ZÀ-Úa-zà-ú][^\n\r]{2,40})/i,
+                /deposito\s+(?:de\s+)?([A-ZÀ-Úa-zà-ú][^\n\r]{2,40})/i,
+                // Transferência para Nome
+                /transferência\s+(?:para\s+)?([A-ZÀ-Úa-zà-ú][^\n\r]{2,40})/i,
+                /transferencia\s+(?:para\s+)?([A-ZÀ-Úa-zà-ú][^\n\r]{2,40})/i,
             ];
-            for (const p of pixPatterns) {
+            for (const p of bankPatterns) {
                 const m = text.match(p);
-                if (m) { result.description = m[1].trim(); result.confidence++; break; }
+                if (m) {
+                    const candidate = m[1].trim()
+                        // Remove CPF/CNPJ mascarados no mesmo campo
+                        .replace(/\s*\*{3}[\d.*]+\s*/, '')
+                        .trim();
+                    if (candidate.length >= 3) {
+                        result.description = candidate;
+                        result.confidence++;
+                        break;
+                    }
+                }
             }
             if (!result.description) {
                 result.description = result.type === 'entrada' ? 'PIX Recebido' : 'PIX Enviado';
@@ -109,6 +133,27 @@ const OCR = {
             return `${y}-${mo.padStart(2,'0')}-${d.padStart(2,'0')}`;
         }
         return null;
+    },
+
+    // Detecta comprovante bancário (tem prioridade sobre nota fiscal)
+    isBankReceipt(lower) {
+        return /\b(pix|ted\b|doc\b)\b/.test(lower) ||
+               lower.includes('comprovante bb') ||
+               lower.includes('banco do brasil') ||
+               lower.includes('bradesco') ||
+               lower.includes('nubank') ||
+               lower.includes('itau') ||
+               lower.includes('itaú') ||
+               lower.includes('santander') ||
+               lower.includes('sicredi') ||
+               lower.includes('sicoob') ||
+               lower.includes('caixa econômica') ||
+               lower.includes('caixa economica') ||
+               lower.includes('inter') && lower.includes('transferência') ||
+               lower.includes('chave pix') ||
+               lower.includes('comprovante de transferência') ||
+               lower.includes('comprovante de depósito') ||
+               lower.includes('comprovante de deposito');
     },
 
     isNotaFiscal(lower) {
@@ -181,7 +226,7 @@ const OCR = {
         const allCapsMatch = text.match(/^([A-ZÁÉÍÓÚÀÂÊÔÃÕÇ]{3,}(?:\s+[A-ZÁÉÍÓÚÀÂÊÔÃÕÇ]{2,}){0,5})/m);
         if (allCapsMatch) {
             const candidate = allCapsMatch[1].trim();
-            const isJunk = /^(FABRICANTE|PRODUTO|TOTAL|QTDE|DESCRI|CONTATO|CNPJ|EMAIL|CIDADE|CLIENTE|VENDEDOR|PAGO|OBS|COD)$/i.test(candidate);
+            const isJunk = /^(COMPROVANTE|RECIBO|BANCO|FABRICANTE|PRODUTO|TOTAL|QTDE|DESCRI|CONTATO|CNPJ|EMAIL|CIDADE|CLIENTE|VENDEDOR|PAGO|OBS|COD|PAGAMENTO|TRANSFERENCIA|TRANSFERÊNCIA)$/i.test(candidate);
             if (!isJunk && candidate.length > 3) {
                 return candidate.split(' ')
                     .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
