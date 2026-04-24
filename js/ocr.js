@@ -64,27 +64,29 @@ const OCR = {
             result.description = this.extractStoreName(text);
             result.category    = this.guessReceiptCategory(lower);
         } else {
-            // Padrões para comprovantes bancários (PIX, TED, DOC, depósito)
-            const bankPatterns = [
-                // Campos explícitos de nome
-                /(?:para|destinatário|destinatario|favorecido|beneficiário|beneficiario)\s*:?\s*([^\n\r]{3,50})/i,
+            // Padrões separados por tipo:
+            // saída → queremos o RECEBEDOR (para / favorecido / beneficiário)
+            // entrada → queremos o REMETENTE (de / pagador / depositante)
+            const recipientPatterns = [
+                /(?:para|destinatário|destinatario|favorecido|beneficiário|beneficiario|recebedor)\s*:?\s*([^\n\r]{3,50})/i,
+                /(?:histórico|historico|finalidade|motivo|memo)\s*:?\s*([^\n\r]{3,60})/i,
+                /transferência\s+para\s+([A-ZÀ-Úa-zà-ú][^\n\r]{2,40})/i,
+                /transferencia\s+para\s+([A-ZÀ-Úa-zà-ú][^\n\r]{2,40})/i,
+            ];
+            const senderPatterns = [
                 /(?:remetente|origem|pagador|depositante)\s*:?\s*([^\n\r]{3,50})/i,
-                /(?:\bnome\b|titular)\s*:?\s*([^\n\r]{3,50})/i,
-                // Histórico / descrição (muito comum em BB, Bradesco)
-                /(?:histórico|historico|descrição|descricao|finalidade|motivo|memo)\s*:?\s*([^\n\r]{3,60})/i,
-                // "Depósito [de] Nome" ou "Depósito Nome" em linha
+                /(?:histórico|historico|finalidade|motivo|memo)\s*:?\s*([^\n\r]{3,60})/i,
                 /depósito\s+(?:de\s+)?([A-ZÀ-Úa-zà-ú][^\n\r]{2,40})/i,
                 /deposito\s+(?:de\s+)?([A-ZÀ-Úa-zà-ú][^\n\r]{2,40})/i,
-                // Transferência para Nome
-                /transferência\s+(?:para\s+)?([A-ZÀ-Úa-zà-ú][^\n\r]{2,40})/i,
-                /transferencia\s+(?:para\s+)?([A-ZÀ-Úa-zà-ú][^\n\r]{2,40})/i,
             ];
+
+            const bankPatterns = result.type === 'entrada' ? senderPatterns : recipientPatterns;
+
             for (const p of bankPatterns) {
                 const m = text.match(p);
                 if (m) {
                     const candidate = m[1].trim()
-                        // Remove CPF/CNPJ mascarados no mesmo campo
-                        .replace(/\s*\*{3}[\d.*]+\s*/, '')
+                        .replace(/\s*\*{3}[\d.*]+\s*/, '') // Remove CPF/CNPJ mascarados
                         .trim();
                     if (candidate.length >= 3) {
                         result.description = candidate;
