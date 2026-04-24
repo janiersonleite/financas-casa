@@ -186,9 +186,12 @@ const NLP = {
         for (const [cat, keywords] of Object.entries(cats)) {
             if (cat === 'Outros') continue;
             for (const kw of keywords) {
-                const kwNorm = kw.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-                // whole-word match to avoid "doc" matching "doce", etc.
-                const re = new RegExp(`(?<![a-z])${kwNorm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![a-z])`, 'i');
+                const kwNorm = kw.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                // short keywords (≤3 chars): exact word — prevents "gas"→"gastei", "doc"→"doce"
+                // longer keywords: prefix match — allows "doce"→"doces", "uber"→"ubereats"
+                const re = kwNorm.length <= 3
+                    ? new RegExp(`\\b${kwNorm}\\b`, 'i')
+                    : new RegExp(`\\b${kwNorm}`, 'i');
                 if (re.test(norm)) return cat;
             }
         }
