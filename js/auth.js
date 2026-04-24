@@ -58,6 +58,20 @@ const Auth = {
         document.getElementById('main-app').classList.remove('hidden');
         const logoutBtn = document.getElementById('logout-btn');
         if (logoutBtn) logoutBtn.classList.toggle('hidden', !IS_SUPABASE_CONFIGURED);
+        this._renderUserGreeting();
+    },
+
+    _renderUserGreeting() {
+        const email    = this.user?.email || '';
+        const meta     = this.user?.user_metadata || {};
+        const fullName = meta.full_name || meta.name || '';
+        const display  = fullName || (email ? email.split('@')[0] : 'Usuário');
+        const initial  = display.charAt(0).toUpperCase();
+
+        const nameEl   = document.getElementById('user-name');
+        const avatarEl = document.getElementById('user-avatar');
+        if (nameEl)   nameEl.textContent   = display;
+        if (avatarEl) avatarEl.textContent = initial;
     },
 
     showAuthScreen() {
