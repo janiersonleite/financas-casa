@@ -563,8 +563,19 @@ const App = {
             this.stopListening();
             this.processQuickInput();
         };
-        this.recognition.onerror = () => this.stopListening();
-        this.recognition.onend   = () => this.stopListening();
+        this.recognition.onerror = e => {
+            this.stopListening();
+            const msgs = {
+                'not-allowed':    'Permissão de microfone negada. Clique no 🔒 da barra de endereço e permita o microfone.',
+                'no-speech':      'Nenhuma fala detectada. Tente novamente.',
+                'network':        'Erro de rede. A API de voz requer conexão com a internet.',
+                'audio-capture':  'Microfone não encontrado ou ocupado por outro app.',
+                'service-not-allowed': 'Serviço de voz bloqueado. Use HTTPS ou localhost.'
+            };
+            const msg = msgs[e.error] || `Erro de voz: ${e.error}`;
+            this.showToast('🎤 ' + msg, true);
+        };
+        this.recognition.onend = () => this.stopListening();
         btn.addEventListener('click', () => {
             if (this.isListening) this.stopListening(); else this.startListening();
         });

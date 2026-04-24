@@ -122,12 +122,19 @@ const NLP = {
             desc = desc.replace(new RegExp(`\\b${v}\\b`, 'gi'), '');
         }
 
-        // 5. Remove valores monetários
+        // 5. Remove referências de data completas antes de remover números
+        desc = desc.replace(/\b(no\s+dia|dia)\s+\d{1,2}(\s+de\s+\w+)?(\s+de\s+\d{4})?\b/gi, '');
+        desc = desc.replace(/\b(hoje|ontem|anteontem|semana\s+passada)\b/gi, '');
+        desc = desc.replace(/\b\d{1,2}[\/\-]\d{1,2}([\/\-]\d{2,4})?\b/g, '');
+        const weekdays = /\b(segunda|terça|terca|quarta|quinta|sexta|sábado|sabado|domingo)(\s*-?\s*feira)?\b/gi;
+        desc = desc.replace(weekdays, '');
+
+        // 6. Remove valores monetários
         desc = desc.replace(/r\$\s*\d+([.,]\d{1,2})?/gi, '');
         desc = desc.replace(/\d+([.,]\d{1,2})?\s*(reais|real|conto|contos|reis)/gi, '');
         desc = desc.replace(/\b\d+([.,]\d{1,2})?\b/g, '');
 
-        // 6. Remove conjunções e relativos sozinhos
+        // 7. Remove conjunções e relativos sozinhos
         desc = desc.replace(/\b(que|o que|isso|aquilo|então|aí|só)\b/gi, '');
 
         // 7. Remove preposições/artigos no início (múltiplas passagens)
@@ -175,10 +182,14 @@ const NLP = {
 
     extractCategory(text) {
         const cats = this.dynamicCategories || this.categories;
+        const norm = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
         for (const [cat, keywords] of Object.entries(cats)) {
             if (cat === 'Outros') continue;
             for (const kw of keywords) {
-                if (text.includes(kw)) return cat;
+                const kwNorm = kw.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                // whole-word match to avoid "doc" matching "doce", etc.
+                const re = new RegExp(`(?<![a-z])${kwNorm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![a-z])`, 'i');
+                if (re.test(norm)) return cat;
             }
         }
         return 'Outros';
