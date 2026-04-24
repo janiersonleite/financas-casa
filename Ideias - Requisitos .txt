@@ -1,0 +1,255 @@
+
+------------------------------------ Programa Contas de Casa
+Quero criar uma aplicação web para o usuário inserir inserir os gastos diários.
+Quero que essa aplicação sejá o mais simples possível para o usuário. 
+Darei alguns cenários e você dará soluções de como resolver.
+
+- Cenário 01 (compras que geram notas fiscais)
+
+- Cenário 02 (Compras que não geram notas fiscais)
+⚡ REGISTRO RÁPIDO (modo WhatsApp)
+Campo único:
+“Gastei 50 no mercado”
+Sistema interpreta:
+Tipo: Saída
+Valor: 50
+Categoria: Alimentação
+
+
+um botão de áudio.
+
+Requisito: O usuário digita ou fala: "20 reais em lanche". O sistema usa uma IA simples para identificar: Valor (20), Categoria (Alimentação).
+
+
+
+Use botões de "Categorias Rápidas" na tela inicial para gastos recorrentes.
+
+
+- Cenário 03 (PIX para outras pessoas)
+
+Solução: Leitura de Comprovante (OCR).
+
+Requisito: O usuário tira um print do comprovante do banco e faz o upload. O sistema utiliza OCR (Reconhecimento Óptico de Caracteres) para identificar o valor, a data e o nome do destinatário.
+
+Dica de Simplicidade: Adicione uma função "Colar do Clipboard". Se o usuário copiou o texto do comprovante no app do banco, ele apenas cola na sua aplicação e ela processa tudo.
+
+- Cenário 04 (Recebimento de pix de outras pessoas)
+Solução: Fluxo Invertido com Cor de Destaque.
+
+Requisito: Mesma tecnologia de OCR do Cenário 03, mas o sistema deve identificar palavras-chave como "Transferência Recebida" ou "PIX Recebido" para registrar como saldo positivo (cor verde).
+
+- Cenários 05 (Recebimento de dinheiro em contas correntes ou contas digitais)
+
+- Cenários 06 (Recebimento de dinheiro)
+
+
+⚡ REGISTRO RÁPIDO (modo WhatsApp)
+Campo único:
+“Gastei 50 no mercado”
+Sistema interpreta:
+Tipo: Saída
+Valor: 50
+Categoria: Alimentação
+
+
+um botão de áudio.
+
+Requisito: O usuário digita ou fala: "20 reais em lanche". O sistema usa uma IA simples para identificar: Valor (20), Categoria (Alimentação).
+
+
+
+Use botões de "Categorias Rápidas" na tela inicial para gastos recorrentes.
+
+
+
+
+---------------------------------
+👤 1. USUÁRIO (CONTA)
+Funcionalidades
+Cadastro com:
+Email (único)
+Senha
+Login com:
+Email + senha
+Recuperação de senha
+Manter sessão logada
+Regras
+Um usuário pode ter várias finanças (projetos)
+Um usuário pode participar de finanças de outras pessoas
+📁 2. FINANÇAS (PROJETOS)
+Conceito
+
+Uma “Finança” é um ambiente separado de controle financeiro
+
+Exemplos:
+
+💑 Família
+👤 Pessoal
+🏢 Negócio
+🧩 Tipos de Finança
+1. Individual
+Apenas 1 usuário (dono)
+Não pode ser compartilhada (ou opcionalmente pode)
+2. Compartilhada (ex: familiar)
+Pode ter vários usuários
+Todos veem os mesmos dados
+👥 3. COMPARTILHAMENTO
+Funcionalidades
+Convidar usuário por email
+Aceitar convite
+Remover usuário
+🔑 Permissões (simples, mas poderoso)
+Tipos de acesso:
+Administrador
+Pode:
+Adicionar/remover usuários
+Editar tudo
+Excluir finança
+Editor
+Pode:
+Adicionar/editar movimentações
+Visualizador
+Apenas leitura
+
+👉 Para MVP, você pode começar só com:
+
+Admin
+Membro
+🔄 FLUXO DO USUÁRIO
+Primeiro acesso
+Usuário cria conta
+Sistema sugere:
+Criar:
+Finança pessoal
+Finança familiar
+Criando uma finança
+
+Campos:
+
+Nome (ex: “Casa”, “Pessoal”)
+Tipo:
+Individual
+Compartilhada
+Compartilhando
+Usuário clica em “Compartilhar”
+Digita email
+Define permissão
+Sistema envia convite
+🧠 EXPERIÊNCIA SIMPLES (muito importante)
+Troca rápida de finanças
+
+No topo da tela:
+
+📂 “Pessoal ▼”
+
+Ao clicar:
+
+Lista de finanças do usuário
+
+🔐 REGRAS IMPORTANTES
+Usuário só acessa finanças que participa
+Toda movimentação pertence a uma finança
+Toda ação deve validar permissão
+
+
+💡 IDEIA DE DIFERENCIAL
+👨‍👩‍👧 Modo casal/família
+Mostrar:
+Quem gastou o quê
+Total por pessoa
+
+
+
+
+
+-------------------------------------------------------------------------------------- 50 ideias
+
+---
+
+# ⚡ 1. VELOCIDADE E FACILIDADE (quanto menos esforço, melhor)
+
+- Campo único inteligente (“gastei 30 no lanche”)
+- Sugestão automática de categoria
+- Botões rápidos de valores comuns (10, 20, 50)
+- Cadastro offline (funciona sem internet)
+- Sincronização automática depois
+- Auto completar descrição
+- Registro por localização (detecta estabelecimento)
+
+---
+
+# 🧠 2. INTELIGÊNCIA E AUTOMAÇÃO
+
+- Classificação automática de gastos
+- Identificação de padrões (“todo sábado você gasta com lazer”)
+- Previsão de saldo no fim do mês
+- Alerta de gasto acima do normal
+- Sugestão de economia (“você pode economizar R$ 200 aqui”)
+- Detecção de gastos duplicados
+- Identificação de assinaturas recorrentes
+- Agrupamento automático de despesas similares
+- Análise de comportamento financeiro
+
+---
+
+# 💰 3. CONTROLE FINANCEIRO REAL
+
+- Orçamento por categoria
+- Meta de economia mensal
+- Controle de dívidas
+- Controle de parcelamentos
+- Visão consolidada de todas as contas
+- Comparação mês a mês
+
+---
+
+# 📊 5. VISUAL E RELATÓRIOS
+
+- Gráfico simples de gastos por categoria
+- Comparação com mês anterior
+- Exportação para Excel/PDF
+- Dashboard minimalista (tipo “resumo do dia”)
+
+---
+
+# ❤️ 6. ENGAJAMENTO E COMPORTAMENTO
+
+- Feedback positivo (“você economizou mais essa semana”)
+- Desafios de economia (“7 dias sem gastar com delivery”)
+- Insights simples (“seu maior gasto é alimentação”)
+
+---
+
+# 🧩 EXTRA (IDEIAS DIFERENCIAIS)
+
+Se quiser sair do comum:
+
+* Integração com WhatsApp (registrar gastos por mensagem)
+
+---
+
+# 🎯 O SEGREDO (isso aqui vale ouro)
+
+Se você tiver que escolher só algumas ideias para começar, escolha:
+
+👉 Registro rápido (1 clique ou texto)
+👉 Dashboard simples
+👉 Sugestões automáticas
+👉 Compartilhamento familiar
+👉 Insights básicos
+
+
+---
+
+# 💡 VISÃO FINAL
+
+Seu app pode ser:
+
+✅ Um “tradutor da vida financeira” do usuário
+
+Quanto mais ele entender sem esforço:
+👉 mais ele usa
+👉 mais ele confia
+👉 mais valor você gera
+
+

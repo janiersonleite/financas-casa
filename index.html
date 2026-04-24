@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>💰 Minhas Finanças</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.5.28/dist/jspdf.plugin.autotable.min.js"></script>
+    <style>
+        * { -webkit-tap-highlight-color: transparent; }
+        body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; overscroll-behavior: none; }
+        .tab-active { color: #2563eb !important; }
+        .tab-active svg { stroke: #2563eb !important; }
+        .type-active.saida-btn  { background: #ef4444 !important; color: white !important; }
+        .type-active.entrada-btn { background: #22c55e !important; color: white !important; }
+        @keyframes shake {
+            0%,100%{transform:translateX(0)} 20%,60%{transform:translateX(-6px)} 40%,80%{transform:translateX(6px)}
+        }
+        .shake { animation: shake 0.35s ease; }
+        .listening { animation: pulse 1s infinite; }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 9999px; }
+        .tab-page { min-height: calc(100vh - 120px); }
+        #modal-overlay { backdrop-filter: blur(4px); }
+    </style>
+</head>
+<body class="bg-gray-50 max-w-md mx-auto min-h-screen relative">
+
+<!-- ═══════════════════════ AUTH SCREEN ═════════════════════════ -->
+<div id="auth-screen" class="hidden fixed inset-0 bg-gradient-to-br from-blue-600 to-blue-900 z-50 flex flex-col items-center justify-center px-6">
+    <div class="text-center mb-8">
+        <div class="text-5xl mb-3">💰</div>
+        <h1 class="text-2xl font-bold text-white">Minhas Finanças</h1>
+        <p class="text-blue-200 text-sm mt-1">Controle seus gastos com simplicidade</p>
+    </div>
+
+    <div class="bg-white rounded-3xl w-full max-w-sm shadow-2xl overflow-hidden">
+        <!-- Tabs -->
+        <div class="flex border-b border-gray-100">
+            <button id="tab-auth-login"
+                class="flex-1 py-3 text-sm font-semibold border-b-2 border-blue-500 text-blue-600 transition-colors">
+                Entrar
+            </button>
+            <button id="tab-auth-register"
+                class="flex-1 py-3 text-sm font-semibold border-b-2 border-transparent text-gray-400 transition-colors">
+                Criar conta
+            </button>
+        </div>
+
+        <div class="p-6 space-y-3">
+            <!-- Error -->
+            <div id="auth-error" class="hidden bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-2"></div>
+            <!-- Success -->
+            <div id="auth-success" class="hidden bg-green-50 border border-green-200 text-green-700 text-sm rounded-xl px-4 py-2">
+                ✅ Conta criada! Confirme o e-mail antes de entrar.
+            </div>
+
+            <!-- Login section -->
+            <div id="auth-login-section">
+                <div class="space-y-3">
+                    <input id="auth-email" type="email" placeholder="E-mail"
+                        class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-400">
+                    <input id="auth-password" type="password" placeholder="Senha"
+                        class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-400">
+                    <button id="auth-login-btn" data-label="Entrar"
+                        class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 rounded-xl text-sm transition-colors">
+                        Entrar
+                    </button>
+                    <button id="auth-reset-btn"
+                        class="w-full text-xs text-gray-400 hover:text-blue-500 py-1 transition-colors">
+                        Esqueci minha senha
+                    </button>
+                </div>
+            </div>
+
+            <!-- Register section -->
+            <div id="auth-register-section" class="hidden space-y-3">
+                <input id="reg-email" type="email" placeholder="E-mail"
+                    class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-400">
+                <input id="reg-password" type="password" placeholder="Senha (mín. 6 caracteres)"
+                    class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-400">
+                <button id="auth-register-btn" data-label="Criar conta"
+                    class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 rounded-xl text-sm transition-colors">
+                    Criar conta
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <p class="text-blue-300 text-xs mt-6 text-center">
+        Seus dados ficam seguros na nuvem com Supabase
+    </p>
+</div>
+
+<!-- ═══════════════════════ MAIN APP ═════════════════════════════ -->
+<div id="main-app" class="hidden">
+
+<!-- Invite banner (shown when user has pending invites) -->
+<div id="invite-banner" class="hidden fixed top-0 left-0 right-0 z-40 max-w-md mx-auto">
+    <div class="bg-blue-600 text-white px-4 py-3 flex items-center gap-3 shadow-lg">
+        <span class="text-lg flex-shrink-0">📨</span>
+        <div class="flex-1 min-w-0">
+            <p id="invite-banner-text" class="text-sm font-semibold leading-tight"></p>
+            <p class="text-xs text-blue-200 mt-0.5">Toque para ver e aceitar</p>
+        </div>
+        <button id="invite-banner-btn" class="bg-white text-blue-600 text-xs font-bold px-3 py-1.5 rounded-lg flex-shrink-0 hover:bg-blue-50">Ver</button>
+        <button id="invite-banner-dismiss" class="text-blue-200 hover:text-white text-lg leading-none flex-shrink-0">✕</button>
+    </div>
+</div>
+
+<!-- ═══════════════════════ TAB: HOME ════════════════════════════ -->
+<div id="tab-home" class="tab-page pb-24 overflow-y-auto">
+
+    <!-- Header / Balance -->
+    <div class="bg-gradient-to-br from-blue-600 to-blue-800 text-white px-4 pt-5 pb-6 rounded-b-3xl shadow-lg">
+        <!-- Finance Switcher -->
+        <div class="flex items-center justify-between mb-3">
+            <button id="financa-switcher"
+                class="flex items-center gap-2 bg-white/20 hover:bg-white/30 rounded-full px-3 py-1.5 transition-colors max-w-[70%]">
+                <span id="financa-switcher-emoji" class="text-base">💰</span>
+                <span id="financa-switcher-name" class="text-sm font-semibold truncate">Carregando...</span>
+                <span class="text-xs opacity-60 flex-shrink-0">▼</span>
+            </button>
+            <button id="financa-share-btn"
+                class="w-8 h-8 flex items-center justify-center rounded-full bg-white/20 hover:bg-white/30 text-base"
+                title="Compartilhar finança">👥</button>
+        </div>
+        <!-- Month nav + logout -->
+        <div class="flex items-center justify-between mb-4">
+            <button data-month-prev class="w-8 h-8 flex items-center justify-center rounded-full bg-white/20 hover:bg-white/30 text-lg">‹</button>
+            <span class="month-display text-sm font-medium opacity-90"></span>
+            <div class="flex items-center gap-1">
+                <button data-month-next class="w-8 h-8 flex items-center justify-center rounded-full bg-white/20 hover:bg-white/30 text-lg">›</button>
+                <button id="logout-btn" class="hidden w-8 h-8 flex items-center justify-center rounded-full bg-white/20 hover:bg-red-400/70 text-sm" title="Sair">🚪</button>
+            </div>
+        </div>
+
+        <div class="text-center mb-4">
+            <p class="text-blue-200 text-sm mb-1">Saldo do mês</p>
+            <div id="balance" class="text-3xl font-bold text-white">R$ 0,00</div>
+        </div>
+
+        <div class="flex gap-3">
+            <div class="flex-1 bg-white/10 rounded-2xl p-3 text-center">
+                <div class="text-green-300 text-xs mb-1">↑ Entradas</div>
+                <div id="total-income" class="text-white font-bold">R$ 0,00</div>
+            </div>
+            <div class="flex-1 bg-white/10 rounded-2xl p-3 text-center">
+                <div class="text-red-300 text-xs mb-1">↓ Saídas</div>
+                <div id="total-expense" class="text-white font-bold">R$ 0,00</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="px-4 pt-4 space-y-4">
+
+        <!-- Quick Input -->
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-3">
+            <div class="flex gap-2">
+                <input id="quick-input"
+                    type="text"
+                    class="flex-1 bg-gray-50 border-0 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                    placeholder='Ex: "Gastei 50 no mercado" ou "Recebi 200 de freela"'
+                    autocomplete="off">
+                <button id="voice-btn"
+                    class="w-12 h-12 bg-gray-100 hover:bg-gray-200 rounded-xl flex items-center justify-center text-xl transition-colors"
+                    title="Falar (voz)">🎤</button>
+                <button id="quick-send"
+                    class="w-12 h-12 bg-blue-500 hover:bg-blue-600 rounded-xl flex items-center justify-center text-white text-xl transition-colors"
+                    title="Enviar">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+                    </svg>
+                </button>
+            </div>
+            <p class="text-xs text-gray-400 mt-2 px-1">💡 Fale ou escreva naturalmente. A IA interpreta automaticamente.</p>
+        </div>
+
+        <!-- Quick Category Buttons -->
+        <div>
+            <p class="text-xs font-semibold text-gray-400 uppercase mb-2 px-1">Acesso Rápido</p>
+            <div id="quick-cats-grid" class="grid grid-cols-4 gap-2">
+                <!-- populated by App.renderQuickButtons() -->
+            </div>
+        </div>
+
+        <!-- Recent Transactions -->
+        <div>
+            <p class="text-xs font-semibold text-gray-400 uppercase mb-2 px-1">Lançamentos do mês</p>
+            <div id="home-transactions"></div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════════ TAB: HISTORY ════════════════════════ -->
+<div id="tab-history" class="tab-page hidden pb-24 overflow-y-auto">
+    <div class="bg-white px-4 pt-8 pb-4 border-b border-gray-100 sticky top-0 z-10">
+        <div class="flex items-center justify-between mb-3">
+            <button data-month-prev class="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100">‹</button>
+            <span class="month-display text-sm font-semibold text-gray-700"></span>
+            <button data-month-next class="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100">›</button>
+        </div>
+        <input id="history-search"
+            type="text"
+            class="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+            placeholder="Buscar por descrição ou categoria...">
+    </div>
+    <div class="px-4 pt-3">
+        <div id="history-transactions"></div>
+    </div>
+</div>
+
+<!-- ═══════════════════════ TAB: SUMMARY ════════════════════════ -->
+<div id="tab-summary" class="tab-page hidden pb-24 overflow-y-auto">
+    <div class="bg-white px-4 pt-8 pb-4 border-b border-gray-100">
+        <div class="flex items-center justify-between">
+            <button data-month-prev class="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100">‹</button>
+            <span class="month-display text-sm font-semibold text-gray-700"></span>
+            <button data-month-next class="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100">›</button>
+        </div>
+    </div>
+
+    <div class="px-4 pt-4 space-y-4">
+        <!-- Cards com comparativo -->
+        <div class="grid grid-cols-3 gap-3">
+            <div class="bg-green-50 rounded-2xl p-3 text-center border border-green-100">
+                <div class="text-xs text-green-600 mb-1">Entradas</div>
+                <div id="sum-income" class="text-sm font-bold text-green-700">R$ 0</div>
+                <div id="sum-income-cmp" class="text-xs mt-0.5 text-gray-400"></div>
+            </div>
+            <div class="bg-red-50 rounded-2xl p-3 text-center border border-red-100">
+                <div class="text-xs text-red-600 mb-1">Saídas</div>
+                <div id="sum-expense" class="text-sm font-bold text-red-700">R$ 0</div>
+                <div id="sum-expense-cmp" class="text-xs mt-0.5 text-gray-400"></div>
+            </div>
+            <div class="bg-blue-50 rounded-2xl p-3 text-center border border-blue-100">
+                <div class="text-xs text-blue-600 mb-1">Saldo</div>
+                <div id="sum-balance" class="text-sm font-bold text-blue-700">R$ 0</div>
+                <div id="sum-balance-cmp" class="text-xs mt-0.5 text-gray-400"></div>
+            </div>
+        </div>
+
+        <!-- Donut: gastos por categoria -->
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+            <p class="text-sm font-semibold text-gray-700 mb-3">Gastos por categoria</p>
+            <div id="expense-chart-wrap" class="max-w-xs mx-auto">
+                <canvas id="expense-chart"></canvas>
+            </div>
+        </div>
+
+        <!-- Bar: evolução 6 meses -->
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+            <p class="text-sm font-semibold text-gray-700 mb-3">Evolução dos últimos 6 meses</p>
+            <canvas id="trend-chart" height="130"></canvas>
+        </div>
+
+        <!-- Gastos por pessoa -->
+        <div id="person-breakdown-wrap" class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 hidden">
+            <p class="text-sm font-semibold text-gray-700 mb-3">👥 Gastos por pessoa</p>
+            <div id="person-breakdown"></div>
+        </div>
+
+        <!-- Category breakdown -->
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+            <p class="text-sm font-semibold text-gray-700 mb-3">Detalhamento por categoria</p>
+            <div id="category-breakdown"></div>
+        </div>
+
+        <!-- Exportação / Importação -->
+        <div class="space-y-2 pb-2">
+            <p class="text-xs font-semibold text-gray-400 uppercase px-1">Exportar</p>
+            <div class="flex gap-3">
+                <button id="export-excel-btn"
+                    class="flex-1 flex items-center justify-center gap-2 py-3 bg-green-600 text-white rounded-2xl text-sm font-semibold hover:bg-green-700 transition-colors shadow-sm">
+                    📊 Excel
+                </button>
+                <button id="export-pdf-btn"
+                    class="flex-1 flex items-center justify-center gap-2 py-3 bg-red-500 text-white rounded-2xl text-sm font-semibold hover:bg-red-600 transition-colors shadow-sm">
+                    📄 PDF
+                </button>
+            </div>
+            <p class="text-xs font-semibold text-gray-400 uppercase px-1 pt-1">Importar</p>
+            <button id="import-excel-btn"
+                class="w-full flex items-center justify-center gap-2 py-3 bg-blue-500 text-white rounded-2xl text-sm font-semibold hover:bg-blue-600 transition-colors shadow-sm">
+                📥 Importar planilha (.xlsx / .csv)
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════════ TAB: RECEIPT ════════════════════════ -->
+<div id="tab-receipt" class="tab-page hidden pb-24 overflow-y-auto">
+    <div class="bg-white px-4 pt-8 pb-4 border-b border-gray-100">
+        <h2 class="text-lg font-bold text-gray-800">Comprovante / OCR</h2>
+        <p class="text-xs text-gray-400 mt-1">Faça upload de um comprovante ou cole o texto para extrair os dados automaticamente.</p>
+    </div>
+
+    <div class="px-4 pt-4 space-y-4">
+
+        <!-- Dropzone -->
+        <div id="ocr-dropzone"
+            class="border-2 border-dashed border-gray-300 rounded-2xl p-8 text-center cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-all">
+            <div class="text-4xl mb-3">📸</div>
+            <p class="text-sm font-medium text-gray-700">Arraste a imagem aqui</p>
+            <p class="text-xs text-gray-400 mt-1">ou clique para selecionar</p>
+            <p class="text-xs text-blue-500 mt-2">Suporta: PNG, JPG, PDF (imagem)</p>
+            <input id="ocr-file" type="file" accept="image/*" class="hidden">
+        </div>
+
+        <!-- Paste button -->
+        <button id="ocr-paste"
+            class="w-full flex items-center gap-3 bg-white border border-gray-200 rounded-2xl p-4 hover:bg-gray-50 transition-colors">
+            <span class="text-2xl">📋</span>
+            <div class="text-left">
+                <div class="text-sm font-medium text-gray-800">Colar texto do comprovante</div>
+                <div class="text-xs text-gray-400">Cole o texto copiado do app do banco</div>
+            </div>
+        </button>
+
+        <!-- Paste area -->
+        <div id="ocr-paste-area" class="hidden bg-white rounded-2xl border border-gray-200 p-4 space-y-3">
+            <textarea id="ocr-text-input"
+                class="w-full h-32 border border-gray-200 rounded-xl p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-400"
+                placeholder="Cole aqui o texto do comprovante (Ctrl+V)..."></textarea>
+            <button id="ocr-process-paste"
+                class="w-full bg-blue-500 text-white rounded-xl py-3 text-sm font-medium hover:bg-blue-600 transition-colors">
+                Processar texto
+            </button>
+        </div>
+
+        <!-- Image preview -->
+        <img id="ocr-preview" class="hidden w-full rounded-2xl object-contain max-h-48 border border-gray-200">
+
+        <!-- Progress -->
+        <div id="ocr-progress" class="hidden bg-white rounded-2xl p-4 border border-gray-200">
+            <div class="flex items-center justify-between mb-2">
+                <span class="text-sm font-medium text-gray-700">Lendo comprovante...</span>
+                <span id="ocr-progress-text" class="text-xs text-blue-600 font-bold">0%</span>
+            </div>
+            <div class="w-full bg-gray-100 rounded-full h-2">
+                <div id="ocr-progress-bar" class="bg-blue-500 h-2 rounded-full transition-all" style="width:0%"></div>
+            </div>
+        </div>
+
+        <!-- Result -->
+        <div id="ocr-result" class="hidden bg-white rounded-2xl border border-green-200 p-4 space-y-3">
+            <div class="flex items-center gap-2 text-green-700 font-semibold">
+                <span>✅</span> Dados extraídos
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div class="bg-gray-50 rounded-xl p-3">
+                    <div class="text-xs text-gray-400 mb-1">Valor</div>
+                    <div id="ocr-result-value" class="font-bold text-gray-800"></div>
+                </div>
+                <div class="bg-gray-50 rounded-xl p-3">
+                    <div class="text-xs text-gray-400 mb-1">Data</div>
+                    <div id="ocr-result-date" class="font-bold text-gray-800"></div>
+                </div>
+                <div class="bg-gray-50 rounded-xl p-3">
+                    <div class="text-xs text-gray-400 mb-1">Tipo</div>
+                    <div id="ocr-result-type" class="font-bold text-gray-800"></div>
+                </div>
+                <div class="bg-gray-50 rounded-xl p-3">
+                    <div class="text-xs text-gray-400 mb-1">Descrição</div>
+                    <div id="ocr-result-desc" class="font-bold text-gray-800 text-sm truncate"></div>
+                </div>
+            </div>
+            <button id="ocr-use-result"
+                class="w-full bg-green-500 text-white rounded-xl py-3 text-sm font-medium hover:bg-green-600 transition-colors">
+                Usar esses dados →
+            </button>
+        </div>
+
+    </div>
+</div>
+
+<!-- ═══════════════════════ BOTTOM NAV ══════════════════════════ -->
+<nav class="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md bg-white border-t border-gray-100 shadow-lg z-40">
+    <div class="flex">
+        <button data-tab="home"
+            class="tab-active flex-1 flex flex-col items-center gap-0.5 py-3 text-gray-400 transition-colors">
+            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+            </svg>
+            <span class="text-xs">Início</span>
+        </button>
+        <button data-tab="history"
+            class="flex-1 flex flex-col items-center gap-0.5 py-3 text-gray-400 transition-colors">
+            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+            </svg>
+            <span class="text-xs">Histórico</span>
+        </button>
+        <button data-tab="summary"
+            class="flex-1 flex flex-col items-center gap-0.5 py-3 text-gray-400 transition-colors">
+            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+            </svg>
+            <span class="text-xs">Resumo</span>
+        </button>
+        <button data-tab="receipt"
+            class="flex-1 flex flex-col items-center gap-0.5 py-3 text-gray-400 transition-colors">
+            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/>
+            </svg>
+            <span class="text-xs">Comprovante</span>
+        </button>
+    </div>
+</nav>
+
+<!-- ═══════════════════════ FINANÇA LIST MODAL ═══════════════════ -->
+<div id="financa-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-end justify-center">
+    <div class="bg-white w-full max-w-md rounded-t-3xl shadow-xl overflow-hidden">
+        <div class="p-4 border-b border-gray-100 flex items-center justify-between">
+            <h3 class="font-bold text-lg text-gray-800">Minhas Finanças</h3>
+            <button id="financa-modal-close" class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-gray-200">✕</button>
+        </div>
+        <div class="p-4 max-h-[70vh] overflow-y-auto">
+            <div id="financa-list"></div>
+            <button id="financa-create-btn"
+                class="w-full flex items-center gap-3 border-2 border-dashed border-gray-200 rounded-2xl p-4 mt-2 hover:border-blue-400 hover:bg-blue-50 transition-all text-gray-500 hover:text-blue-600">
+                <span class="text-2xl">➕</span>
+                <span class="text-sm font-medium">Nova Finança</span>
+            </button>
+            <button id="check-invites-btn"
+                class="w-full flex items-center gap-3 bg-blue-50 border border-blue-200 rounded-2xl p-4 mt-2 hover:bg-blue-100 transition-all text-blue-700">
+                <span class="text-2xl">📨</span>
+                <div class="text-left">
+                    <div class="text-sm font-semibold">Verificar convites pendentes</div>
+                    <div id="check-invites-sub" class="text-xs text-blue-500 mt-0.5">Toque para ver se há convites para você</div>
+                </div>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════════ CREATE FINANÇA MODAL ══════════════════ -->
+<div id="financa-create-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center px-4">
+    <div class="bg-white w-full max-w-sm rounded-3xl shadow-xl p-6 space-y-4">
+        <h3 class="font-bold text-lg text-gray-800">Nova Finança</h3>
+
+        <!-- Emoji -->
+        <div>
+            <label class="block text-xs font-semibold text-gray-500 mb-2 uppercase">Ícone</label>
+            <div class="flex gap-2 flex-wrap">
+                <button data-emoji="💰" class="financa-emoji-btn w-10 h-10 rounded-xl bg-blue-50 border-2 border-blue-400 text-xl flex items-center justify-center">💰</button>
+                <button data-emoji="👨‍👩‍👧" class="financa-emoji-btn w-10 h-10 rounded-xl bg-gray-50 border-2 border-gray-200 text-xl flex items-center justify-center">👨‍👩‍👧</button>
+                <button data-emoji="🏢" class="financa-emoji-btn w-10 h-10 rounded-xl bg-gray-50 border-2 border-gray-200 text-xl flex items-center justify-center">🏢</button>
+                <button data-emoji="💑" class="financa-emoji-btn w-10 h-10 rounded-xl bg-gray-50 border-2 border-gray-200 text-xl flex items-center justify-center">💑</button>
+                <button data-emoji="🏠" class="financa-emoji-btn w-10 h-10 rounded-xl bg-gray-50 border-2 border-gray-200 text-xl flex items-center justify-center">🏠</button>
+                <button data-emoji="🧩" class="financa-emoji-btn w-10 h-10 rounded-xl bg-gray-50 border-2 border-gray-200 text-xl flex items-center justify-center">🧩</button>
+            </div>
+        </div>
+
+        <!-- Name -->
+        <div>
+            <label class="block text-xs font-semibold text-gray-500 mb-1.5 uppercase">Nome</label>
+            <input id="financa-name-input" type="text" placeholder="Ex: Pessoal, Família, Negócio..."
+                class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-400">
+        </div>
+
+        <!-- Type -->
+        <div>
+            <label class="block text-xs font-semibold text-gray-500 mb-1.5 uppercase">Tipo</label>
+            <div class="flex gap-2">
+                <button data-ftype="individual"
+                    class="ftype-btn flex-1 py-2.5 rounded-xl text-sm font-medium border-2 border-blue-400 bg-blue-50 text-blue-700">
+                    👤 Individual
+                </button>
+                <button data-ftype="compartilhada"
+                    class="ftype-btn flex-1 py-2.5 rounded-xl text-sm font-medium border-2 border-gray-200 text-gray-600">
+                    👥 Compartilhada
+                </button>
+            </div>
+            <input id="financa-type-input" type="hidden" value="individual">
+        </div>
+
+        <div class="flex gap-3 pt-1">
+            <button id="financa-create-cancel"
+                class="flex-1 py-3 rounded-xl border-2 border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50">
+                Cancelar
+            </button>
+            <button id="financa-create-save"
+                class="flex-1 py-3 rounded-xl bg-blue-500 text-white text-sm font-bold hover:bg-blue-600">
+                Criar
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════════ SHARE MODAL ══════════════════════════ -->
+<div id="share-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-end justify-center">
+    <div class="bg-white w-full max-w-md rounded-t-3xl shadow-xl overflow-hidden">
+        <div class="p-4 border-b border-gray-100 flex items-center justify-between">
+            <div>
+                <h3 class="font-bold text-lg text-gray-800">Compartilhar</h3>
+                <p id="share-financa-name" class="text-xs text-gray-400 mt-0.5"></p>
+            </div>
+            <button id="share-modal-close" class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-gray-200">✕</button>
+        </div>
+        <div class="p-4 max-h-[70vh] overflow-y-auto space-y-5">
+            <!-- Invite -->
+            <div>
+                <label class="block text-xs font-semibold text-gray-500 mb-2 uppercase">Convidar por e-mail</label>
+                <div class="flex gap-2">
+                    <input id="invite-email" type="email" placeholder="email@exemplo.com"
+                        class="flex-1 border-2 border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-400">
+                    <select id="invite-role"
+                        class="border-2 border-gray-200 rounded-xl px-2 py-2.5 text-sm focus:outline-none focus:border-blue-400">
+                        <option value="membro">Membro</option>
+                        <option value="admin">Admin</option>
+                        <option value="visualizador">Só ver</option>
+                    </select>
+                    <button id="invite-send"
+                        class="px-4 py-2.5 bg-blue-500 text-white rounded-xl text-sm font-medium hover:bg-blue-600 flex-shrink-0">
+                        Enviar
+                    </button>
+                </div>
+            </div>
+            <!-- Members -->
+            <div>
+                <label class="block text-xs font-semibold text-gray-500 mb-2 uppercase">Membros</label>
+                <div id="members-list"></div>
+            </div>
+            <!-- Pending invites -->
+            <div id="invites-section" class="hidden">
+                <label class="block text-xs font-semibold text-gray-500 mb-2 uppercase">Convites pendentes</label>
+                <div id="invites-list"></div>
+            </div>
+            <!-- Link existing transactions -->
+            <div id="link-txns-section" class="hidden border-t border-gray-100 pt-4">
+                <label class="block text-xs font-semibold text-gray-500 mb-1 uppercase">Seus lançamentos pessoais</label>
+                <p class="text-xs text-gray-400 mb-3">Lançamentos criados fora desta finança não são visíveis aos membros. Vincule-os para compartilhar.</p>
+                <button id="link-txns-btn"
+                    class="w-full flex items-center justify-center gap-2 py-3 bg-amber-500 text-white rounded-xl text-sm font-semibold hover:bg-amber-600 transition-colors">
+                    🔗 Vincular meus lançamentos a esta finança
+                </button>
+                <p id="link-txns-count" class="text-xs text-gray-400 text-center mt-1.5 hidden"></p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════════ MODAL ════════════════════════════════ -->
+<div id="modal-overlay" class="hidden fixed inset-0 bg-black/50 z-50 flex items-end justify-center">
+    <div class="bg-gray-50 w-full max-w-md rounded-t-3xl shadow-xl overflow-hidden">
+
+        <!-- Modal header -->
+        <div id="modal-header" class="p-4 bg-red-500 text-white rounded-t-2xl">
+            <div class="flex items-center justify-between">
+                <h3 id="modal-title" class="font-bold text-lg">Novo Lançamento</h3>
+                <button id="modal-close" class="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center text-lg">✕</button>
+            </div>
+        </div>
+
+        <div class="p-4 space-y-4 max-h-[80vh] overflow-y-auto">
+
+            <!-- Type toggle -->
+            <div class="flex gap-2">
+                <button data-type-btn="saida" class="saida-btn type-active flex-1 py-2.5 rounded-xl text-sm font-medium border-2 border-red-200 transition-all">
+                    💸 Saída (Gasto)
+                </button>
+                <button data-type-btn="entrada" class="entrada-btn flex-1 py-2.5 rounded-xl text-sm font-medium border-2 border-green-200 transition-all">
+                    💰 Entrada (Receita)
+                </button>
+            </div>
+            <input id="modal-type" type="hidden" value="saida">
+
+            <!-- Value -->
+            <div>
+                <label class="block text-xs font-semibold text-gray-500 mb-1.5 uppercase">Valor (R$)</label>
+                <input id="modal-value" type="number" step="0.01" min="0"
+                    class="w-full bg-white border-2 border-gray-200 rounded-xl px-4 py-3 text-lg font-bold text-gray-800 focus:outline-none focus:border-blue-400"
+                    placeholder="0,00">
+            </div>
+
+            <!-- Category -->
+            <div>
+                <label class="block text-xs font-semibold text-gray-500 mb-1.5 uppercase">Categoria</label>
+                <select id="modal-category"
+                    class="w-full bg-white border-2 border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-800 focus:outline-none focus:border-blue-400">
+                    <!-- populated by App.renderCategorySelect() -->
+                </select>
+            </div>
+
+            <!-- Description -->
+            <div>
+                <label class="block text-xs font-semibold text-gray-500 mb-1.5 uppercase">Descrição</label>
+                <input id="modal-description" type="text"
+                    class="w-full bg-white border-2 border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-800 focus:outline-none focus:border-blue-400"
+                    placeholder="Ex: Mercado, Uber, Salário...">
+            </div>
+
+            <!-- Date -->
+            <div>
+                <label class="block text-xs font-semibold text-gray-500 mb-1.5 uppercase">Data</label>
+                <input id="modal-date" type="date"
+                    class="w-full bg-white border-2 border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-800 focus:outline-none focus:border-blue-400">
+            </div>
+
+            <!-- Notes (hidden, used for OCR context) -->
+            <input id="modal-notes" type="hidden">
+
+            <!-- Actions -->
+            <div class="flex gap-3 pt-1 pb-2">
+                <button id="modal-cancel"
+                    class="flex-1 py-3 rounded-xl border-2 border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-100 transition-colors">
+                    Cancelar
+                </button>
+                <button id="modal-save"
+                    class="flex-1 py-3 rounded-xl bg-blue-500 text-white text-sm font-bold hover:bg-blue-600 transition-colors shadow-sm">
+                    Salvar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════════ CATEGORY DETAIL MODAL ════════════════ -->
+<div id="cat-detail-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-end justify-center" onclick="if(event.target===this)App.closeCategoryDetail()">
+    <div class="bg-white w-full max-w-md rounded-t-3xl shadow-xl overflow-hidden" style="max-height:85vh">
+        <div class="p-4 border-b border-gray-100 flex-shrink-0">
+            <div class="flex items-center justify-between mb-1">
+                <h3 id="cat-detail-title" class="font-bold text-lg text-gray-800"></h3>
+                <button onclick="App.closeCategoryDetail()" class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-gray-200">✕</button>
+            </div>
+            <div class="flex items-center gap-2 flex-wrap">
+                <span id="cat-detail-month" class="text-xs text-gray-400"></span>
+                <div id="cat-detail-totals" class="flex gap-2 flex-wrap"></div>
+            </div>
+        </div>
+        <div id="cat-detail-list" class="overflow-y-auto px-4 py-2" style="max-height:calc(85vh - 90px)"></div>
+    </div>
+</div>
+
+<!-- ═══════════════════════ IMPORT MODAL ═════════════════════════ -->
+<div id="import-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-end justify-center">
+    <div class="bg-white w-full max-w-md rounded-t-3xl shadow-xl overflow-hidden" style="max-height:92vh">
+        <div class="p-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
+            <h3 class="font-bold text-lg text-gray-800">📥 Importar Planilha</h3>
+            <button id="import-modal-close" class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-gray-200">✕</button>
+        </div>
+
+        <!-- Step 1: Upload -->
+        <div id="import-step-upload" class="p-4 space-y-4 overflow-y-auto" style="max-height:calc(92vh - 64px)">
+            <div id="import-dropzone"
+                class="border-2 border-dashed border-gray-300 rounded-2xl p-8 text-center cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-all">
+                <div class="text-4xl mb-3">📊</div>
+                <p class="text-sm font-medium text-gray-700">Arraste a planilha aqui</p>
+                <p class="text-xs text-gray-400 mt-1">ou clique para selecionar</p>
+                <p class="text-xs text-blue-500 mt-2">Suporta: .xlsx, .xls, .csv</p>
+                <input id="import-file" type="file" accept=".xlsx,.xls,.csv" class="hidden">
+            </div>
+
+            <div class="bg-blue-50 border border-blue-200 rounded-xl p-3 text-xs text-blue-800 space-y-1">
+                <div class="font-semibold mb-1">Formato esperado:</div>
+                <div>• Colunas: <strong>Data, Tipo, Categoria, Descrição, Valor</strong></div>
+                <div>• Tipo: "entrada" ou "saída" (ou valor positivo/negativo)</div>
+                <div>• Data: DD/MM/AAAA ou AAAA-MM-DD</div>
+                <div>• Valor negativo → saída automática</div>
+                <button id="import-download-template"
+                    class="mt-2 text-blue-600 underline font-medium">⬇ Baixar modelo de exemplo</button>
+            </div>
+        </div>
+
+        <!-- Step 2: Map + Preview -->
+        <div id="import-step-preview" class="hidden overflow-y-auto" style="max-height:calc(92vh - 64px)">
+            <div class="p-4 space-y-4">
+                <!-- Column mapping -->
+                <div>
+                    <p class="text-xs font-semibold text-gray-500 uppercase mb-2">Mapeamento de colunas</p>
+                    <div id="import-column-map" class="space-y-2"></div>
+                </div>
+                <!-- Preview table -->
+                <div>
+                    <p class="text-xs font-semibold text-gray-500 uppercase mb-2">
+                        Preview — <span id="import-count" class="text-blue-600 normal-case font-bold"></span>
+                    </p>
+                    <div id="import-inserter-info" class="mb-2 flex items-center gap-2 text-xs bg-blue-50 border border-blue-100 rounded-xl px-3 py-2">
+                        <span class="text-gray-500">👤 Insertor:</span>
+                        <span id="import-inserter-email" class="font-semibold text-blue-700"></span>
+                    </div>
+                    <div id="import-new-emails" class="hidden mb-3 text-xs bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 space-y-0.5">
+                        <div class="font-semibold text-amber-700">📨 Novos e-mails encontrados</div>
+                        <div class="text-amber-600">Serão convidados automaticamente para a finança compartilhada:</div>
+                        <div id="import-new-emails-list" class="font-medium text-amber-800 break-all"></div>
+                    </div>
+                    <div class="overflow-x-auto rounded-xl border border-gray-200">
+                        <table class="w-full text-xs min-w-max">
+                            <thead class="bg-gray-50 border-b border-gray-200">
+                                <tr>
+                                    <th class="px-2 py-2 text-left text-gray-600 font-semibold">Data</th>
+                                    <th class="px-2 py-2 text-left text-gray-600 font-semibold">Tipo</th>
+                                    <th class="px-2 py-2 text-left text-gray-600 font-semibold">Categoria</th>
+                                    <th class="px-2 py-2 text-left text-gray-600 font-semibold">Descrição</th>
+                                    <th class="px-2 py-2 text-right text-gray-600 font-semibold">Valor</th>
+                                    <th class="px-2 py-2 text-left text-gray-600 font-semibold">Inserido por</th>
+                                </tr>
+                            </thead>
+                            <tbody id="import-preview-body"></tbody>
+                        </table>
+                    </div>
+                    <p id="import-more" class="text-xs text-gray-400 mt-1 text-center"></p>
+                </div>
+
+                <!-- Actions -->
+                <div class="flex gap-3 pb-2">
+                    <button id="import-back"
+                        class="flex-1 py-3 rounded-xl border-2 border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50">
+                        ← Voltar
+                    </button>
+                    <button id="import-confirm"
+                        class="flex-1 py-3 rounded-xl bg-blue-500 text-white text-sm font-bold hover:bg-blue-600">
+                        Importar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════════ CATEGORY MODAL ════════════════════════ -->
+<div id="category-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-end justify-center">
+    <div class="bg-white w-full max-w-md rounded-t-3xl shadow-xl overflow-hidden" style="max-height:90vh">
+        <div class="p-4 border-b border-gray-100 flex items-center justify-between">
+            <h3 class="font-bold text-lg text-gray-800">🏷️ Categorias</h3>
+            <button id="category-modal-close" class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-gray-200">✕</button>
+        </div>
+        <div class="overflow-y-auto" style="max-height:calc(90vh - 64px)">
+            <div id="category-list" class="px-4 pt-3 pb-1"></div>
+            <div class="p-4">
+                <button id="category-add-btn"
+                    class="w-full py-3 border-2 border-dashed border-blue-300 text-blue-500 rounded-xl text-sm font-medium hover:bg-blue-50 transition-colors">
+                    ➕ Nova Categoria
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════════ CATEGORY FORM MODAL ═══════════════════ -->
+<div id="category-form-modal" class="hidden fixed inset-0 bg-black/50 z-[60] flex items-end justify-center">
+    <div class="bg-white w-full max-w-md rounded-t-3xl shadow-xl p-4 space-y-4" style="max-height:90vh;overflow-y:auto">
+        <div class="flex items-center justify-between">
+            <h3 id="cat-form-title" class="font-bold text-lg text-gray-800">Nova Categoria</h3>
+            <button id="category-form-close" class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-gray-200">✕</button>
+        </div>
+
+        <!-- Emoji + Nome -->
+        <div class="flex gap-3">
+            <div>
+                <label class="block text-xs font-semibold text-gray-500 mb-1.5 uppercase">Emoji</label>
+                <input id="cat-emoji-input" type="text" maxlength="2" placeholder="📦"
+                    class="w-16 border-2 border-gray-200 rounded-xl px-2 py-3 text-2xl text-center focus:outline-none focus:border-blue-400">
+            </div>
+            <div class="flex-1">
+                <label class="block text-xs font-semibold text-gray-500 mb-1.5 uppercase">Nome</label>
+                <input id="cat-name-input" type="text" placeholder="Ex: Pets, Academia..."
+                    class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-400">
+            </div>
+        </div>
+
+        <!-- Tipo -->
+        <div>
+            <label class="block text-xs font-semibold text-gray-500 mb-1.5 uppercase">Tipo</label>
+            <div class="flex gap-2">
+                <button data-ctype="saida"   class="ctype-btn flex-1 py-2 rounded-xl text-sm font-medium border-2 border-red-400 bg-red-50 text-red-700">↑ Saída</button>
+                <button data-ctype="entrada" class="ctype-btn flex-1 py-2 rounded-xl text-sm font-medium border-2 border-gray-200 text-gray-600">↓ Entrada</button>
+                <button data-ctype="both"    class="ctype-btn flex-1 py-2 rounded-xl text-sm font-medium border-2 border-gray-200 text-gray-600">↕ Ambos</button>
+            </div>
+            <input id="cat-type-input" type="hidden" value="saida">
+        </div>
+
+        <!-- Palavras-chave -->
+        <div>
+            <label class="block text-xs font-semibold text-gray-500 mb-1.5 uppercase">Palavras-chave para auto-detectar</label>
+            <input id="cat-keywords-input" type="text" placeholder="pet, veterinário, ração, banho..."
+                class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-400">
+            <p class="text-xs text-gray-400 mt-1">Separe por vírgulas. A IA detecta automaticamente ao digitar.</p>
+        </div>
+
+        <!-- Ações -->
+        <div class="flex gap-3 pb-2">
+            <button id="cat-form-cancel"
+                class="flex-1 py-3 rounded-xl border-2 border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50">
+                Cancelar
+            </button>
+            <button id="cat-form-save"
+                class="flex-1 py-3 rounded-xl bg-blue-500 text-white text-sm font-bold hover:bg-blue-600">
+                Salvar
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Toast -->
+<div id="toast" class="hidden fixed bottom-24 left-1/2 -translate-x-1/2 px-4 py-2 rounded-full text-white text-sm font-medium shadow-lg z-50 bg-green-500 transition-all opacity-0"></div>
+
+</div><!-- /#main-app -->
+
+<script src="js/config.js?v=20260423j"></script>
+<script src="js/auth.js?v=20260423j"></script>
+<script src="js/storage.js?v=20260423n"></script>
+<script src="js/nlp.js?v=20260423j"></script>
+<script src="js/ocr.js?v=20260423j"></script>
+<script src="js/app.js?v=20260423s"></script>
+</body>
+</html>
