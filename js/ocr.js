@@ -167,13 +167,43 @@ const OCR = {
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     extractDate(text) {
+        const pad = n => String(n).padStart(2, '0');
+        const fmt = (d, m, y) => `${y}-${pad(m)}-${pad(d)}`;
+
+        const months = {
+            jan:0, fev:1, mar:2, abr:3, mai:4, jun:5,
+            jul:6, ago:7, set:8, out:9, nov:10, dez:11,
+            janeiro:0, fevereiro:1, março:2, marco:2, abril:3, maio:4, junho:5,
+            julho:6, agosto:7, setembro:8, outubro:9, novembro:10, dezembro:11
+        };
+
         // Normaliza chars que OCR confunde com barra
         const norm = text.replace(/(\d{2})[|lI](\d{2})[|lI](\d{2,4})/g, '$1/$2/$3');
 
-        const patterns = [
-            // DD/MM/YYYY ou DD.MM.YYYY (4 dígitos no ano)
+        // 1. "24 de abril de 2026" ou "24 de abril 2026" (PicPay, Nubank)
+        const mExt = text.match(/(\d{1,2})\s+de\s+([a-záàâãéèêíïóôõúü]+)\s+(?:de\s+)?(\d{4})/i);
+        if (mExt) {
+            const mn = mExt[2].toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+            if (months[mn] !== undefined) {
+                const d = +mExt[1], mo = months[mn] + 1, y = +mExt[3];
+                if (d >= 1 && d <= 31) return fmt(d, mo, y);
+            }
+        }
+
+        // 2. "24 abr 2026" ou "24 abr. 2026" (abreviado)
+        const mAbr = text.match(/(\d{1,2})\s+([a-záàâãéèêíïóôõúü]{3})\.?\s+(\d{4})/i);
+        if (mAbr) {
+            const mn = mAbr[2].toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+            if (months[mn] !== undefined) {
+                const d = +mAbr[1], mo = months[mn] + 1, y = +mAbr[3];
+                if (d >= 1 && d <= 31) return fmt(d, mo, y);
+            }
+        }
+
+        const numPatterns = [
+            // DD/MM/YYYY ou DD.MM.YYYY
             { re: /(\d{2})[\/.](\d{2})[\/.](\d{4})/, order: 'dmy4' },
-            // DD/MM/YY (2 dígitos no ano — comum em cupons)
+            // DD/MM/YY
             { re: /(\d{2})[\/.](\d{2})[\/.](\d{2})(?!\d)/, order: 'dmy2' },
             // YYYY-MM-DD (ISO)
             { re: /(\d{4})-(\d{2})-(\d{2})/, order: 'ymd' },
@@ -181,19 +211,18 @@ const OCR = {
             { re: /(\d{2})-(\d{2})-(\d{4})/, order: 'dmy4' },
         ];
 
-        for (const { re, order } of patterns) {
+        for (const { re, order } of numPatterns) {
             const m = norm.match(re) || text.match(re);
             if (!m) continue;
             let d, mo, y;
             if (order === 'dmy4') { [, d, mo, y] = m; }
             else if (order === 'dmy2') {
                 [, d, mo, y] = m;
-                // Converte ano de 2 dígitos: 26 → 2026, 99 → 1999
                 y = +y < 50 ? '20' + y : '19' + y;
             } else { [, y, mo, d] = m; }
 
             if (+mo < 1 || +mo > 12 || +d < 1 || +d > 31) continue;
-            return `${y}-${mo.padStart(2,'0')}-${d.padStart(2,'0')}`;
+            return fmt(+d, +mo, y);
         }
         return null;
     },
