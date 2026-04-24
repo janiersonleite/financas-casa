@@ -26,6 +26,7 @@ const App = {
         this.bindCategoryUI();
         this.bindExportButtons();
         this.bindImportUI();
+        this.bindOfflineSync();
         await this.loadFinancas();
         await this.loadCategories();
         await this.renderHome();
@@ -1581,6 +1582,58 @@ const App = {
         document.querySelectorAll('.month-display').forEach(el => {
             el.textContent = this.formatMonth(this.currentMonth);
         });
+    },
+
+    // ─── Offline Sync ─────────────────────────────────────────────────────────
+    bindOfflineSync() {
+        window.addEventListener('online',  () => this.onReconnect());
+        window.addEventListener('offline', () => this.onDisconnect());
+        document.getElementById('offline-sync-btn')?.addEventListener('click', () => this.onReconnect());
+        this.updateOfflineBar();
+    },
+
+    updateOfflineBar() {
+        const bar     = document.getElementById('offline-bar');
+        const textEl  = document.getElementById('offline-bar-text');
+        const syncBtn = document.getElementById('offline-sync-btn');
+        if (!bar) return;
+        const pending = Storage.pendingCount();
+        if (!navigator.onLine) {
+            const label = pending > 0 ? `Offline — ${pending} lançamento${pending > 1 ? 's' : ''} pendente${pending > 1 ? 's' : ''}` : 'Sem conexão — modo offline';
+            if (textEl) textEl.textContent = label;
+            if (syncBtn) syncBtn.classList.add('hidden');
+            bar.classList.remove('hidden');
+        } else if (pending > 0) {
+            if (textEl) textEl.textContent = `${pending} lançamento${pending > 1 ? 's' : ''} para sincronizar`;
+            if (syncBtn) syncBtn.classList.remove('hidden');
+            bar.classList.remove('hidden');
+        } else {
+            bar.classList.add('hidden');
+        }
+    },
+
+    onDisconnect() {
+        this.updateOfflineBar();
+        this.showToast('📵 Sem conexão — modo offline ativo');
+    },
+
+    async onReconnect() {
+        const pending = Storage.pendingCount();
+        if (pending > 0) {
+            this.updateOfflineBar();
+            this.showToast(`🔄 Sincronizando ${pending} item${pending > 1 ? 'ns' : ''}...`);
+            const result = await Storage.syncPendingOps();
+            if (result.synced > 0) {
+                this.showToast(`✅ ${result.synced} item${result.synced > 1 ? 'ns sincronizados' : ' sincronizado'}!`);
+                await this.renderCurrentTab();
+            }
+            if (result.failed > 0) {
+                this.showToast(`⚠️ ${result.failed} item${result.failed > 1 ? 'ns' : ''} não sincronizado${result.failed > 1 ? 's' : ''}`, true);
+            }
+        } else if (navigator.onLine) {
+            this.showToast('✅ Conexão restaurada');
+        }
+        this.updateOfflineBar();
     },
 
     async renderCurrentTab() {

@@ -1,12 +1,87 @@
 // ─── Storage ── Supabase (cloud) com fallback para localStorage ───────────────
 const Storage = {
-    LOCAL_KEY: 'financas_data',
+    LOCAL_KEY:    'financas_data',
+    QUEUE_KEY:    'offline_queue',
+    CACHE_TX_KEY: 'offline_txcache',
+    CACHE_FIN_KEY:'offline_fincache',
     activeFinancaId: null,
 
     // ── Helpers ──────────────────────────────────────────────────────────────
     get db() { return window.$sb; },
     get isCloud() { return IS_SUPABASE_CONFIGURED && !!this.db; },
+    get isOnline() { return navigator.onLine; },
     userId() { return Auth?.user?.id ?? null; },
+
+    // ── Offline Queue ─────────────────────────────────────────────────────────
+    _getQueue() {
+        try { return JSON.parse(localStorage.getItem(this.QUEUE_KEY) || '[]'); } catch { return []; }
+    },
+    _saveQueue(q) { localStorage.setItem(this.QUEUE_KEY, JSON.stringify(q)); },
+    _queueOp(op, args, tempId) {
+        const q = this._getQueue();
+        q.push({ qid: 'q_' + Date.now() + '_' + Math.random().toString(36).slice(2), op, args, tempId: tempId || null, ts: Date.now() });
+        this._saveQueue(q);
+    },
+    pendingCount() { return this._getQueue().length; },
+
+    // ── Offline TX Cache ──────────────────────────────────────────────────────
+    _getCachedTx() {
+        try { return JSON.parse(localStorage.getItem(this.CACHE_TX_KEY) || '[]'); } catch { return []; }
+    },
+    _cacheTx(list) { localStorage.setItem(this.CACHE_TX_KEY, JSON.stringify(list)); },
+    _mergeTxCache(freshList) {
+        const map = new Map(this._getCachedTx().map(t => [t.id, t]));
+        for (const t of freshList) map.set(t.id, t);
+        this._cacheTx([...map.values()].sort((a, b) => (b.date || '').localeCompare(a.date || '')));
+    },
+
+    // ── Offline Finança Cache ─────────────────────────────────────────────────
+    _getCachedFin() {
+        try { return JSON.parse(localStorage.getItem(this.CACHE_FIN_KEY) || '[]'); } catch { return []; }
+    },
+    _cacheFin(list) { localStorage.setItem(this.CACHE_FIN_KEY, JSON.stringify(list)); },
+
+    // ── Sync pending ops ──────────────────────────────────────────────────────
+    async syncPendingOps() {
+        if (!this.isCloud || !this.isOnline) return { synced: 0, failed: 0 };
+        const queue = this._getQueue();
+        if (!queue.length) return { synced: 0, failed: 0 };
+
+        let synced = 0, failed = 0;
+        const doneQids = [];
+
+        for (const item of queue) {
+            try {
+                if (item.op === 'addTransaction') {
+                    const payload = { ...item.args, user_id: this.userId() };
+                    delete payload._offline;
+                    const { data, error } = await this.db.from('transactions').insert(payload).select().single();
+                    if (error) throw error;
+                    if (item.tempId && data) {
+                        const cached = this._getCachedTx();
+                        const idx = cached.findIndex(t => t.id === item.tempId);
+                        if (idx !== -1) { cached[idx] = data; this._cacheTx(cached); }
+                    }
+                } else if (item.op === 'updateTransaction') {
+                    const { id, updates } = item.args;
+                    const { error } = await this.db.from('transactions').update(updates).eq('id', id);
+                    if (error) throw error;
+                } else if (item.op === 'deleteTransaction') {
+                    const { error } = await this.db.from('transactions').delete().eq('id', item.args.id);
+                    if (error) throw error;
+                }
+                doneQids.push(item.qid);
+                synced++;
+            } catch (e) {
+                console.warn('Sync failed:', item.op, e.message);
+                failed++;
+            }
+        }
+
+        const remaining = queue.filter(q => !doneQids.includes(q.qid));
+        this._saveQueue(remaining);
+        return { synced, failed };
+    },
 
     // ── Local (fallback) ─────────────────────────────────────────────────────
     _localGet() {
@@ -46,11 +121,13 @@ const Storage = {
     // ── Finance CRUD ──────────────────────────────────────────────────────────
     async getFinancas() {
         if (this.isCloud) {
+            if (!this.isOnline) return this._getCachedFin();
             const { data, error } = await this.db
                 .from('financas')
                 .select('*')
                 .order('created_at', { ascending: true });
             if (error) throw error;
+            if (data) this._cacheFin(data);
             return data ?? [];
         }
         return this._localGet().financas || [];
@@ -319,11 +396,21 @@ const Storage = {
     async addTransaction(t) {
         if (!t.date) t.date = new Date().toISOString().split('T')[0];
         if (this.isCloud) {
+            if (!this.isOnline) {
+                const tempId = 'temp_' + Date.now();
+                const tx = { ...t, id: tempId, user_id: this.userId(), financa_id: this.activeFinancaId, created_at: new Date().toISOString(), _offline: true };
+                const cached = this._getCachedTx();
+                cached.unshift(tx);
+                this._cacheTx(cached);
+                this._queueOp('addTransaction', { ...t, financa_id: this.activeFinancaId }, tempId);
+                return tx;
+            }
             const payload = { ...t, user_id: this.userId() };
             if (this.activeFinancaId) payload.financa_id = this.activeFinancaId;
             const { data, error } = await this.db
                 .from('transactions').insert(payload).select().single();
             if (error) throw error;
+            const cached = this._getCachedTx(); cached.unshift(data); this._cacheTx(cached);
             return data;
         }
         return this._localAdd(t);
@@ -331,8 +418,25 @@ const Storage = {
 
     async updateTransaction(id, updates) {
         if (this.isCloud) {
+            const isTemp = id.startsWith('temp_');
+            if (!this.isOnline || isTemp) {
+                const cached = this._getCachedTx();
+                const idx = cached.findIndex(t => t.id === id);
+                if (idx !== -1) { cached[idx] = { ...cached[idx], ...updates }; this._cacheTx(cached); }
+                if (isTemp) {
+                    const q = this._getQueue();
+                    const opIdx = q.findIndex(item => item.op === 'addTransaction' && item.tempId === id);
+                    if (opIdx !== -1) { q[opIdx].args = { ...q[opIdx].args, ...updates }; this._saveQueue(q); }
+                } else {
+                    this._queueOp('updateTransaction', { id, updates });
+                }
+                return;
+            }
             const { error } = await this.db.from('transactions').update(updates).eq('id', id);
             if (error) throw error;
+            const cached = this._getCachedTx();
+            const idx = cached.findIndex(t => t.id === id);
+            if (idx !== -1) { cached[idx] = { ...cached[idx], ...updates }; this._cacheTx(cached); }
             return;
         }
         const data = this._localGet();
@@ -342,8 +446,19 @@ const Storage = {
 
     async deleteTransaction(id) {
         if (this.isCloud) {
+            const isTemp = id.startsWith('temp_');
+            if (!this.isOnline || isTemp) {
+                this._cacheTx(this._getCachedTx().filter(t => t.id !== id));
+                if (isTemp) {
+                    this._saveQueue(this._getQueue().filter(item => !(item.op === 'addTransaction' && item.tempId === id)));
+                } else {
+                    this._queueOp('deleteTransaction', { id });
+                }
+                return;
+            }
             const { error } = await this.db.from('transactions').delete().eq('id', id);
             if (error) throw error;
+            this._cacheTx(this._getCachedTx().filter(t => t.id !== id));
             return;
         }
         const data = this._localGet();
@@ -353,6 +468,22 @@ const Storage = {
 
     async getTransactions(filters = {}) {
         if (this.isCloud) {
+            if (!this.isOnline) {
+                let list = this._getCachedTx();
+                const uid = this.userId();
+                list = this.activeFinancaId
+                    ? list.filter(t => t.financa_id === this.activeFinancaId)
+                    : list.filter(t => t.user_id === uid);
+                if (filters.type) list = list.filter(t => t.type === filters.type);
+                if (filters.month) {
+                    const [y, m] = filters.month.split('-');
+                    const from = `${y}-${m}-01`;
+                    const to   = new Date(+y, +m, 0).toISOString().split('T')[0];
+                    list = list.filter(t => t.date >= from && t.date <= to);
+                }
+                return list;
+            }
+
             let q = this.db
                 .from('transactions')
                 .select('*')
@@ -375,6 +506,7 @@ const Storage = {
 
             const { data, error } = await q;
             if (error) throw error;
+            if (data) this._mergeTxCache(data);
             return data ?? [];
         }
         return this._localFilter(filters);
