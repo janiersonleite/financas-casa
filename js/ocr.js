@@ -180,23 +180,35 @@ const OCR = {
         // Normaliza chars que OCR confunde com barra
         const norm = text.replace(/(\d{2})[|lI](\d{2})[|lI](\d{2,4})/g, '$1/$2/$3');
 
-        // 1. "24 de abril de 2026" ou "24 de abril 2026" (PicPay, Nubank)
-        const mExt = text.match(/(\d{1,2})\s+de\s+([a-záàâãéèêíïóôõúü]+)\s+(?:de\s+)?(\d{4})/i);
-        if (mExt) {
-            const mn = mExt[2].toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
-            if (months[mn] !== undefined) {
-                const d = +mExt[1], mo = months[mn] + 1, y = +mExt[3];
-                if (d >= 1 && d <= 31) return fmt(d, mo, y);
+        const tryMonth = str => months[str.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')];
+
+        // 1. "02/fev/2026" — formato PicPay (dia/mês-abreviado/ano)
+        const mSlash = text.match(/(\d{1,2})\/([a-záàâãéèêíïóôõúü]{3,})\/(\d{4})/i);
+        if (mSlash) {
+            const mo = tryMonth(mSlash[2]);
+            if (mo !== undefined) {
+                const d = +mSlash[1], y = +mSlash[3];
+                if (d >= 1 && d <= 31) return fmt(d, mo + 1, y);
             }
         }
 
-        // 2. "24 abr 2026" ou "24 abr. 2026" (abreviado)
+        // 2. "24 de abril de 2026" ou "24 de abril 2026" (Nubank, Bradesco)
+        const mExt = text.match(/(\d{1,2})\s+de\s+([a-záàâãéèêíïóôõúü]+)\s+(?:de\s+)?(\d{4})/i);
+        if (mExt) {
+            const mo = tryMonth(mExt[2]);
+            if (mo !== undefined) {
+                const d = +mExt[1], y = +mExt[3];
+                if (d >= 1 && d <= 31) return fmt(d, mo + 1, y);
+            }
+        }
+
+        // 3. "24 abr 2026" ou "24 abr. 2026" (abreviado sem preposição)
         const mAbr = text.match(/(\d{1,2})\s+([a-záàâãéèêíïóôõúü]{3})\.?\s+(\d{4})/i);
         if (mAbr) {
-            const mn = mAbr[2].toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
-            if (months[mn] !== undefined) {
-                const d = +mAbr[1], mo = months[mn] + 1, y = +mAbr[3];
-                if (d >= 1 && d <= 31) return fmt(d, mo, y);
+            const mo = tryMonth(mAbr[2]);
+            if (mo !== undefined) {
+                const d = +mAbr[1], y = +mAbr[3];
+                if (d >= 1 && d <= 31) return fmt(d, mo + 1, y);
             }
         }
 
