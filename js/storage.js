@@ -4,6 +4,7 @@ const Storage = {
     QUEUE_KEY:    'offline_queue',
     CACHE_TX_KEY: 'offline_txcache',
     CACHE_FIN_KEY:'offline_fincache',
+    CACHE_CAT_KEY:'offline_catcache',
     activeFinancaId: null,
 
     // ── Helpers ──────────────────────────────────────────────────────────────
@@ -40,6 +41,12 @@ const Storage = {
         try { return JSON.parse(localStorage.getItem(this.CACHE_FIN_KEY) || '[]'); } catch { return []; }
     },
     _cacheFin(list) { localStorage.setItem(this.CACHE_FIN_KEY, JSON.stringify(list)); },
+
+    // ── Offline Category Cache ────────────────────────────────────────────────
+    _getCachedCat() {
+        try { return JSON.parse(localStorage.getItem(this.CACHE_CAT_KEY) || '[]'); } catch { return []; }
+    },
+    _cacheCat(list) { localStorage.setItem(this.CACHE_CAT_KEY, JSON.stringify(list)); },
 
     // ── Sync pending ops ──────────────────────────────────────────────────────
     async syncPendingOps() {
@@ -296,6 +303,11 @@ const Storage = {
 
     async getCategories() {
         if (this.isCloud) {
+            if (!this.isOnline) {
+                const cached = this._getCachedCat();
+                const fallback = cached.length ? cached : this._defaultCategories;
+                return this._applyOverrides(fallback);
+            }
             const uid = this.userId();
             const { data, error } = await this.db
                 .from('categories')
@@ -304,6 +316,7 @@ const Storage = {
                 .order('sort_order', { ascending: true })
                 .order('name',       { ascending: true });
             if (error) throw error;
+            if (data) this._cacheCat(data);
             return this._applyOverrides(data ?? []);
         }
         const d = this._localGet();

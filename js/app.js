@@ -569,6 +569,7 @@ const App = {
         this.recognition.onerror = e => {
             this.stopListening();
             const msgs = {
+                'network':        'Reconhecimento de voz requer conexão com a internet.',
                 'not-allowed':    'Permissão de microfone negada. Clique no 🔒 da barra de endereço e permita o microfone.',
                 'no-speech':      'Nenhuma fala detectada. Tente novamente.',
                 'network':        'Erro de rede. A API de voz requer conexão com a internet.',
@@ -585,6 +586,10 @@ const App = {
     },
 
     startListening() {
+        if (!navigator.onLine) {
+            this.showToast('🎤 Reconhecimento de voz requer conexão com a internet.', true);
+            return;
+        }
         this.isListening = true;
         this.recognition.start();
         const btn = document.getElementById('voice-btn');
