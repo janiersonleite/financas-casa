@@ -1677,6 +1677,17 @@ const App = {
         fModal?.addEventListener('click', e => { if (e.target === fModal) this.closeCategoryForm(); });
         document.getElementById('cat-form-save')?.addEventListener('click', () => this.saveCategoryForm());
 
+        document.getElementById('cat-restore-defaults-btn')?.addEventListener('click', async () => {
+            if (!confirm('Restaurar todas as categorias padrão?\nIsto desfaz edições e reexibe categorias ocultas.')) return;
+            Storage.restoreDefaultCategories();
+            this.categories = await Storage.getCategories();
+            NLP.setCategoryMap(this.categories);
+            this.renderCategoryList();
+            this.renderCategorySelect();
+            this.renderQuickButtons();
+            this.showToast('✅ Categorias padrão restauradas!');
+        });
+
         document.querySelectorAll('[data-ctype]').forEach(btn => {
             btn.addEventListener('click', () => {
                 document.querySelectorAll('[data-ctype]').forEach(b => {
@@ -1709,20 +1720,33 @@ const App = {
     renderCategoryList() {
         const container = document.getElementById('category-list');
         if (!container) return;
+
+        const typeBadge = {
+            saida:   '<span class="text-xs px-1.5 py-0.5 rounded-full bg-red-100 text-red-600">Saída</span>',
+            entrada: '<span class="text-xs px-1.5 py-0.5 rounded-full bg-green-100 text-green-600">Entrada</span>',
+            both:    '<span class="text-xs px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500">Ambos</span>'
+        };
+
         container.innerHTML = this.categories.map(cat => {
-            const isSystem = !cat.user_id || cat.user_id === 'local' && cat.id?.startsWith('d-');
-            const typeBadge = { saida: '<span class="text-xs px-1.5 py-0.5 rounded-full bg-red-100 text-red-600">Saída</span>', entrada: '<span class="text-xs px-1.5 py-0.5 rounded-full bg-green-100 text-green-600">Entrada</span>', both: '<span class="text-xs px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500">Ambos</span>' }[cat.type] || '';
-            const actions = isSystem
-                ? `<span class="text-xs text-gray-300 px-2">padrão</span>`
-                : `<button class="cat-edit-btn text-gray-400 hover:text-blue-500 px-2 text-lg" data-cat-id="${cat.id}" title="Editar">✏️</button>
-                   <button class="cat-del-btn text-gray-400 hover:text-red-500 px-1 text-lg" data-cat-id="${cat.id}" title="Excluir">🗑</button>`;
+            const isDefault  = Storage._isDefaultId(cat.id);
+            const isModified = isDefault && Storage._getCatOverrides()[cat.id];
+            const badge      = isDefault
+                ? `<span class="text-xs px-1.5 py-0.5 rounded-full ${isModified ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-400'}">
+                       ${isModified ? 'modificada' : 'padrão'}
+                   </span>`
+                : '';
             return `<div class="flex items-center gap-3 py-2.5 border-b border-gray-50 last:border-0">
                 <span class="text-2xl w-8 text-center">${cat.emoji}</span>
                 <div class="flex-1 min-w-0">
                     <div class="text-sm font-medium text-gray-800">${cat.name}</div>
-                    <div class="flex items-center gap-1 mt-0.5">${typeBadge}</div>
+                    <div class="flex items-center gap-1 mt-0.5">
+                        ${typeBadge[cat.type] || ''}${badge ? '&nbsp;' + badge : ''}
+                    </div>
                 </div>
-                <div class="flex items-center gap-0 flex-shrink-0">${actions}</div>
+                <div class="flex items-center gap-0 flex-shrink-0">
+                    <button class="cat-edit-btn text-gray-400 hover:text-blue-500 px-2 text-lg" data-cat-id="${cat.id}" title="Editar">✏️</button>
+                    <button class="cat-del-btn text-gray-400 hover:text-red-500 px-1 text-lg"  data-cat-id="${cat.id}" title="Excluir">🗑</button>
+                </div>
             </div>`;
         }).join('');
 
@@ -1735,7 +1759,11 @@ const App = {
         container.querySelectorAll('.cat-del-btn').forEach(btn => {
             btn.addEventListener('click', async () => {
                 const cat = this.categories.find(c => c.id === btn.dataset.catId);
-                if (!cat || !confirm(`Excluir categoria "${cat.name}"?`)) return;
+                if (!cat) return;
+                const msg = Storage._isDefaultId(cat.id)
+                    ? `Ocultar a categoria padrão "${cat.name}"?\nVocê pode restaurá-la depois.`
+                    : `Excluir categoria "${cat.name}"?`;
+                if (!confirm(msg)) return;
                 try {
                     await Storage.deleteCategory(cat.id);
                     this.categories = this.categories.filter(c => c.id !== cat.id);
@@ -1743,7 +1771,7 @@ const App = {
                     this.renderCategoryList();
                     this.renderCategorySelect();
                     this.renderQuickButtons();
-                    this.showToast('Categoria excluída');
+                    this.showToast('Categoria removida');
                 } catch (e) { this.showToast('❌ Erro: ' + e.message, true); }
             });
         });

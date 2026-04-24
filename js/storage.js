@@ -199,6 +199,24 @@ const Storage = {
         { id: 'd-other',     name: 'Outros',      emoji: '📦', keywords: [], type: 'both', sort_order: 99 }
     ],
 
+    // ── Helpers para overrides de categorias padrão ──────────────────────────
+    _isDefaultId(id) {
+        return typeof id === 'string' && id.startsWith('d-');
+    },
+    _getCatOverrides() {
+        try { return JSON.parse(localStorage.getItem('cat_overrides') || '{}'); } catch { return {}; }
+    },
+    _getCatHidden() {
+        try { return JSON.parse(localStorage.getItem('cat_hidden') || '[]'); } catch { return []; }
+    },
+    _applyOverrides(cats) {
+        const overrides = this._getCatOverrides();
+        const hidden    = this._getCatHidden();
+        return cats
+            .filter(c => !hidden.includes(c.id))
+            .map(c => overrides[c.id] ? { ...c, ...overrides[c.id] } : c);
+    },
+
     async getCategories() {
         if (this.isCloud) {
             const uid = this.userId();
@@ -209,10 +227,11 @@ const Storage = {
                 .order('sort_order', { ascending: true })
                 .order('name',       { ascending: true });
             if (error) throw error;
-            return data ?? [];
+            return this._applyOverrides(data ?? []);
         }
         const d = this._localGet();
-        return [...this._defaultCategories, ...(d.categories || [])];
+        const all = [...this._defaultCategories, ...(d.categories || [])];
+        return this._applyOverrides(all);
     },
 
     async createCategory(name, emoji, keywords, type) {
@@ -233,6 +252,13 @@ const Storage = {
     },
 
     async updateCategory(id, updates) {
+        // Categorias padrão: salva override em localStorage (não altera o Supabase)
+        if (this._isDefaultId(id)) {
+            const overrides = this._getCatOverrides();
+            overrides[id] = { ...(overrides[id] || {}), ...updates };
+            localStorage.setItem('cat_overrides', JSON.stringify(overrides));
+            return;
+        }
         if (this.isCloud) {
             const { error } = await this.db
                 .from('categories').update(updates).eq('id', id).eq('user_id', this.userId());
@@ -245,6 +271,12 @@ const Storage = {
     },
 
     async deleteCategory(id) {
+        // Categorias padrão: marca como oculta em localStorage
+        if (this._isDefaultId(id)) {
+            const hidden = this._getCatHidden();
+            if (!hidden.includes(id)) { hidden.push(id); localStorage.setItem('cat_hidden', JSON.stringify(hidden)); }
+            return;
+        }
         if (this.isCloud) {
             const { error } = await this.db
                 .from('categories').delete().eq('id', id).eq('user_id', this.userId());
@@ -254,6 +286,11 @@ const Storage = {
         const d = this._localGet();
         d.categories = (d.categories || []).filter(c => c.id !== id);
         this._localSave(d);
+    },
+
+    restoreDefaultCategories() {
+        localStorage.removeItem('cat_overrides');
+        localStorage.removeItem('cat_hidden');
     },
 
     // ── Transactions ──────────────────────────────────────────────────────────
