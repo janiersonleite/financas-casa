@@ -30,6 +30,8 @@ const App = {
         await this.loadCategories();
         await this.renderHome();
         this.refreshMonthDisplay();
+        // Verifica se há comprovante compartilhado (PWA share target)
+        if (window.__pendingShared) await this.checkSharedContent();
     },
 
     // ─── Finances ─────────────────────────────────────────────────────────────
@@ -670,6 +672,40 @@ const App = {
             });
             this.switchTab('home');
         };
+    },
+
+    // ─── PWA Share Target ─────────────────────────────────────────────────────
+    async checkSharedContent() {
+        if (!('caches' in window)) return;
+        try {
+            const cache   = await caches.open('share-target-v1');
+            const metaRes = await cache.match('shared-meta');
+            if (!metaRes) return;
+
+            const meta = await metaRes.json();
+            this.switchTab('receipt');
+
+            if (meta.kind === 'text') {
+                // Texto compartilhado → processa diretamente
+                const result = OCR.parseClipboardText(meta.text);
+                this.showOCRResult(result);
+            } else if (meta.kind === 'file') {
+                // Imagem compartilhada → roda OCR
+                const fileRes = await cache.match('shared-file');
+                if (fileRes) {
+                    const blob = await fileRes.blob();
+                    const file = new File([blob], meta.name || 'comprovante.jpg', { type: meta.mimeType });
+                    await this.runOCR(file);
+                }
+            }
+
+            // Limpa o cache após processar
+            await cache.delete('shared-meta');
+            await cache.delete('shared-file');
+        } catch (err) {
+            console.error('checkSharedContent error:', err);
+            this.showToast('Erro ao processar comprovante compartilhado', true);
+        }
     },
 
     // ─── Render Home ──────────────────────────────────────────────────────────

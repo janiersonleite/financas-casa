@@ -16,5 +16,8 @@ supabase/.temp
 *.DS_Store
 Thumbs.db
 
+# Node
+node_modules/
+
 # Logs
 *.log

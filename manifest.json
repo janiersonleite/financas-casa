@@ -1,0 +1,33 @@
+{
+  "name": "Finanças Casa",
+  "short_name": "Finanças",
+  "description": "Controle financeiro pessoal e familiar",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f3f4f6",
+  "theme_color": "#3b82f6",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "share_target": {
+    "action": "/share-target",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "title": "title",
+      "text":  "text",
+      "url":   "url",
+      "files": [
+        {
+          "name":   "receipt",
+          "accept": ["image/jpeg","image/png","image/gif","image/webp","application/pdf"]
+        }
+      ]
+    }
+  }
+}

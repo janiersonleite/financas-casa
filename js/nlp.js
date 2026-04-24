@@ -129,7 +129,9 @@ const NLP = {
         const weekdays = /\b(segunda|terça|terca|quarta|quinta|sexta|sábado|sabado|domingo)(\s*-?\s*feira)?\b/gi;
         desc = desc.replace(weekdays, '');
 
-        // 6. Remove valores monetários
+        // 6. Remove valores monetários (inclusive preposição "por/de" antes do valor)
+        desc = desc.replace(/\b(por|de)\s+r\$\s*\d+([.,]\d{1,2})?/gi, '');
+        desc = desc.replace(/\b(por|de)\s+\d+([.,]\d{1,2})?\s*(reais|real|conto|contos|reis)/gi, '');
         desc = desc.replace(/r\$\s*\d+([.,]\d{1,2})?/gi, '');
         desc = desc.replace(/\d+([.,]\d{1,2})?\s*(reais|real|conto|contos|reis)/gi, '');
         desc = desc.replace(/\b\d+([.,]\d{1,2})?\b/g, '');
@@ -137,12 +139,15 @@ const NLP = {
         // 7. Remove conjunções e relativos sozinhos
         desc = desc.replace(/\b(que|o que|isso|aquilo|então|aí|só)\b/gi, '');
 
-        // 7. Remove preposições/artigos no início (múltiplas passagens)
+        // 8. Remove preposições/artigos no início (múltiplas passagens)
         const leadingJunk = /^\s*(no|na|nos|nas|com|em|de|do|da|dos|das|para|pro|pra|por|num|numa|a|o|os|as|um|uma|uns|umas|ao|aos|à|às)\s+/gi;
         let prev;
         do { prev = desc; desc = desc.replace(leadingJunk, ''); } while (desc !== prev);
 
-        // 8. Limpa espaços e capitaliza
+        // 9. Remove preposições/artigos soltos no final
+        desc = desc.replace(/\s+(por|de|do|da|em|no|na|com|a|o|e|ao|para|pra|pro|num|numa)\s*$/gi, '');
+
+        // 10. Limpa espaços e capitaliza
         desc = desc.replace(/\s+/g, ' ').trim();
         if (desc) desc = desc.charAt(0).toUpperCase() + desc.slice(1);
 
