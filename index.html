@@ -800,8 +800,17 @@
         <div class="flex gap-3">
             <div>
                 <label class="block text-xs font-semibold text-gray-500 mb-1.5 uppercase">Emoji</label>
-                <input id="cat-emoji-input" type="text" maxlength="2" placeholder="📦"
-                    class="w-16 border-2 border-gray-200 rounded-xl px-2 py-3 text-2xl text-center focus:outline-none focus:border-blue-400">
+                <div class="relative">
+                    <button id="cat-emoji-btn" type="button"
+                        class="w-16 h-[50px] border-2 border-gray-200 rounded-xl text-2xl hover:border-blue-400 focus:outline-none focus:border-blue-400 transition-colors flex items-center justify-center"
+                        title="Clique para escolher">📦</button>
+                    <!-- Emoji Picker -->
+                    <div id="cat-emoji-picker" class="hidden absolute left-0 top-full mt-1 bg-white border border-gray-200 rounded-2xl shadow-xl z-20 p-3" style="width:272px">
+                        <p class="text-xs text-gray-400 mb-2 font-medium">Toque para escolher</p>
+                        <div id="cat-emoji-grid" class="grid grid-cols-8 gap-0.5 max-h-48 overflow-y-auto"></div>
+                    </div>
+                </div>
+                <input id="cat-emoji-input" type="hidden" value="📦">
             </div>
             <div class="flex-1">
                 <label class="block text-xs font-semibold text-gray-500 mb-1.5 uppercase">Nome</label>
@@ -860,7 +869,7 @@
 <script src="js/storage.js?v=20260424l"></script>
 <script src="js/nlp.js?v=20260424b"></script>
 <script src="js/ocr.js?v=20260424h"></script>
-<script src="js/app.js?v=20260424l"></script>
+<script src="js/app.js?v=20260424m"></script>
 
 <script>
 // ── Service Worker + PWA ──────────────────────────────────────────────────────

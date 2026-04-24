@@ -1732,6 +1732,83 @@ const App = {
         document.getElementById('manage-cats-btn')?.addEventListener('click', () => this.openCategoryModal());
     },
 
+    // ── Emoji picker helpers ──────────────────────────────────────────────────
+    _emojiPickerList: [
+        '😀','😂','🥰','😎','🤩','🥳','🤔','😴',
+        '🍔','🍕','🍣','🥩','🍺','☕','🍰','🛒',
+        '🚗','🚌','✈️','🛵','⛽','🚲','🚢','🏍️',
+        '💊','🏥','🦷','💉','🩺','🧬','👶','🧒',
+        '🏠','🏢','🛋️','💡','💧','🔑','🏗️','🛏️',
+        '📚','🎓','✏️','💻','📱','🖥️','⌨️','🖨️',
+        '🎮','🎬','🎵','🎭','🎨','🏋️','⚽','🎸',
+        '👕','👗','👟','👜','💍','🕶️','🎩','🧣',
+        '💸','💰','💳','🏦','📈','💵','🪙','💎',
+        '🎁','🛍️','🏷️','📦','🛠️','🧹','🌱','🐾',
+        '📺','🎙️','📷','🔌','🔋','💡','📡','🎧',
+        '✈️','🏖️','⛺','🗺️','🧳','🎿','🏕️','🌍',
+    ],
+
+    _emojiSuggestMap: [
+        { words: ['alimenta','comida','mercado','supermercado','restaur','lanche','almoç','jant','café','padaria','pizza','hamburguer','sushi','feira','marmita'],  emoji: '🍔' },
+        { words: ['transport','carro','uber','taxi','ônibus','onibus','metrô','metro','gasolina','combustível','combustivel','pedágio','pedagio','estacionamento'], emoji: '🚗' },
+        { words: ['saúde','saude','farmácia','farmacia','remédio','remedio','médico','medico','hospital','dentista','consulta','exame','plano de saúde'],           emoji: '💊' },
+        { words: ['moradia','aluguel','condomínio','condominio','água','agua','luz','energia','internet','gás','gas','financiamento','iptu','imóvel'],               emoji: '🏠' },
+        { words: ['educaç','escola','faculdade','curso','livro','mensalidade','aula','universidade','inglês','ingles','treinamento'],                                emoji: '📚' },
+        { words: ['lazer','cinema','show','spotify','jogo','game','balada','festa','entretenimento','diversão','diversao'],                                         emoji: '🎮' },
+        { words: ['vestuário','vestuario','roupa','calçado','calcado','tênis','tenis','sapato','camisa','calça','calca','vestido','casaco','moda'],                  emoji: '👕' },
+        { words: ['pix','transferência','transferencia','ted','doc','envio','remessa'],                                                                             emoji: '💸' },
+        { words: ['salário','salario','holerite','freela','freelance','vencimento','renda','receita','pagamento recebido','pro-labore'],                             emoji: '💰' },
+        { words: ['pet','cachorro','gato','animal','veterinário','veterinario','ração','racao','petshop'],                                                          emoji: '🐾' },
+        { words: ['academia','ginástica','ginastica','esporte','treino','crossfit','natação','natacao','futebol','musculação'],                                      emoji: '🏋️' },
+        { words: ['beleza','cabelo','cabeleireiro','barbearia','manicure','estética','estetica','salão','salao','unhas'],                                            emoji: '💇' },
+        { words: ['tecnologia','tech','computador','celular','smartphone','tablet','eletrônico','eletronico','software','hardware'],                                emoji: '💻' },
+        { words: ['viagem','passagem','avião','aviao','aeroporto','hospedagem','hotel','turismo','férias','ferias'],                                                emoji: '✈️' },
+        { words: ['present','gift','aniversário','aniversario','natal','lembrança','lembranca'],                                                                    emoji: '🎁' },
+        { words: ['investimento','poupança','poupanca','rendimento','dividendo','ação','acao','bolsa','fundo','tesouro'],                                            emoji: '📈' },
+        { words: ['seguro','apólice','apolice','proteção','protecao'],                                                                                             emoji: '🛡️' },
+        { words: ['streaming','netflix','amazon','disney','hbo','prime','assinatura','subscriç'],                                                                   emoji: '📺' },
+        { words: ['música','musica','concerto','instrumento'],                                                                                                     emoji: '🎵' },
+        { words: ['delivery','ifood','rappi'],                                                                                                                     emoji: '🛵' },
+        { words: ['compra','shopping','loja','varejo','mercadoria'],                                                                                                emoji: '🛍️' },
+        { words: ['crédito','credito','cartão','cartao','fatura','débito','debito'],                                                                                emoji: '💳' },
+        { words: ['trabalho','escritório','escritorio','negócio','negocio','empresa','negócios','comercio'],                                                        emoji: '💼' },
+        { words: ['decoração','decoracao','móvel','movel','mobília','mobilia','eletrodoméstico','eletrodomestico'],                                                  emoji: '🛋️' },
+        { words: ['jardim','planta','flor','horta','paisagismo'],                                                                                                  emoji: '🌱' },
+        { words: ['churrasco','carne','açougue','acougue','frigorífico'],                                                                                          emoji: '🥩' },
+        { words: ['cerveja','bebida','bar','drink','bares','balada'],                                                                                              emoji: '🍺' },
+        { words: ['criança','crianca','bebê','bebe','filho','brinquedo','creche','escola infantil'],                                                                emoji: '🧒' },
+        { words: ['parcela','prestação','prestacao','empréstimo','emprestimo','dívida','divida'],                                                                   emoji: '📋' },
+        { words: ['outros','outro','geral','misc','diverso'],                                                                                                      emoji: '📦' },
+    ],
+
+    _suggestEmoji(name) {
+        const lower = name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        for (const { words, emoji } of this._emojiSuggestMap) {
+            if (words.some(w => lower.includes(w.normalize('NFD').replace(/[\u0300-\u036f]/g, '')))) return emoji;
+        }
+        return null;
+    },
+
+    _setEmojiValue(emoji) {
+        document.getElementById('cat-emoji-input').value = emoji;
+        document.getElementById('cat-emoji-btn').textContent = emoji;
+        document.getElementById('cat-emoji-picker').classList.add('hidden');
+    },
+
+    _buildEmojiPicker() {
+        const grid = document.getElementById('cat-emoji-grid');
+        if (!grid || grid.dataset.built) return;
+        grid.dataset.built = '1';
+        grid.innerHTML = this._emojiPickerList.map(e =>
+            `<button type="button" data-emoji="${e}"
+                class="text-2xl p-1 rounded-lg hover:bg-blue-50 transition-colors leading-none">${e}</button>`
+        ).join('');
+        grid.addEventListener('click', e => {
+            const btn = e.target.closest('[data-emoji]');
+            if (btn) this._setEmojiValue(btn.dataset.emoji);
+        });
+    },
+
     bindCategoryUI() {
         const modal = document.getElementById('category-modal');
         document.getElementById('category-modal-close')?.addEventListener('click', () => this.closeCategoryModal());
@@ -1743,6 +1820,25 @@ const App = {
         document.getElementById('cat-form-cancel')?.addEventListener('click', () => this.closeCategoryForm());
         fModal?.addEventListener('click', e => { if (e.target === fModal) this.closeCategoryForm(); });
         document.getElementById('cat-form-save')?.addEventListener('click', () => this.saveCategoryForm());
+
+        // Auto-suggest emoji ao digitar o nome
+        document.getElementById('cat-name-input')?.addEventListener('input', e => {
+            const suggestion = this._suggestEmoji(e.target.value);
+            if (suggestion) this._setEmojiValue(suggestion);
+        });
+
+        // Emoji picker toggle
+        document.getElementById('cat-emoji-btn')?.addEventListener('click', e => {
+            e.stopPropagation();
+            this._buildEmojiPicker();
+            document.getElementById('cat-emoji-picker').classList.toggle('hidden');
+        });
+        // Fecha picker ao clicar fora
+        document.addEventListener('click', e => {
+            if (!e.target.closest('#cat-emoji-btn') && !e.target.closest('#cat-emoji-picker')) {
+                document.getElementById('cat-emoji-picker')?.classList.add('hidden');
+            }
+        });
 
         document.getElementById('cat-restore-defaults-btn')?.addEventListener('click', async () => {
             if (!confirm('Restaurar todas as categorias padrão?\nIsto desfaz edições e reexibe categorias ocultas.')) return;
@@ -1847,7 +1943,9 @@ const App = {
     openCategoryForm(cat = null) {
         this.editingCatId = cat?.id || null;
         document.getElementById('cat-form-title').textContent = cat ? 'Editar Categoria' : 'Nova Categoria';
-        document.getElementById('cat-emoji-input').value   = cat?.emoji   || '📦';
+        const emoji = cat?.emoji || '📦';
+        document.getElementById('cat-emoji-input').value = emoji;
+        document.getElementById('cat-emoji-btn').textContent = emoji;
         document.getElementById('cat-name-input').value    = cat?.name    || '';
         document.getElementById('cat-keywords-input').value = (cat?.keywords || []).join(', ');
         document.getElementById('cat-type-input').value    = cat?.type    || 'saida';
