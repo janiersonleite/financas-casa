@@ -31,6 +31,8 @@ const App = {
         await this.loadCategories();
         await this.renderHome();
         this.refreshMonthDisplay();
+        // Aquece o cache offline em segundo plano (não bloqueia a UI)
+        if (navigator.onLine) this._warmOfflineCache();
         // Verifica se há comprovante compartilhado (PWA share target)
         if (window.__pendingShared) await this.checkSharedContent();
     },
@@ -184,6 +186,7 @@ const App = {
                 this.closeFinancaModal();
                 this.renderFinancaSwitcher();
                 await this.renderCurrentTab();
+                if (navigator.onLine) this._warmOfflineCache();
                 if (this.currentTab !== 'home') await this.renderHome();
             });
         });
@@ -1587,6 +1590,12 @@ const App = {
         document.querySelectorAll('.month-display').forEach(el => {
             el.textContent = this.formatMonth(this.currentMonth);
         });
+    },
+
+    // ─── Offline Cache Warm-up ────────────────────────────────────────────────
+    async _warmOfflineCache() {
+        if (!Storage.isCloud) return;
+        try { await Storage.warmCache(); } catch (e) { console.warn('Cache warm-up failed:', e.message); }
     },
 
     // ─── Offline Sync ─────────────────────────────────────────────────────────

@@ -48,6 +48,38 @@ const Storage = {
     },
     _cacheCat(list) { localStorage.setItem(this.CACHE_CAT_KEY, JSON.stringify(list)); },
 
+    // ── Cache Warm-up (roda ao iniciar online) ────────────────────────────────
+    async warmCache() {
+        if (!this.isCloud || !this.isOnline) return;
+
+        // Busca todas as transações sem filtro de mês
+        let q = this.db
+            .from('transactions')
+            .select('*')
+            .order('date',       { ascending: false })
+            .order('created_at', { ascending: false });
+        if (this.activeFinancaId) q = q.eq('financa_id', this.activeFinancaId);
+        else                      q = q.eq('user_id', this.userId());
+        const { data: txData } = await q;
+        if (txData) this._mergeTxCache(txData);
+
+        // Categorias
+        const uid = this.userId();
+        const { data: catData } = await this.db
+            .from('categories')
+            .select('*')
+            .or(`user_id.is.null,user_id.eq.${uid}`)
+            .order('sort_order', { ascending: true });
+        if (catData) this._cacheCat(catData);
+
+        // Finanças
+        const { data: finData } = await this.db
+            .from('financas')
+            .select('*')
+            .order('created_at', { ascending: true });
+        if (finData) this._cacheFin(finData);
+    },
+
     // ── Sync pending ops ──────────────────────────────────────────────────────
     async syncPendingOps() {
         if (!this.isCloud || !this.isOnline) return { synced: 0, failed: 0 };
