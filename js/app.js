@@ -11,6 +11,8 @@ const App = {
     categories:    [],
     editingCatId:  null,
     trendChart:    null,
+    transactionTypes: [],
+    editingTypeId:    null,
 
     // ─── Init ─────────────────────────────────────────────────────────────────
     async init() {
@@ -27,7 +29,9 @@ const App = {
         this.bindExportButtons();
         this.bindImportUI();
         this.bindOfflineSync();
+        this.bindTypesUI();
         await this.loadFinancas();
+        await this.loadTransactionTypes();
         await this.loadCategories();
         await this.renderHome();
         this.refreshMonthDisplay();
@@ -484,14 +488,11 @@ const App = {
         document.getElementById('modal-overlay').addEventListener('click', e => {
             if (e.target === e.currentTarget) this.closeModal();
         });
-        document.querySelectorAll('[data-type-btn]').forEach(btn => {
-            btn.addEventListener('click', () => {
-                document.querySelectorAll('[data-type-btn]').forEach(b => b.classList.remove('type-active'));
-                btn.classList.add('type-active');
-                document.getElementById('modal-type').value = btn.dataset.typeBtn;
-                this.updateModalColors(btn.dataset.typeBtn);
-            });
+        document.getElementById('modal-types-container').addEventListener('click', e => {
+            const btn = e.target.closest('[data-type-btn]');
+            if (btn) this.selectModalType(btn.dataset.typeBtn);
         });
+        document.getElementById('manage-types-link')?.addEventListener('click', () => this.openTypesModal());
     },
 
     openModal(data = {}) {
@@ -501,13 +502,9 @@ const App = {
         document.getElementById('modal-value').value       = data.value || '';
         document.getElementById('modal-description').value = data.description || '';
         document.getElementById('modal-date').value        = data.date || new Date().toISOString().split('T')[0];
-        document.getElementById('modal-type').value        = data.type || 'saida';
         document.getElementById('modal-notes').value       = data.rawText ? '📎 Processado via OCR' : (data.notes || '');
-        const type = data.type || 'saida';
-        document.querySelectorAll('[data-type-btn]').forEach(b => {
-            b.classList.toggle('type-active', b.dataset.typeBtn === type);
-        });
-        this.updateModalColors(type);
+        this.renderModalTypeBtns();
+        this.selectModalType(data.type || 'saida');
         this.renderCategorySelect(data.category || 'Outros');
         if (data.focusValue) setTimeout(() => document.getElementById('modal-value').focus(), 100);
     },
@@ -543,11 +540,219 @@ const App = {
         }
     },
 
-    updateModalColors(type) {
-        const h = document.getElementById('modal-header');
-        h.className = type === 'entrada'
-            ? 'p-4 bg-green-500 text-white rounded-t-2xl'
-            : 'p-4 bg-red-500 text-white rounded-t-2xl';
+    updateModalColors(typeId) {
+        const h    = document.getElementById('modal-header');
+        const type = (this.transactionTypes || []).find(t => t.id === typeId);
+        const hex  = type ? this._getTypeColorHex(type.color) : (typeId === 'entrada' ? '#22c55e' : '#ef4444');
+        h.className    = 'p-4 text-white rounded-t-2xl';
+        h.style.background = hex;
+    },
+
+    // ─── Transaction Types ────────────────────────────────────────────────────
+    async loadTransactionTypes() {
+        this.transactionTypes = await Storage.getTransactionTypes();
+    },
+
+    _getTypeColorHex(color) {
+        const map = { red: '#ef4444', green: '#22c55e', purple: '#a855f7', teal: '#14b8a6', orange: '#f97316', indigo: '#6366f1', pink: '#ec4899', yellow: '#eab308', gray: '#6b7280' };
+        return map[color] || '#6b7280';
+    },
+
+    renderModalTypeBtns() {
+        const container = document.getElementById('modal-types-container');
+        if (!container) return;
+        container.innerHTML = this.transactionTypes.map(t => {
+            const hex = this._getTypeColorHex(t.color);
+            return `<button data-type-btn="${t.id}"
+                class="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium border-2 transition-all"
+                style="border-color:#e5e7eb;color:#374151;" data-hex="${hex}">
+                ${t.emoji} ${t.name}
+            </button>`;
+        }).join('');
+    },
+
+    selectModalType(typeId) {
+        const container = document.getElementById('modal-types-container');
+        if (!container) return;
+        container.querySelectorAll('[data-type-btn]').forEach(btn => {
+            if (btn.dataset.typeBtn === typeId) {
+                const hex = btn.dataset.hex;
+                btn.style.borderColor      = hex;
+                btn.style.backgroundColor  = hex + '22';
+                btn.style.color            = hex;
+            } else {
+                btn.style.borderColor      = '#e5e7eb';
+                btn.style.backgroundColor  = '';
+                btn.style.color            = '#374151';
+            }
+        });
+        document.getElementById('modal-type').value = typeId;
+        this.updateModalColors(typeId);
+    },
+
+    bindTypesUI() {
+        const tModal = document.getElementById('types-modal');
+        document.getElementById('types-modal-close')?.addEventListener('click', () => this.closeTypesModal());
+        tModal?.addEventListener('click', e => { if (e.target === tModal) this.closeTypesModal(); });
+        document.getElementById('type-add-btn')?.addEventListener('click', () => this.openTypeForm());
+
+        const fModal = document.getElementById('type-form-modal');
+        document.getElementById('type-form-close')?.addEventListener('click',   () => this.closeTypeForm());
+        document.getElementById('type-form-cancel')?.addEventListener('click',  () => this.closeTypeForm());
+        fModal?.addEventListener('click', e => { if (e.target === fModal) this.closeTypeForm(); });
+        document.getElementById('type-form-save')?.addEventListener('click',    () => this.saveTypeForm());
+
+        document.querySelectorAll('[data-behavior]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('[data-behavior]').forEach(b => {
+                    b.className = 'behavior-btn py-2.5 px-1 rounded-xl text-xs font-semibold border-2 border-gray-200 text-gray-600 transition-all';
+                });
+                btn.className = 'behavior-btn py-2.5 px-1 rounded-xl text-xs font-semibold border-2 border-blue-400 bg-blue-50 text-blue-700 transition-all';
+                document.getElementById('type-behavior-input').value = btn.dataset.behavior;
+            });
+        });
+
+        document.querySelectorAll('.type-color-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.type-color-btn').forEach(b => { b.style.outline = ''; b.style.outlineOffset = ''; });
+                btn.style.outline       = '3px solid ' + btn.style.background;
+                btn.style.outlineOffset = '2px';
+                document.getElementById('type-color-input').value = btn.dataset.color;
+            });
+        });
+
+        document.getElementById('type-emoji-btn')?.addEventListener('click', e => {
+            e.stopPropagation();
+            this._buildTypeEmojiPicker();
+            document.getElementById('type-emoji-picker').classList.toggle('hidden');
+        });
+        document.addEventListener('click', e => {
+            if (!e.target.closest('#type-emoji-btn') && !e.target.closest('#type-emoji-picker')) {
+                document.getElementById('type-emoji-picker')?.classList.add('hidden');
+            }
+        });
+    },
+
+    _buildTypeEmojiPicker() {
+        const grid = document.getElementById('type-emoji-grid');
+        if (!grid || grid.dataset.built) return;
+        grid.dataset.built = '1';
+        grid.innerHTML = this._emojiPickerList.map(e =>
+            `<button type="button" data-emoji="${e}" class="text-2xl p-1 rounded-lg hover:bg-blue-50 transition-colors leading-none">${e}</button>`
+        ).join('');
+        grid.addEventListener('click', e => {
+            const btn = e.target.closest('[data-emoji]');
+            if (!btn) return;
+            document.getElementById('type-emoji-input').value    = btn.dataset.emoji;
+            document.getElementById('type-emoji-btn').textContent = btn.dataset.emoji;
+            document.getElementById('type-emoji-picker').classList.add('hidden');
+        });
+    },
+
+    openTypesModal() {
+        document.getElementById('types-modal').classList.remove('hidden');
+        this.renderTypesList();
+    },
+
+    closeTypesModal() {
+        document.getElementById('types-modal').classList.add('hidden');
+    },
+
+    renderTypesList() {
+        const container = document.getElementById('custom-types-list');
+        if (!container) return;
+        const customs = Storage.getCustomTypes();
+        if (!customs.length) {
+            container.innerHTML = '<p class="text-xs text-gray-400 text-center py-3">Nenhum tipo personalizado ainda</p>';
+            return;
+        }
+        const behaviorLabel = { soma: '➕ Soma ao saldo', subtrai: '➖ Subtrai do saldo', neutro: '⬜ Não contabiliza' };
+        container.innerHTML = customs.map(t => {
+            const hex = this._getTypeColorHex(t.color);
+            return `<div class="flex items-center gap-3 py-2.5 border-b border-gray-100 last:border-0">
+                <span class="text-xl w-8 text-center">${t.emoji}</span>
+                <div class="flex-1 min-w-0">
+                    <div class="text-sm font-medium text-gray-800">${t.name}</div>
+                    <div class="text-xs" style="color:${hex}">${behaviorLabel[t.behavior] || t.behavior}</div>
+                </div>
+                <div class="flex items-center gap-1 flex-shrink-0">
+                    <button class="type-edit-btn text-gray-400 hover:text-blue-500 px-2 text-lg" data-type-id="${t.id}">✏️</button>
+                    <button class="type-del-btn text-gray-400 hover:text-red-500 px-1 text-lg"  data-type-id="${t.id}">🗑</button>
+                </div>
+            </div>`;
+        }).join('');
+
+        container.querySelectorAll('.type-edit-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const t = Storage.getCustomTypes().find(x => x.id === btn.dataset.typeId);
+                if (t) this.openTypeForm(t);
+            });
+        });
+        container.querySelectorAll('.type-del-btn').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                if (!confirm('Excluir este tipo de lançamento?')) return;
+                try {
+                    await Storage.deleteTransactionType(btn.dataset.typeId);
+                    this.transactionTypes = await Storage.getTransactionTypes();
+                    this.renderTypesList();
+                    this.showToast('Tipo removido');
+                } catch (e) { this.showToast('❌ Erro: ' + e.message, true); }
+            });
+        });
+    },
+
+    openTypeForm(type = null) {
+        this.editingTypeId = type?.id || null;
+        document.getElementById('type-form-title').textContent = type ? 'Editar Tipo' : 'Novo Tipo';
+        const emoji = type?.emoji || '📋';
+        document.getElementById('type-emoji-input').value     = emoji;
+        document.getElementById('type-emoji-btn').textContent = emoji;
+        document.getElementById('type-name-input').value      = type?.name || '';
+        const behavior = type?.behavior || 'soma';
+        document.getElementById('type-behavior-input').value  = behavior;
+        document.querySelectorAll('[data-behavior]').forEach(btn => {
+            const active = btn.dataset.behavior === behavior;
+            btn.className = `behavior-btn py-2.5 px-1 rounded-xl text-xs font-semibold border-2 transition-all ${active ? 'border-blue-400 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600'}`;
+        });
+        const color = type?.color || 'purple';
+        document.getElementById('type-color-input').value = color;
+        document.querySelectorAll('.type-color-btn').forEach(btn => {
+            const active = btn.dataset.color === color;
+            btn.style.outline       = active ? '3px solid ' + btn.style.background : '';
+            btn.style.outlineOffset = active ? '2px' : '';
+        });
+        document.getElementById('type-form-modal').classList.remove('hidden');
+        setTimeout(() => document.getElementById('type-name-input').focus(), 100);
+    },
+
+    closeTypeForm() {
+        document.getElementById('type-form-modal').classList.add('hidden');
+        this.editingTypeId = null;
+    },
+
+    async saveTypeForm() {
+        const name     = document.getElementById('type-name-input').value.trim();
+        const emoji    = document.getElementById('type-emoji-input').value.trim() || '📋';
+        const behavior = document.getElementById('type-behavior-input').value;
+        const color    = document.getElementById('type-color-input').value;
+        if (!name) { document.getElementById('type-name-input').focus(); return; }
+        const btn = document.getElementById('type-form-save');
+        btn.disabled = true; btn.textContent = 'Salvando...';
+        try {
+            if (this.editingTypeId) {
+                await Storage.updateTransactionType(this.editingTypeId, { name, emoji, behavior, color });
+            } else {
+                await Storage.createTransactionType(name, behavior, emoji, color);
+            }
+            this.transactionTypes = await Storage.getTransactionTypes();
+            this.closeTypeForm();
+            this.renderTypesList();
+            this.showToast(this.editingTypeId ? '✅ Tipo atualizado!' : '✅ Tipo criado!');
+        } catch (e) {
+            this.showToast('❌ Erro: ' + e.message, true);
+        } finally {
+            btn.disabled = false; btn.textContent = 'Salvar';
+        }
     },
 
     // ─── Voice Input ──────────────────────────────────────────────────────────
@@ -783,8 +988,9 @@ const App = {
             html += `<div class="text-xs font-semibold text-gray-400 uppercase mt-4 mb-1 px-1">${this.formatDateGroup(date)}</div>`;
             for (const t of items) {
                 const icon  = this.getCategoryIcon(t.category);
-                const color = t.type === 'entrada' ? 'text-green-600' : 'text-red-600';
-                const sign  = t.type === 'entrada' ? '+' : '-';
+                const beh   = Storage.getBehavior(t.type);
+                const color = beh === 'soma' ? 'text-green-600' : beh === 'subtrai' ? 'text-red-600' : 'text-gray-500';
+                const sign  = beh === 'soma' ? '+' : beh === 'subtrai' ? '-' : '±';
                 html += `
                 <div class="flex items-center gap-3 bg-white rounded-xl p-3 mb-2 shadow-sm border border-gray-100 transaction-item cursor-pointer" data-id="${t.id}">
                     <div class="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-xl flex-shrink-0">${icon}</div>
@@ -950,7 +1156,7 @@ const App = {
             for (const [date, items] of Object.entries(byDate)) {
                 panelHtml += `<div class="text-[10px] font-semibold text-blue-400 uppercase pt-2 pb-0.5 px-1">${this.formatDateGroup(date)}</div>`;
                 for (const t of items) {
-                    const isIncome = t.type === 'entrada';
+                    const isIncome = Storage.getBehavior(t.type) === 'soma';
                     const badge    = this.getInserterBadge(t);
                     panelHtml += `
                     <div class="flex items-center gap-2 bg-white rounded-lg px-2.5 py-1.5 mb-1 border border-blue-100">
@@ -1085,8 +1291,8 @@ const App = {
         const all = await Storage.getTransactions({ month: this.currentMonth });
         const txns = all.filter(t => t.category === cat).sort((a, b) => b.date.localeCompare(a.date));
 
-        const income  = txns.filter(t => t.type === 'entrada').reduce((s, t) => s + Number(t.value), 0);
-        const expense = txns.filter(t => t.type === 'saida').reduce((s, t) => s + Number(t.value), 0);
+        const income  = txns.filter(t => Storage.getBehavior(t.type) === 'soma').reduce((s, t) => s + Number(t.value), 0);
+        const expense = txns.filter(t => Storage.getBehavior(t.type) === 'subtrai').reduce((s, t) => s + Number(t.value), 0);
 
         document.getElementById('cat-detail-totals').innerHTML = `
             ${expense > 0 ? `<span class="px-3 py-1 bg-red-50 text-red-600 rounded-full text-xs font-semibold">Saídas: ${this.formatCurrency(expense)}</span>` : ''}
@@ -1099,8 +1305,9 @@ const App = {
 
         const listEl = document.getElementById('cat-detail-list');
         listEl.innerHTML = txns.map(t => {
-            const sign  = t.type === 'entrada' ? '+' : '-';
-            const color = t.type === 'entrada' ? 'text-green-600' : 'text-red-600';
+            const beh   = Storage.getBehavior(t.type);
+            const sign  = beh === 'soma' ? '+' : beh === 'subtrai' ? '-' : '±';
+            const color = beh === 'soma' ? 'text-green-600' : beh === 'subtrai' ? 'text-red-600' : 'text-gray-500';
             const badge = this.getInserterBadge(t);
             return `
             <div class="flex items-center gap-3 py-2.5 border-b border-gray-50 last:border-0 cursor-pointer hover:bg-gray-50 rounded-xl px-1 -mx-1 cat-detail-item" data-id="${t.id}">

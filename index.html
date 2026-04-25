@@ -609,15 +609,9 @@
 
         <div class="p-4 space-y-4 max-h-[80vh] overflow-y-auto">
 
-            <!-- Type toggle -->
-            <div class="flex gap-2">
-                <button data-type-btn="saida" class="saida-btn type-active flex-1 py-2.5 rounded-xl text-sm font-medium border-2 border-red-200 transition-all">
-                    💸 Saída (Gasto)
-                </button>
-                <button data-type-btn="entrada" class="entrada-btn flex-1 py-2.5 rounded-xl text-sm font-medium border-2 border-green-200 transition-all">
-                    💰 Entrada (Receita)
-                </button>
-            </div>
+            <!-- Type toggle - renderizado dinamicamente pelo JS -->
+            <div id="modal-types-container" class="flex gap-2 flex-wrap"></div>
+            <button id="manage-types-link" class="text-xs text-blue-400 hover:text-blue-500 text-right w-full mt-1 transition-colors">+ Gerenciar tipos</button>
             <input id="modal-type" type="hidden" value="saida">
 
             <!-- Value -->
@@ -860,6 +854,94 @@
     </div>
 </div>
 
+<!-- ═══════════════════ TYPES MANAGEMENT MODAL ═══════════════════ -->
+<div id="types-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-end justify-center">
+    <div class="bg-white w-full max-w-md rounded-t-3xl shadow-xl p-4 space-y-3" style="max-height:85vh;overflow-y:auto">
+        <div class="flex items-center justify-between">
+            <h3 class="font-bold text-lg text-gray-800">Tipos de Lançamento</h3>
+            <button id="types-modal-close" class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-gray-200">✕</button>
+        </div>
+        <!-- Tipos fixos -->
+        <div class="bg-gray-50 rounded-xl p-3 space-y-2">
+            <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Padrão (não editáveis)</p>
+            <div class="flex items-center gap-3 py-1">
+                <span class="text-xl">💸</span>
+                <div class="flex-1"><p class="text-sm font-medium text-gray-800">Saída (Gasto)</p><p class="text-xs text-gray-400">➖ Subtrai do saldo</p></div>
+                <span class="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-medium">Fixo</span>
+            </div>
+            <div class="flex items-center gap-3 py-1">
+                <span class="text-xl">💰</span>
+                <div class="flex-1"><p class="text-sm font-medium text-gray-800">Entrada (Receita)</p><p class="text-xs text-gray-400">➕ Soma ao saldo</p></div>
+                <span class="text-xs bg-green-100 text-green-600 px-2 py-0.5 rounded-full font-medium">Fixo</span>
+            </div>
+        </div>
+        <!-- Tipos customizados -->
+        <div id="custom-types-list"></div>
+        <button id="type-add-btn" class="w-full py-3 rounded-xl border-2 border-dashed border-gray-200 text-sm text-gray-400 hover:border-blue-400 hover:text-blue-500 transition-colors font-medium">
+            + Novo tipo de lançamento
+        </button>
+    </div>
+</div>
+
+<!-- ═══════════════════════ TYPE FORM MODAL ══════════════════════ -->
+<div id="type-form-modal" class="hidden fixed inset-0 bg-black/50 z-[60] flex items-end justify-center">
+    <div class="bg-white w-full max-w-md rounded-t-3xl shadow-xl p-4 space-y-4" style="max-height:90vh;overflow-y:auto">
+        <div class="flex items-center justify-between">
+            <h3 id="type-form-title" class="font-bold text-lg text-gray-800">Novo Tipo</h3>
+            <button id="type-form-close" class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-gray-200">✕</button>
+        </div>
+        <!-- Emoji + Nome -->
+        <div class="flex gap-3">
+            <div>
+                <label class="block text-xs font-semibold text-gray-500 mb-1.5 uppercase">Emoji</label>
+                <div class="relative">
+                    <button id="type-emoji-btn" type="button"
+                        class="w-16 h-[50px] border-2 border-gray-200 rounded-xl text-2xl hover:border-blue-400 focus:outline-none transition-colors flex items-center justify-center">📋</button>
+                    <div id="type-emoji-picker" class="hidden absolute left-0 top-full mt-1 bg-white border border-gray-200 rounded-2xl shadow-xl z-20 p-3" style="width:272px">
+                        <p class="text-xs text-gray-400 mb-2">Toque para escolher</p>
+                        <div id="type-emoji-grid" class="grid grid-cols-8 gap-0.5 max-h-48 overflow-y-auto"></div>
+                    </div>
+                </div>
+                <input id="type-emoji-input" type="hidden" value="📋">
+            </div>
+            <div class="flex-1">
+                <label class="block text-xs font-semibold text-gray-500 mb-1.5 uppercase">Nome</label>
+                <input id="type-name-input" type="text" placeholder="Ex: Investimento, Empréstimo..."
+                    class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-400">
+            </div>
+        </div>
+        <!-- Comportamento -->
+        <div>
+            <label class="block text-xs font-semibold text-gray-500 mb-2 uppercase">Comportamento no saldo</label>
+            <div class="grid grid-cols-3 gap-2">
+                <button data-behavior="soma"     class="behavior-btn py-2.5 px-1 rounded-xl text-xs font-semibold border-2 border-blue-400 bg-blue-50 text-blue-700 transition-all">➕ Somar</button>
+                <button data-behavior="subtrai"  class="behavior-btn py-2.5 px-1 rounded-xl text-xs font-semibold border-2 border-gray-200 text-gray-600 transition-all">➖ Subtrair</button>
+                <button data-behavior="neutro"   class="behavior-btn py-2.5 px-1 rounded-xl text-xs font-semibold border-2 border-gray-200 text-gray-600 transition-all">⬜ Não contabilizar</button>
+            </div>
+            <input id="type-behavior-input" type="hidden" value="soma">
+        </div>
+        <!-- Cor -->
+        <div>
+            <label class="block text-xs font-semibold text-gray-500 mb-2 uppercase">Cor</label>
+            <div class="flex gap-2 flex-wrap" id="type-color-btns">
+                <button data-color="purple" class="type-color-btn w-8 h-8 rounded-full transition-all" style="background:#a855f7"></button>
+                <button data-color="teal"   class="type-color-btn w-8 h-8 rounded-full transition-all" style="background:#14b8a6"></button>
+                <button data-color="orange" class="type-color-btn w-8 h-8 rounded-full transition-all" style="background:#f97316"></button>
+                <button data-color="indigo" class="type-color-btn w-8 h-8 rounded-full transition-all" style="background:#6366f1"></button>
+                <button data-color="pink"   class="type-color-btn w-8 h-8 rounded-full transition-all" style="background:#ec4899"></button>
+                <button data-color="yellow" class="type-color-btn w-8 h-8 rounded-full transition-all" style="background:#eab308"></button>
+                <button data-color="gray"   class="type-color-btn w-8 h-8 rounded-full transition-all" style="background:#6b7280"></button>
+            </div>
+            <input id="type-color-input" type="hidden" value="purple">
+        </div>
+        <!-- Ações -->
+        <div class="flex gap-3 pb-2">
+            <button id="type-form-cancel" class="flex-1 py-3 rounded-xl border-2 border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50">Cancelar</button>
+            <button id="type-form-save"   class="flex-1 py-3 rounded-xl bg-blue-500 text-white text-sm font-bold hover:bg-blue-600">Salvar</button>
+        </div>
+    </div>
+</div>
+
 <!-- Offline Bar -->
 <div id="offline-bar" class="hidden fixed top-0 left-0 right-0 z-50 bg-gray-900/95 backdrop-blur-sm text-white text-xs py-2 px-3 flex items-center justify-center gap-2">
     <span>📵</span>
@@ -877,7 +959,7 @@
 <script src="js/storage.js?v=20260424l"></script>
 <script src="js/nlp.js?v=20260424n"></script>
 <script src="js/ocr.js?v=20260424h"></script>
-<script src="js/app.js?v=20260424m"></script>
+<script src="js/app.js?v=20260424n"></script>
 
 <script>
 // ── Service Worker + PWA ──────────────────────────────────────────────────────
