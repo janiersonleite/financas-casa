@@ -23,7 +23,8 @@ const Storage = {
     },
 
     async createTransactionType(name, behavior, emoji, color) {
-        const t = { id: 'ct_' + Date.now(), name, behavior, emoji, color };
+        // ID curto (≤10 chars) para caber no VARCHAR(10) do Supabase
+        const t = { id: 'ct' + Date.now().toString(36).slice(-6), name, behavior, emoji, color };
         if (this.isCloud) {
             try {
                 const { data } = await this.db.from('transaction_types')
