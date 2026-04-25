@@ -219,9 +219,10 @@ const Storage = {
 
     // ── Finance state ─────────────────────────────────────────────────────────
     setActiveFinanca(id) {
-        this.activeFinancaId = id;
-        if (id) localStorage.setItem('active_financa_id', id);
-        else    localStorage.removeItem('active_financa_id');
+        const safe = (id && id !== 'null') ? id : null;
+        this.activeFinancaId = safe;
+        if (safe) localStorage.setItem('active_financa_id', safe);
+        else      localStorage.removeItem('active_financa_id');
     },
 
     // ── Finance CRUD ──────────────────────────────────────────────────────────
@@ -613,8 +614,9 @@ const Storage = {
                 .order('date',       { ascending: false })
                 .order('created_at', { ascending: false });
 
-            if (this.activeFinancaId) {
-                q = q.eq('financa_id', this.activeFinancaId);
+            const _fid = (this.activeFinancaId && this.activeFinancaId !== 'null') ? this.activeFinancaId : null;
+            if (_fid) {
+                q = q.eq('financa_id', _fid);
             } else {
                 q = q.eq('user_id', this.userId());
             }
