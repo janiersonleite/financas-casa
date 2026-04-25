@@ -1702,7 +1702,14 @@ const App = {
 
     _parseImportType(raw, value) {
         if (raw) {
-            const v = String(raw).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+            const norm = s => String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+            const v = norm(raw);
+            // 1. Tipos customizados (verificados primeiro para não confundir com fixos)
+            for (const ct of Storage.getCustomTypes()) {
+                const ctv = norm(ct.name);
+                if (ctv.length >= 2 && (v === ctv || v.includes(ctv) || ctv.includes(v))) return ct.id;
+            }
+            // 2. Tipos fixos
             if (['entrada','credito','credit','receita','income'].some(k => v.includes(k))) return 'entrada';
             if (['saida','debito','debit','despesa','expense','gasto'].some(k => v.includes(k))) return 'saida';
         }
