@@ -1437,14 +1437,19 @@ const App = {
             const summary      = await Storage.getSummary(this.currentMonth);
 
             // Sheet 1: transactions
-            const rows = transactions.map(t => ({
-                'Data':         t.date,
-                'Tipo':         t.type === 'entrada' ? 'Entrada' : 'Saída',
-                'Categoria':    t.category,
-                'Descrição':    t.description,
-                'Valor (R$)':   t.type === 'entrada' ? Number(t.value) : -Number(t.value),
-                'Inserido por': t.inserted_by_email || ''
-            }));
+            const rows = transactions.map(t => {
+                const typeObj = this.transactionTypes.find(x => x.id === t.type);
+                const typeName = typeObj ? typeObj.name : (t.type === 'entrada' ? 'Entrada' : 'Saída');
+                const beh = Storage.getBehavior(t.type);
+                return {
+                    'Data':         t.date,
+                    'Tipo':         typeName,
+                    'Categoria':    t.category,
+                    'Descrição':    t.description,
+                    'Valor (R$)':   beh === 'soma' ? Number(t.value) : beh === 'subtrai' ? -Number(t.value) : Number(t.value),
+                    'Inserido por': t.inserted_by_email || ''
+                };
+            });
 
             // Sheet 2: summary
             const sumRows = [
@@ -1513,14 +1518,13 @@ const App = {
             doc.autoTable({
                 startY: cardY + 32,
                 head: [['Data', 'Tipo', 'Categoria', 'Descrição', 'Valor', 'Inserido por']],
-                body: transactions.map(t => [
-                    t.date,
-                    t.type === 'entrada' ? 'Entrada' : 'Saída',
-                    t.category,
-                    t.description,
-                    (t.type === 'entrada' ? '+' : '-') + this.formatCurrency(Number(t.value)),
-                    t.inserted_by_email || ''
-                ]),
+                body: transactions.map(t => {
+                    const typeObj  = this.transactionTypes.find(x => x.id === t.type);
+                    const typeName = typeObj ? typeObj.name : (t.type === 'entrada' ? 'Entrada' : 'Saída');
+                    const beh      = Storage.getBehavior(t.type);
+                    const sign     = beh === 'soma' ? '+' : beh === 'subtrai' ? '-' : '±';
+                    return [t.date, typeName, t.category, t.description, sign + this.formatCurrency(Number(t.value)), t.inserted_by_email || ''];
+                }),
                 styles:      { fontSize: 7, cellPadding: 2 },
                 headStyles:  { fillColor: [37, 99, 235], textColor: 255, fontStyle: 'bold' },
                 columnStyles: { 4: { halign: 'right' }, 5: { textColor: [100, 100, 100] } },
@@ -1857,15 +1861,18 @@ const App = {
     },
 
     downloadImportTemplate() {
-        const wb  = XLSX.utils.book_new();
-        const ws  = XLSX.utils.aoa_to_sheet([
-            ['Data',       'Tipo',    'Categoria',   'Descrição',         'Valor'],
-            ['23/04/2026', 'saída',   'Alimentação', 'Mercado da semana', 150.00],
-            ['23/04/2026', 'entrada', 'Salário',     'Salário abril',     3000.00],
-            ['22/04/2026', 'saída',   'Transporte',  'Uber',              25.50],
-            ['21/04/2026', 'saída',   'Moradia',     'Aluguel',           1200.00]
+        const wb      = XLSX.utils.book_new();
+        const customs = Storage.getCustomTypes();
+        const tipoEx  = customs.length ? customs[0].name : 'Investimento';
+        const ws = XLSX.utils.aoa_to_sheet([
+            ['Data',       'Tipo',    'Categoria',   'Descrição',         'Valor',  'Inserido por'],
+            ['23/04/2026', 'saída',   'Alimentação', 'Mercado da semana', 150.00,   ''],
+            ['23/04/2026', 'entrada', 'Salário',     'Salário abril',     3000.00,  ''],
+            ['22/04/2026', 'saída',   'Transporte',  'Uber',              25.50,    'amigo@email.com'],
+            ['21/04/2026', 'saída',   'Moradia',     'Aluguel',           1200.00,  ''],
+            ['20/04/2026', tipoEx,    'Outros',      'Exemplo tipo extra', 500.00,  ''],
         ]);
-        ws['!cols'] = [{ wch: 14 }, { wch: 10 }, { wch: 16 }, { wch: 28 }, { wch: 12 }];
+        ws['!cols'] = [{ wch: 14 }, { wch: 14 }, { wch: 16 }, { wch: 28 }, { wch: 12 }, { wch: 24 }];
         XLSX.utils.book_append_sheet(wb, ws, 'Modelo');
         XLSX.writeFile(wb, 'modelo-financas.xlsx');
         this.showToast('✅ Modelo baixado!');
