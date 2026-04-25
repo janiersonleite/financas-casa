@@ -14,7 +14,20 @@ const Storage = {
     ],
 
     getCustomTypes() {
-        try { return JSON.parse(localStorage.getItem(this.CUSTOM_TYPES_KEY) || '[]'); } catch { return []; }
+        try {
+            let list = JSON.parse(localStorage.getItem(this.CUSTOM_TYPES_KEY) || '[]');
+            // Migra IDs antigos que ultrapassam VARCHAR(10) do Supabase
+            let dirty = false;
+            list = list.map(t => {
+                if (t.id && t.id.length > 10) {
+                    dirty = true;
+                    return { ...t, id: 'ct' + t.id.replace(/\D/g, '').slice(-6) };
+                }
+                return t;
+            });
+            if (dirty) this._saveCustomTypes(list);
+            return list;
+        } catch { return []; }
     },
     _saveCustomTypes(list) { localStorage.setItem(this.CUSTOM_TYPES_KEY, JSON.stringify(list)); },
 
