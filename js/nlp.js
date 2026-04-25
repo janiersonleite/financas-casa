@@ -129,7 +129,8 @@ const NLP = {
         const weekdays = /\b(segunda|terça|terca|quarta|quinta|sexta|sábado|sabado|domingo)(\s*-?\s*feira)?\b/gi;
         desc = desc.replace(weekdays, '');
 
-        // 6. Remove valores monetários (inclusive preposição "por/de" antes do valor)
+        // 6. Remove valores monetários (inclusive preposição "por/de/valor" antes do valor)
+        desc = desc.replace(/\bvalor\s+(de\s+)?/gi, '');
         desc = desc.replace(/\b(por|de)\s+r\$\s*\d+([.,]\d{1,2})?/gi, '');
         desc = desc.replace(/\b(por|de)\s+\d+([.,]\d{1,2})?\s*(reais|real|conto|contos|reis)/gi, '');
         desc = desc.replace(/r\$\s*\d+([.,]\d{1,2})?/gi, '');

@@ -5,6 +5,73 @@ const Storage = {
     CACHE_TX_KEY: 'offline_txcache',
     CACHE_FIN_KEY:'offline_fincache',
     CACHE_CAT_KEY:'offline_catcache',
+    CUSTOM_TYPES_KEY: 'custom_tx_types',
+
+    // ── Tipos fixos (não editáveis) ───────────────────────────────────────────
+    _fixedTypes: [
+        { id: 'saida',   name: 'Saída (Gasto)',    behavior: 'subtrai', emoji: '💸', color: 'red',   fixed: true },
+        { id: 'entrada', name: 'Entrada (Receita)', behavior: 'soma',    emoji: '💰', color: 'green', fixed: true },
+    ],
+
+    getCustomTypes() {
+        try {
+            let list = JSON.parse(localStorage.getItem(this.CUSTOM_TYPES_KEY) || '[]');
+            // Migra IDs antigos que ultrapassam VARCHAR(10) do Supabase
+            let dirty = false;
+            list = list.map(t => {
+                if (t.id && t.id.length > 10) {
+                    dirty = true;
+                    return { ...t, id: 'ct' + t.id.replace(/\D/g, '').slice(-6) };
+                }
+                return t;
+            });
+            if (dirty) this._saveCustomTypes(list);
+            return list;
+        } catch { return []; }
+    },
+    _saveCustomTypes(list) { localStorage.setItem(this.CUSTOM_TYPES_KEY, JSON.stringify(list)); },
+
+    async getTransactionTypes() {
+        return [...this._fixedTypes, ...this.getCustomTypes()];
+    },
+
+    async createTransactionType(name, behavior, emoji, color) {
+        // ID curto (≤10 chars) para caber no VARCHAR(10) do Supabase
+        const t = { id: 'ct' + Date.now().toString(36).slice(-6), name, behavior, emoji, color };
+        if (this.isCloud) {
+            try {
+                const { data } = await this.db.from('transaction_types')
+                    .insert({ name, behavior, emoji, color, user_id: this.userId() }).select().single();
+                if (data) t.id = data.id;
+            } catch (_) {}
+        }
+        const list = this.getCustomTypes();
+        list.push(t);
+        this._saveCustomTypes(list);
+        return t;
+    },
+
+    async updateTransactionType(id, updates) {
+        if (this.isCloud) {
+            try { await this.db.from('transaction_types').update(updates).eq('id', id).eq('user_id', this.userId()); } catch (_) {}
+        }
+        const list = this.getCustomTypes();
+        const idx = list.findIndex(t => t.id === id);
+        if (idx !== -1) { list[idx] = { ...list[idx], ...updates }; this._saveCustomTypes(list); }
+    },
+
+    async deleteTransactionType(id) {
+        if (this.isCloud) {
+            try { await this.db.from('transaction_types').delete().eq('id', id).eq('user_id', this.userId()); } catch (_) {}
+        }
+        this._saveCustomTypes(this.getCustomTypes().filter(t => t.id !== id));
+    },
+
+    getBehavior(typeId) {
+        if (typeId === 'entrada') return 'soma';
+        if (typeId === 'saida')   return 'subtrai';
+        return this.getCustomTypes().find(t => t.id === typeId)?.behavior || 'neutro';
+    },
     activeFinancaId: null,
 
     // ── Helpers ──────────────────────────────────────────────────────────────
@@ -454,7 +521,18 @@ const Storage = {
             if (this.activeFinancaId) payload.financa_id = this.activeFinancaId;
             const { data, error } = await this.db
                 .from('transactions').insert(payload).select().single();
-            if (error) throw error;
+            if (error) {
+                // Constraint de tipo customizado ainda não removida → salva local + fila
+                if (error.message?.includes('type_check') || error.message?.includes('check constraint')) {
+                    const tempId = 'temp_' + Date.now();
+                    const tx = { ...t, id: tempId, user_id: this.userId(), financa_id: this.activeFinancaId, created_at: new Date().toISOString(), _offline: true };
+                    const cached = this._getCachedTx(); cached.unshift(tx); this._cacheTx(cached);
+                    this._queueOp('addTransaction', { ...t, financa_id: this.activeFinancaId }, tempId);
+                    tx._constraintFallback = true;
+                    return tx;
+                }
+                throw error;
+            }
             const cached = this._getCachedTx(); cached.unshift(data); this._cacheTx(cached);
             return data;
         }
@@ -559,8 +637,8 @@ const Storage = {
 
     async getSummary(month = null) {
         const list    = await this.getTransactions(month ? { month } : {});
-        const income  = list.filter(t => t.type === 'entrada').reduce((s, t) => s + Number(t.value), 0);
-        const expense = list.filter(t => t.type === 'saida').reduce((s, t)   => s + Number(t.value), 0);
+        const income  = list.filter(t => this.getBehavior(t.type) === 'soma').reduce((s, t) => s + Number(t.value), 0);
+        const expense = list.filter(t => this.getBehavior(t.type) === 'subtrai').reduce((s, t) => s + Number(t.value), 0);
         return { income, expense, balance: income - expense, count: list.length };
     },
 
@@ -568,9 +646,11 @@ const Storage = {
         const list   = await this.getTransactions(month ? { month } : {});
         const totals = {};
         for (const t of list) {
+            const beh = this.getBehavior(t.type);
+            if (beh === 'neutro') continue;
             if (!totals[t.category]) totals[t.category] = { income: 0, expense: 0 };
-            if (t.type === 'entrada') totals[t.category].income  += Number(t.value);
-            else                      totals[t.category].expense += Number(t.value);
+            if (beh === 'soma') totals[t.category].income  += Number(t.value);
+            else                totals[t.category].expense += Number(t.value);
         }
         return totals;
     }
