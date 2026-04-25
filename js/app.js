@@ -529,11 +529,16 @@ const App = {
         const btn = document.getElementById('modal-save');
         btn.disabled = true; btn.textContent = 'Salvando...';
         try {
+            let result;
             if (this.editingId) await Storage.updateTransaction(this.editingId, transaction);
-            else                await Storage.addTransaction(transaction);
+            else                result = await Storage.addTransaction(transaction);
             this.closeModal();
             await this.renderCurrentTab();
-            this.showToast(this.editingId ? 'Lançamento atualizado!' : '✅ Lançamento salvo!');
+            if (result?._constraintFallback) {
+                this.showToast('⚠️ Salvo localmente. Para sincronizar, remova a restrição no Supabase (SQL: ALTER TABLE transactions DROP CONSTRAINT transactions_type_check)', true);
+            } else {
+                this.showToast(this.editingId ? 'Lançamento atualizado!' : '✅ Lançamento salvo!');
+            }
         } catch (e) {
             this.showToast('❌ Erro ao salvar: ' + e.message, true);
         } finally {

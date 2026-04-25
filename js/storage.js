@@ -521,7 +521,18 @@ const Storage = {
             if (this.activeFinancaId) payload.financa_id = this.activeFinancaId;
             const { data, error } = await this.db
                 .from('transactions').insert(payload).select().single();
-            if (error) throw error;
+            if (error) {
+                // Constraint de tipo customizado ainda não removida → salva local + fila
+                if (error.message?.includes('type_check') || error.message?.includes('check constraint')) {
+                    const tempId = 'temp_' + Date.now();
+                    const tx = { ...t, id: tempId, user_id: this.userId(), financa_id: this.activeFinancaId, created_at: new Date().toISOString(), _offline: true };
+                    const cached = this._getCachedTx(); cached.unshift(tx); this._cacheTx(cached);
+                    this._queueOp('addTransaction', { ...t, financa_id: this.activeFinancaId }, tempId);
+                    tx._constraintFallback = true;
+                    return tx;
+                }
+                throw error;
+            }
             const cached = this._getCachedTx(); cached.unshift(data); this._cacheTx(cached);
             return data;
         }
