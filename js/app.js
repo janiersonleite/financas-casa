@@ -11,8 +11,9 @@ const App = {
     categories:    [],
     editingCatId:  null,
     trendChart:    null,
-    transactionTypes: [],
-    editingTypeId:    null,
+    transactionTypes:   [],
+    editingTypeId:      null,
+    customTypesChart:   null,
 
     // ─── Init ─────────────────────────────────────────────────────────────────
     async init() {
@@ -1126,6 +1127,9 @@ const App = {
             }
         });
 
+        // ── Custom types chart ─────────────────────────────────────────────────
+        this.renderCustomTypesChart(txns);
+
         // ── Person breakdown ───────────────────────────────────────────────────
         this.renderPersonBreakdown(txns);
 
@@ -1275,6 +1279,80 @@ const App = {
         });
 
         bd.innerHTML = rows.join('');
+    },
+
+    // ─── Custom Types Chart ───────────────────────────────────────────────────
+    renderCustomTypesChart(txns) {
+        const wrap = document.getElementById('custom-types-chart-wrap');
+        if (!wrap) return;
+
+        const customs = Storage.getCustomTypes();
+        if (!customs.length) { wrap.classList.add('hidden'); return; }
+
+        // Agrupa total por tipo customizado
+        const totals = {};
+        for (const t of txns) {
+            if (!customs.find(c => c.id === t.type)) continue;
+            totals[t.type] = (totals[t.type] || 0) + Number(t.value);
+        }
+
+        if (!Object.keys(totals).length) { wrap.classList.add('hidden'); return; }
+        wrap.classList.remove('hidden');
+
+        // Cards resumo por tipo
+        const cardsEl = document.getElementById('custom-types-cards');
+        if (cardsEl) {
+            cardsEl.innerHTML = customs
+                .filter(ct => totals[ct.id])
+                .map(ct => {
+                    const hex = this._getTypeColorHex(ct.color);
+                    const behaviorIcon = ct.behavior === 'soma' ? '➕' : ct.behavior === 'subtrai' ? '➖' : '⬜';
+                    return `<div class="flex items-center gap-2 px-3 py-2 rounded-xl border-2 text-sm font-semibold"
+                        style="border-color:${hex};color:${hex};background:${hex}18">
+                        <span>${ct.emoji}</span>
+                        <span>${ct.name}</span>
+                        <span class="font-bold">${this.formatCurrency(totals[ct.id])}</span>
+                        <span class="text-xs font-normal opacity-70">${behaviorIcon}</span>
+                    </div>`;
+                }).join('');
+        }
+
+        // Gráfico de barras horizontais
+        const labels = [], data = [], colors = [];
+        for (const ct of customs) {
+            if (!totals[ct.id]) continue;
+            labels.push(ct.emoji + ' ' + ct.name);
+            data.push(totals[ct.id]);
+            colors.push(this._getTypeColorHex(ct.color));
+        }
+
+        if (this.customTypesChart) this.customTypesChart.destroy();
+        document.getElementById('custom-types-chart-inner').innerHTML = '<canvas id="custom-types-chart"></canvas>';
+        this.customTypesChart = new Chart(document.getElementById('custom-types-chart'), {
+            type: 'bar',
+            data: {
+                labels,
+                datasets: [{
+                    data,
+                    backgroundColor: colors.map(c => c + '44'),
+                    borderColor: colors,
+                    borderWidth: 2,
+                    borderRadius: 6
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { callbacks: { label: ctx => ' ' + this.formatCurrency(ctx.parsed.x) } }
+                },
+                scales: {
+                    x: { beginAtZero: true, ticks: { font: { size: 10 }, callback: v => v >= 1000 ? 'R$' + (v / 1000).toFixed(0) + 'k' : 'R$' + v } },
+                    y: { ticks: { font: { size: 12 } } }
+                }
+            }
+        });
     },
 
     // ─── Category Detail ──────────────────────────────────────────────────────
