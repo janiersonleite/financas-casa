@@ -1438,12 +1438,10 @@ const App = {
 
             // Sheet 1: transactions
             const rows = transactions.map(t => {
-                const typeObj = this.transactionTypes.find(x => x.id === t.type);
-                const typeName = typeObj ? typeObj.name : (t.type === 'entrada' ? 'Entrada' : 'Saída');
                 const beh = Storage.getBehavior(t.type);
                 return {
                     'Data':         t.date,
-                    'Tipo':         typeName,
+                    'Tipo':         this._resolveTypeName(t.type),
                     'Categoria':    t.category,
                     'Descrição':    t.description,
                     'Valor (R$)':   beh === 'soma' ? Number(t.value) : beh === 'subtrai' ? -Number(t.value) : Number(t.value),
@@ -1519,11 +1517,9 @@ const App = {
                 startY: cardY + 32,
                 head: [['Data', 'Tipo', 'Categoria', 'Descrição', 'Valor', 'Inserido por']],
                 body: transactions.map(t => {
-                    const typeObj  = this.transactionTypes.find(x => x.id === t.type);
-                    const typeName = typeObj ? typeObj.name : (t.type === 'entrada' ? 'Entrada' : 'Saída');
-                    const beh      = Storage.getBehavior(t.type);
-                    const sign     = beh === 'soma' ? '+' : beh === 'subtrai' ? '-' : '±';
-                    return [t.date, typeName, t.category, t.description, sign + this.formatCurrency(Number(t.value)), t.inserted_by_email || ''];
+                    const beh  = Storage.getBehavior(t.type);
+                    const sign = beh === 'soma' ? '+' : beh === 'subtrai' ? '-' : '±';
+                    return [t.date, this._resolveTypeName(t.type), t.category, t.description, sign + this.formatCurrency(Number(t.value)), t.inserted_by_email || ''];
                 }),
                 styles:      { fontSize: 7, cellPadding: 2 },
                 headStyles:  { fillColor: [37, 99, 235], textColor: 255, fontStyle: 'bold' },
@@ -2332,6 +2328,20 @@ const App = {
         ];
         const cls = isMe ? 'bg-blue-100 text-blue-600' : palettes[seed % palettes.length];
         return `<span class="inline-block text-xs px-1.5 py-0.5 rounded-full ${cls} font-medium leading-tight">${name}</span>`;
+    },
+
+    _resolveTypeName(typeId) {
+        if (typeId === 'entrada') return 'Entrada';
+        if (typeId === 'saida')   return 'Saída';
+        // Tenta pela lista carregada em memória
+        const inMem = this.transactionTypes.find(t => t.id === typeId);
+        if (inMem) return inMem.name;
+        // Tenta direto do localStorage (cobre migração de IDs)
+        const inStorage = Storage.getCustomTypes().find(t => t.id === typeId);
+        if (inStorage) return inStorage.name;
+        // Heurística: ID começa com 'ct' → era um tipo customizado removido
+        if (String(typeId).startsWith('ct')) return `Tipo (${typeId})`;
+        return 'Saída';
     },
 
     getCategoryIcon(cat) {
