@@ -1577,6 +1577,18 @@ const App = {
     importShowStep(step) {
         document.getElementById('import-step-upload').classList.toggle('hidden',  step !== 1);
         document.getElementById('import-step-preview').classList.toggle('hidden', step !== 2);
+        if (step === 2) this._renderImportFinancaBanner();
+    },
+
+    _renderImportFinancaBanner() {
+        const f = this.activeFinanca;
+        if (!f) return;
+        const emojiEl = document.getElementById('import-financa-emoji');
+        const nameEl  = document.getElementById('import-financa-name');
+        const typeEl  = document.getElementById('import-financa-type');
+        if (emojiEl) emojiEl.textContent = f.emoji || '💰';
+        if (nameEl)  nameEl.textContent  = f.name  || 'Pessoal';
+        if (typeEl)  typeEl.textContent  = f.type === 'compartilhada' ? '👥 Compartilhada' : '👤 Individual';
     },
 
     async handleImportFile(file) {
@@ -1769,6 +1781,11 @@ const App = {
     async confirmImport() {
         const txns = this._importParsed;
         if (!txns?.length) { this.showToast('Nenhum lançamento válido encontrado', true); return; }
+
+        const f    = this.activeFinanca;
+        const nome = f ? `${f.emoji || '💰'} ${f.name}` : 'Pessoal';
+        const tipo = f?.type === 'compartilhada' ? ' (Compartilhada)' : ' (Individual)';
+        if (!confirm(`Confirmar importação?\n\n📥 ${txns.length} lançamento${txns.length !== 1 ? 's' : ''} serão adicionados em:\n${nome}${tipo}\n\nEssa ação não pode ser desfeita em massa.`)) return;
 
         const btn = document.getElementById('import-confirm');
         btn.disabled = true; btn.textContent = 'Preparando...';
