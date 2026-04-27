@@ -36,13 +36,15 @@ const Storage = {
     },
 
     async createTransactionType(name, behavior, emoji, color) {
-        // ID curto (≤10 chars) para caber no VARCHAR(10) do Supabase
+        // ID curto (≤10 chars) para caber no VARCHAR(10) da coluna transactions.type
+        // NÃO sobrescreve com UUID do Supabase — nosso ID curto é o canônico
         const t = { id: 'ct' + Date.now().toString(36).slice(-6), name, behavior, emoji, color };
         if (this.isCloud) {
             try {
                 const { data } = await this.db.from('transaction_types')
                     .insert({ name, behavior, emoji, color, user_id: this.userId() }).select().single();
-                if (data) t.id = data.id;
+                // Guarda o UUID do Supabase separado (para update/delete), mas mantém nosso ID curto
+                if (data?.id) t._supabaseId = data.id;
             } catch (_) {}
         }
         const list = this.getCustomTypes();
@@ -53,7 +55,16 @@ const Storage = {
 
     async updateTransactionType(id, updates) {
         if (this.isCloud) {
-            try { await this.db.from('transaction_types').update(updates).eq('id', id).eq('user_id', this.userId()); } catch (_) {}
+            try {
+                const ct = this.getCustomTypes().find(t => t.id === id);
+                const supaId = ct?._supabaseId || null;
+                if (supaId) {
+                    await this.db.from('transaction_types').update(updates).eq('id', supaId).eq('user_id', this.userId());
+                } else {
+                    // fallback: busca pelo nome se não tiver UUID salvo
+                    await this.db.from('transaction_types').update(updates).eq('name', ct?.name || id).eq('user_id', this.userId());
+                }
+            } catch (_) {}
         }
         const list = this.getCustomTypes();
         const idx = list.findIndex(t => t.id === id);
@@ -62,7 +73,15 @@ const Storage = {
 
     async deleteTransactionType(id) {
         if (this.isCloud) {
-            try { await this.db.from('transaction_types').delete().eq('id', id).eq('user_id', this.userId()); } catch (_) {}
+            try {
+                const ct = this.getCustomTypes().find(t => t.id === id);
+                const supaId = ct?._supabaseId || null;
+                if (supaId) {
+                    await this.db.from('transaction_types').delete().eq('id', supaId).eq('user_id', this.userId());
+                } else {
+                    await this.db.from('transaction_types').delete().eq('name', ct?.name || id).eq('user_id', this.userId());
+                }
+            } catch (_) {}
         }
         this._saveCustomTypes(this.getCustomTypes().filter(t => t.id !== id));
     },
@@ -497,7 +516,21 @@ const Storage = {
             });
             for (let i = 0; i < payload.length; i += 50) {
                 const { error } = await this.db.from('transactions').insert(payload.slice(i, i + 50));
-                if (error) throw error;
+                if (error) {
+                    // CHECK constraint ainda existe no Supabase → salva localmente e enfileira para sync
+                    if (error.message?.includes('type_check') || error.message?.includes('check constraint') || error.message?.includes('violates check')) {
+                        const batch = payload.slice(i, i + 50);
+                        const d = this._localGet();
+                        for (const tx of batch) {
+                            const tempId = 'temp_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+                            d.transactions.unshift({ ...tx, id: tempId, created_at: new Date().toISOString(), _offline: true, _constraintFallback: true });
+                        }
+                        this._localSave(d);
+                        // Não lança erro — continua os próximos batches
+                        continue;
+                    }
+                    throw error;
+                }
             }
             return;
         }
