@@ -550,9 +550,12 @@ const App = {
 
             if (paidReminderId) {
                 const rem = this.reminders.find(r => r.id === paidReminderId);
-                this._markReminderPaid(paidReminderId);
+                const paidMonth = this._markReminderPaid(paidReminderId);
                 this.renderRemindersHome();
-                this.showToast(`✅ ${rem?.name || 'Lembrete'} registrado como pago!`);
+                const [py, pm] = paidMonth.split('-');
+                const monthLabel = new Date(Number(py), Number(pm) - 1, 1)
+                    .toLocaleDateString('pt-BR', { month: 'long' });
+                this.showToast(`✅ ${rem?.name || 'Lembrete'} pago — ${monthLabel}`);
             } else if (result?._constraintFallback) {
                 this.showToast('⚠️ Salvo localmente. Para sincronizar, remova a restrição no Supabase (SQL: ALTER TABLE transactions DROP CONSTRAINT transactions_type_check)', true);
             } else {
@@ -821,11 +824,15 @@ const App = {
             const paid = this.isReminderPaid(r.id);
             const amt  = r.amount > 0 ? `<span class="text-xs font-semibold ${paid ? 'text-green-500' : style.val}">${this.formatCurrency(r.amount)}</span>` : '';
             if (paid) {
+                const refMonth = this._reminderPaidMonth(r.id);
+                const [ry, rm] = refMonth.split('-');
+                const monthName = new Date(Number(ry), Number(rm) - 1, 1)
+                    .toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
                 return `<div class="flex items-center gap-3 bg-green-50 rounded-xl px-3 py-2.5 border border-green-200 opacity-80">
                     <span class="text-2xl">${r.emoji || '🔔'}</span>
                     <div class="flex-1 min-w-0">
                         <div class="text-sm font-semibold text-gray-500 truncate line-through">${r.name}</div>
-                        <div class="text-xs text-green-500 font-medium">✅ Pago este mês</div>
+                        <div class="text-xs text-green-500 font-medium">✅ Pago em ${monthName}</div>
                     </div>
                     ${amt}
                     <button class="reminder-unpay-btn ml-1 text-xs text-gray-400 hover:text-red-400 flex-shrink-0 px-1" data-reminder-id="${r.id}" title="Desfazer">↩</button>
@@ -886,17 +893,39 @@ const App = {
     },
 
     // ── Reminder paid helpers ────────────────────────────────────────────────
-    _reminderPaidKey() { return 'reminder_paid_' + new Date().toISOString().slice(0, 7); },
-    _getPaidReminders() { try { return JSON.parse(localStorage.getItem(this._reminderPaidKey()) || '[]'); } catch { return []; } },
+    // Determina o mês de referência do lembrete:
+    // - Se o dia do lembrete já passou OU é hoje → mês atual (conta de abril, venceu dia 10, hoje dia 27 → abril)
+    // - Se o dia ainda não chegou → mês anterior (conta do dia 28, hoje dia 3 de maio → referência é abril)
+    _getReminderRefMonth(reminderId) {
+        const r = this.reminders.find(x => x.id === reminderId);
+        const today = new Date();
+        if (!r || r.day <= today.getDate()) {
+            return today.toISOString().slice(0, 7); // mês atual
+        }
+        // dia ainda não chegou este mês → o último mês em aberto foi o anterior
+        const prev = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+        return prev.toISOString().slice(0, 7);
+    },
+    _paidKey(month) { return 'reminder_paid_' + month; },
+    _getPaidReminders(month) {
+        try { return JSON.parse(localStorage.getItem(this._paidKey(month)) || '[]'); } catch { return []; }
+    },
     _markReminderPaid(id) {
-        const list = this._getPaidReminders();
-        if (!list.includes(id)) { list.push(id); localStorage.setItem(this._reminderPaidKey(), JSON.stringify(list)); }
+        const month = this._getReminderRefMonth(id);
+        const list  = this._getPaidReminders(month);
+        if (!list.includes(id)) { list.push(id); localStorage.setItem(this._paidKey(month), JSON.stringify(list)); }
+        return month; // retorna o mês usado
     },
     _unmarkReminderPaid(id) {
-        const list = this._getPaidReminders().filter(x => x !== id);
-        localStorage.setItem(this._reminderPaidKey(), JSON.stringify(list));
+        const month = this._getReminderRefMonth(id);
+        const list  = this._getPaidReminders(month).filter(x => x !== id);
+        localStorage.setItem(this._paidKey(month), JSON.stringify(list));
     },
-    isReminderPaid(id) { return this._getPaidReminders().includes(id); },
+    isReminderPaid(id) {
+        const month = this._getReminderRefMonth(id);
+        return this._getPaidReminders(month).includes(id);
+    },
+    _reminderPaidMonth(id) { return this._getReminderRefMonth(id); },
 
     quickAddFromReminder(id) {
         const r = this.reminders.find(x => x.id === id);
