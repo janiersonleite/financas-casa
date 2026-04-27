@@ -907,39 +907,28 @@ const App = {
     },
 
     // ── Reminder paid helpers ────────────────────────────────────────────────
-    // Determina o mês de referência do lembrete:
-    // - Se o dia do lembrete já passou OU é hoje → mês atual (conta de abril, venceu dia 10, hoje dia 27 → abril)
-    // - Se o dia ainda não chegou → mês anterior (conta do dia 28, hoje dia 3 de maio → referência é abril)
-    _getReminderRefMonth(reminderId) {
-        const r = this.reminders.find(x => x.id === reminderId);
-        const today = new Date();
-        if (!r || r.day <= today.getDate()) {
-            return today.toISOString().slice(0, 7); // mês atual
-        }
-        // dia ainda não chegou este mês → o último mês em aberto foi o anterior
-        const prev = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-        return prev.toISOString().slice(0, 7);
-    },
+    // Cada mês começa zerado — pago em abril não afeta maio.
+    // A chave é sempre o mês ATUAL do calendário: reminder_paid_YYYY-MM
+    _currentMonth() { return new Date().toISOString().slice(0, 7); },
     _paidKey(month) { return 'reminder_paid_' + month; },
     _getPaidReminders(month) {
         try { return JSON.parse(localStorage.getItem(this._paidKey(month)) || '[]'); } catch { return []; }
     },
     _markReminderPaid(id) {
-        const month = this._getReminderRefMonth(id);
+        const month = this._currentMonth();
         const list  = this._getPaidReminders(month);
         if (!list.includes(id)) { list.push(id); localStorage.setItem(this._paidKey(month), JSON.stringify(list)); }
-        return month; // retorna o mês usado
+        return month;
     },
     _unmarkReminderPaid(id) {
-        const month = this._getReminderRefMonth(id);
+        const month = this._currentMonth();
         const list  = this._getPaidReminders(month).filter(x => x !== id);
         localStorage.setItem(this._paidKey(month), JSON.stringify(list));
     },
     isReminderPaid(id) {
-        const month = this._getReminderRefMonth(id);
-        return this._getPaidReminders(month).includes(id);
+        return this._getPaidReminders(this._currentMonth()).includes(id);
     },
-    _reminderPaidMonth(id) { return this._getReminderRefMonth(id); },
+    _reminderPaidMonth(id) { return this._currentMonth(); },
 
     quickAddFromReminder(id) {
         const r = this.reminders.find(x => x.id === id);
