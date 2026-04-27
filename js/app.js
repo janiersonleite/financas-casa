@@ -1713,7 +1713,7 @@ const App = {
             if (['entrada','credito','credit','receita','income'].some(k => v.includes(k))) return 'entrada';
             if (['saida','debito','debit','despesa','expense','gasto'].some(k => v.includes(k))) return 'saida';
         }
-        return value >= 0 ? 'entrada' : 'saida';
+        return 'saida'; // fallback seguro — não adivinha pelo sinal do valor
     },
 
     _getMapping() {
@@ -1725,11 +1725,13 @@ const App = {
         const col = name => name === '(ignorar)' ? '' : row[this._importColumns.indexOf(name)] ?? '';
         const rawVal  = this._parseImportValue(col(map.value));
         const absVal  = Math.abs(rawVal);
-        const type    = this._parseImportType(col(map.type), rawVal);
+        const rawType = String(col(map.type) || '').trim();
+        const type    = this._parseImportType(rawType, rawVal);
         const inserter = String(col(map.inserter) || '').trim();
         return {
             date:        this._parseImportDate(col(map.date)),
             type,
+            _rawType:    rawType,
             category:    String(col(map.category) || 'Outros').trim() || 'Outros',
             description: String(col(map.description) || '').trim() || 'Importado',
             value:       absVal || 0,
@@ -1751,12 +1753,18 @@ const App = {
         tbody.innerHTML = shown.map((t, i) => {
             const inserter = t.inserted_by_email || fallbackEmail;
             const inserterDisplay = inserter ? (inserter.split('@')[0] || inserter) : '—';
+            const beh    = Storage.getBehavior(t.type);
+            const tColor = beh === 'soma' ? 'text-green-600' : beh === 'subtrai' ? 'text-red-600' : 'text-gray-500';
+            const tArrow = beh === 'soma' ? '↓' : beh === 'subtrai' ? '↑' : '±';
+            const tName  = this._resolveTypeName(t.type) !== 'Saída' || t.type === 'saida'
+                ? this._resolveTypeName(t.type)
+                : (t._rawType || 'Saída');
             return `<tr class="${i % 2 === 0 ? '' : 'bg-gray-50'}">
                 <td class="px-2 py-1.5 text-gray-700">${t.date}</td>
-                <td class="px-2 py-1.5 ${t.type === 'entrada' ? 'text-green-600' : 'text-red-600'}">${t.type === 'entrada' ? '↓' : '↑'} ${t.type === 'entrada' ? 'Entrada' : 'Saída'}</td>
+                <td class="px-2 py-1.5 ${tColor}">${tArrow} ${tName}</td>
                 <td class="px-2 py-1.5 text-gray-700">${t.category}</td>
                 <td class="px-2 py-1.5 text-gray-500 max-w-[80px] truncate">${t.description}</td>
-                <td class="px-2 py-1.5 text-right font-medium ${t.type === 'entrada' ? 'text-green-600' : 'text-red-600'}">${this.formatCurrency(t.value)}</td>
+                <td class="px-2 py-1.5 text-right font-medium ${tColor}">${this.formatCurrency(t.value)}</td>
                 <td class="px-2 py-1.5 text-gray-400 text-xs truncate max-w-[80px]">${inserterDisplay}</td>
             </tr>`;
         }).join('');
@@ -1814,6 +1822,41 @@ const App = {
                 NLP.setCategoryMap(this.categories);
                 this.renderCategorySelect();
                 this.renderQuickButtons();
+            }
+
+            // Auto-criar tipos customizados não reconhecidos
+            const normStr = s => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+            const fixedIds = new Set(['entrada', 'saida']);
+            const knownTypeNorms = new Set([
+                ...Storage.getCustomTypes().map(t => normStr(t.name)),
+                ...Storage.getCustomTypes().map(t => t.id)
+            ]);
+            const unknownTypeNames = [...new Set(
+                txns.map(t => t._rawType).filter(raw => {
+                    if (!raw) return false;
+                    const n = normStr(raw);
+                    if (fixedIds.has(n)) return false;
+                    if (['entrada','credito','receita','income'].some(k => n.includes(k))) return false;
+                    if (['saida','debito','despesa','expense','gasto'].some(k => n.includes(k))) return false;
+                    return !knownTypeNorms.has(n);
+                })
+            )];
+            if (unknownTypeNames.length) {
+                btn.textContent = `Criando ${unknownTypeNames.length} tipo${unknownTypeNames.length > 1 ? 's' : ''}...`;
+                const typeEmojis = ['🏷️','💳','📋','🔖','📌','💡','🗂️','📁'];
+                const typeColors = ['gray','purple','teal','orange','indigo','pink','yellow'];
+                for (let i = 0; i < unknownTypeNames.length; i++) {
+                    const name = unknownTypeNames[i];
+                    try {
+                        const ct = await Storage.createTransactionType(name, 'subtrai', typeEmojis[i % typeEmojis.length], typeColors[i % typeColors.length]);
+                        // Remapeia transações para usar o novo ID
+                        const nName = normStr(name);
+                        for (const t of txns) {
+                            if (t._rawType && normStr(t._rawType) === nName) t.type = ct.id;
+                        }
+                    } catch (_) {}
+                }
+                this.transactionTypes = await Storage.getTransactionTypes();
             }
 
             // Auto-convidar emails não cadastrados (só em finanças compartilhadas)
