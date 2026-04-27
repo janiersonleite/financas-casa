@@ -773,8 +773,25 @@ const App = {
     renderRemindersHome() {
         const wrap = document.getElementById('reminders-home-section');
         if (!wrap) return;
+
+        // Bind do botão vazio (só uma vez)
+        const emptyBtn = document.getElementById('reminders-empty-btn');
+        if (emptyBtn && !emptyBtn._bound) {
+            emptyBtn._bound = true;
+            emptyBtn.addEventListener('click', () => this.openRemindersModal());
+        }
+
         const active = this.reminders.filter(r => r.active !== false);
-        if (!active.length) { wrap.classList.add('hidden'); return; }
+        if (!active.length) {
+            // Mostra só o botão de acesso vazio
+            if (emptyBtn) emptyBtn.classList.remove('hidden');
+            // Remove cards anteriores se existirem
+            wrap.querySelectorAll('.reminder-cards-wrap').forEach(el => el.remove());
+            return;
+        }
+
+        // Esconde o botão vazio e renderiza os cards
+        if (emptyBtn) emptyBtn.classList.add('hidden');
 
         const today = new Date();
         const todayDay = today.getDate();
@@ -822,11 +839,15 @@ const App = {
             html += later.map(r => card(r, { border:'border-gray-100', txt:'text-gray-400', val:'text-gray-500', btn:'bg-gray-200 text-gray-600 hover:bg-gray-300' })).join('');
         }
 
-        wrap.innerHTML = html;
-        wrap.classList.remove('hidden');
+        // Injeta os cards numa div separada para não sobrescrever o botão vazio
+        wrap.querySelectorAll('.reminder-cards-wrap').forEach(el => el.remove());
+        const cardsDiv = document.createElement('div');
+        cardsDiv.className = 'reminder-cards-wrap space-y-1.5';
+        cardsDiv.innerHTML = html;
+        wrap.appendChild(cardsDiv);
 
-        document.getElementById('reminders-manage-btn')?.addEventListener('click', () => this.openRemindersModal());
-        wrap.querySelectorAll('.reminder-register-btn').forEach(btn => {
+        cardsDiv.querySelector('#reminders-manage-btn')?.addEventListener('click', () => this.openRemindersModal());
+        cardsDiv.querySelectorAll('.reminder-register-btn').forEach(btn => {
             btn.addEventListener('click', () => this.quickAddFromReminder(btn.dataset.reminderId));
         });
     },
