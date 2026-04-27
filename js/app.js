@@ -16,6 +16,7 @@ const App = {
     customTypesChart:   null,
     reminders:          [],
     editingReminderId:  null,
+    _reminderSourceId:  null,
 
     // ─── Init ─────────────────────────────────────────────────────────────────
     async init() {
@@ -517,6 +518,7 @@ const App = {
     closeModal() {
         document.getElementById('modal-overlay').classList.add('hidden');
         this.editingId = null;
+        this._reminderSourceId = null;
     },
 
     async saveModal() {
@@ -536,9 +538,18 @@ const App = {
             let result;
             if (this.editingId) await Storage.updateTransaction(this.editingId, transaction);
             else                result = await Storage.addTransaction(transaction);
+
+            // Marca lembrete como pago se o modal foi aberto via "Registrar"
+            const paidReminderId = this._reminderSourceId;
             this.closeModal();
             await this.renderCurrentTab();
-            if (result?._constraintFallback) {
+
+            if (paidReminderId) {
+                const rem = this.reminders.find(r => r.id === paidReminderId);
+                this._markReminderPaid(paidReminderId);
+                this.renderRemindersHome();
+                this.showToast(`✅ ${rem?.name || 'Lembrete'} registrado como pago!`);
+            } else if (result?._constraintFallback) {
                 this.showToast('⚠️ Salvo localmente. Para sincronizar, remova a restrição no Supabase (SQL: ALTER TABLE transactions DROP CONSTRAINT transactions_type_check)', true);
             } else {
                 this.showToast(this.editingId ? 'Lançamento atualizado!' : '✅ Lançamento salvo!');
@@ -803,7 +814,19 @@ const App = {
         const later    = active.filter(r => r.day > in7);
 
         const card = (r, style) => {
-            const amt = r.amount > 0 ? `<span class="text-xs font-semibold ${style.val}">${this.formatCurrency(r.amount)}</span>` : '';
+            const paid = this.isReminderPaid(r.id);
+            const amt  = r.amount > 0 ? `<span class="text-xs font-semibold ${paid ? 'text-green-500' : style.val}">${this.formatCurrency(r.amount)}</span>` : '';
+            if (paid) {
+                return `<div class="flex items-center gap-3 bg-green-50 rounded-xl px-3 py-2.5 border border-green-200 opacity-80">
+                    <span class="text-2xl">${r.emoji || '🔔'}</span>
+                    <div class="flex-1 min-w-0">
+                        <div class="text-sm font-semibold text-gray-500 truncate line-through">${r.name}</div>
+                        <div class="text-xs text-green-500 font-medium">✅ Pago este mês</div>
+                    </div>
+                    ${amt}
+                    <button class="reminder-unpay-btn ml-1 text-xs text-gray-400 hover:text-red-400 flex-shrink-0 px-1" data-reminder-id="${r.id}" title="Desfazer">↩</button>
+                </div>`;
+            }
             return `<div class="flex items-center gap-3 bg-white rounded-xl px-3 py-2.5 shadow-sm border ${style.border}">
                 <span class="text-2xl">${r.emoji || '🔔'}</span>
                 <div class="flex-1 min-w-0">
@@ -850,11 +873,31 @@ const App = {
         cardsDiv.querySelectorAll('.reminder-register-btn').forEach(btn => {
             btn.addEventListener('click', () => this.quickAddFromReminder(btn.dataset.reminderId));
         });
+        cardsDiv.querySelectorAll('.reminder-unpay-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                this._unmarkReminderPaid(btn.dataset.reminderId);
+                this.renderRemindersHome();
+            });
+        });
     },
+
+    // ── Reminder paid helpers ────────────────────────────────────────────────
+    _reminderPaidKey() { return 'reminder_paid_' + new Date().toISOString().slice(0, 7); },
+    _getPaidReminders() { try { return JSON.parse(localStorage.getItem(this._reminderPaidKey()) || '[]'); } catch { return []; } },
+    _markReminderPaid(id) {
+        const list = this._getPaidReminders();
+        if (!list.includes(id)) { list.push(id); localStorage.setItem(this._reminderPaidKey(), JSON.stringify(list)); }
+    },
+    _unmarkReminderPaid(id) {
+        const list = this._getPaidReminders().filter(x => x !== id);
+        localStorage.setItem(this._reminderPaidKey(), JSON.stringify(list));
+    },
+    isReminderPaid(id) { return this._getPaidReminders().includes(id); },
 
     quickAddFromReminder(id) {
         const r = this.reminders.find(x => x.id === id);
         if (!r) return;
+        this._reminderSourceId = id;   // rastreia qual lembrete gerou o modal
         // Pré-preenche o modal de lançamento
         const today = new Date().toISOString().slice(0, 10);
         const day   = String(r.day).padStart(2, '0');
