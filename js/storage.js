@@ -508,6 +508,74 @@ const Storage = {
         localStorage.removeItem('cat_hidden');
     },
 
+    // ── Reminders ─────────────────────────────────────────────────────────────
+    REMINDERS_KEY: 'user_reminders',
+
+    _getLocalReminders() {
+        try { return JSON.parse(localStorage.getItem(this.REMINDERS_KEY) || '[]'); } catch { return []; }
+    },
+    _saveLocalReminders(list) {
+        localStorage.setItem(this.REMINDERS_KEY, JSON.stringify(list));
+    },
+
+    async getReminders() {
+        const fid = (this.activeFinancaId && this.activeFinancaId !== 'null') ? this.activeFinancaId : null;
+        if (this.isCloud) {
+            try {
+                let q = this.db.from('reminders').select('*').eq('user_id', this.userId()).eq('active', true);
+                if (fid) q = q.eq('financa_id', fid);
+                else     q = q.is('financa_id', null);
+                q = q.order('day', { ascending: true });
+                const { data, error } = await q;
+                if (error) throw error;
+                // Sincroniza cache local
+                const all = this._getLocalReminders().filter(r => r._localOnly);
+                this._saveLocalReminders([...(data ?? []), ...all]);
+                return data ?? [];
+            } catch (_) {}
+        }
+        // Local fallback: filtra por finança
+        return this._getLocalReminders().filter(r => fid ? r.financa_id === fid : !r.financa_id);
+    },
+
+    async createReminder({ name, day, amount, category, type, emoji, financa_id }) {
+        const fid = financa_id ?? ((this.activeFinancaId && this.activeFinancaId !== 'null') ? this.activeFinancaId : null);
+        const localId = 'rem_' + Date.now().toString(36);
+        const base = { name, day: Number(day), amount: Number(amount) || 0, category: category || '', type: type || 'saida', emoji: emoji || '🔔', active: true };
+        if (this.isCloud) {
+            try {
+                const payload = { ...base, user_id: this.userId(), ...(fid ? { financa_id: fid } : {}) };
+                const { data, error } = await this.db.from('reminders').insert(payload).select().single();
+                if (error) throw error;
+                const list = this._getLocalReminders();
+                list.push(data);
+                this._saveLocalReminders(list);
+                return data;
+            } catch (_) {}
+        }
+        const rem = { ...base, id: localId, user_id: 'local', _localOnly: true, ...(fid ? { financa_id: fid } : {}), created_at: new Date().toISOString() };
+        const list = this._getLocalReminders();
+        list.push(rem);
+        this._saveLocalReminders(list);
+        return rem;
+    },
+
+    async updateReminder(id, updates) {
+        if (this.isCloud) {
+            try { await this.db.from('reminders').update(updates).eq('id', id).eq('user_id', this.userId()); } catch (_) {}
+        }
+        const list = this._getLocalReminders();
+        const idx = list.findIndex(r => r.id === id);
+        if (idx !== -1) { list[idx] = { ...list[idx], ...updates }; this._saveLocalReminders(list); }
+    },
+
+    async deleteReminder(id) {
+        if (this.isCloud) {
+            try { await this.db.from('reminders').delete().eq('id', id).eq('user_id', this.userId()); } catch (_) {}
+        }
+        this._saveLocalReminders(this._getLocalReminders().filter(r => r.id !== id));
+    },
+
     // ── Transactions ──────────────────────────────────────────────────────────
     async bulkAddTransactions(transactions) {
         if (this.isCloud) {

@@ -14,6 +14,8 @@ const App = {
     transactionTypes:   [],
     editingTypeId:      null,
     customTypesChart:   null,
+    reminders:          [],
+    editingReminderId:  null,
 
     // ─── Init ─────────────────────────────────────────────────────────────────
     async init() {
@@ -31,9 +33,11 @@ const App = {
         this.bindImportUI();
         this.bindOfflineSync();
         this.bindTypesUI();
+        this.bindRemindersUI();
         await this.loadFinancas();
         await this.loadTransactionTypes();
         await this.loadCategories();
+        await this.loadReminders();
         await this.renderHome();
         this.refreshMonthDisplay();
         // Aquece o cache offline em segundo plano (não bloqueia a UI)
@@ -761,6 +765,223 @@ const App = {
         }
     },
 
+    // ─── Reminders ───────────────────────────────────────────────────────────
+    async loadReminders() {
+        try { this.reminders = await Storage.getReminders(); } catch { this.reminders = []; }
+    },
+
+    renderRemindersHome() {
+        const wrap = document.getElementById('reminders-home-section');
+        if (!wrap) return;
+        const active = this.reminders.filter(r => r.active !== false);
+        if (!active.length) { wrap.classList.add('hidden'); return; }
+
+        const today = new Date();
+        const todayDay = today.getDate();
+        const in7 = todayDay + 7;
+
+        const overdue  = active.filter(r => r.day < todayDay);
+        const dueToday = active.filter(r => r.day === todayDay);
+        const upcoming = active.filter(r => r.day > todayDay && r.day <= in7);
+        const later    = active.filter(r => r.day > in7);
+
+        const card = (r, style) => {
+            const amt = r.amount > 0 ? `<span class="text-xs font-semibold ${style.val}">${this.formatCurrency(r.amount)}</span>` : '';
+            return `<div class="flex items-center gap-3 bg-white rounded-xl px-3 py-2.5 shadow-sm border ${style.border}">
+                <span class="text-2xl">${r.emoji || '🔔'}</span>
+                <div class="flex-1 min-w-0">
+                    <div class="text-sm font-semibold text-gray-800 truncate">${r.name}</div>
+                    <div class="text-xs ${style.txt}">Dia ${r.day}${r.category ? ' · ' + r.category : ''}</div>
+                </div>
+                ${amt}
+                <button class="reminder-register-btn ml-1 text-xs font-semibold px-2.5 py-1.5 rounded-lg ${style.btn} transition-all flex-shrink-0" data-reminder-id="${r.id}">
+                    Registrar
+                </button>
+            </div>`;
+        };
+
+        let html = `<div class="flex items-center justify-between mb-2">
+            <p class="text-xs font-semibold text-gray-400 uppercase">🔔 Lembretes</p>
+            <button id="reminders-manage-btn" class="text-xs text-blue-500 font-medium">Gerenciar</button>
+        </div>`;
+
+        if (dueToday.length) {
+            html += `<div class="text-xs font-bold text-orange-600 mb-1 mt-1">📅 Vence hoje</div>`;
+            html += dueToday.map(r => card(r, { border:'border-orange-200 bg-orange-50', txt:'text-orange-600', val:'text-orange-600', btn:'bg-orange-500 text-white hover:bg-orange-600' })).join('');
+        }
+        if (overdue.length) {
+            html += `<div class="text-xs font-bold text-red-500 mb-1 mt-2">⚠️ Vencidos este mês</div>`;
+            html += overdue.map(r => card(r, { border:'border-red-200', txt:'text-red-400', val:'text-red-500', btn:'bg-red-500 text-white hover:bg-red-600' })).join('');
+        }
+        if (upcoming.length) {
+            html += `<div class="text-xs font-bold text-blue-500 mb-1 mt-2">📆 Próximos 7 dias</div>`;
+            html += upcoming.map(r => card(r, { border:'border-blue-100', txt:'text-blue-400', val:'text-blue-600', btn:'bg-blue-500 text-white hover:bg-blue-600' })).join('');
+        }
+        if (later.length) {
+            html += `<div class="text-xs font-bold text-gray-400 mb-1 mt-2">🗓️ Este mês</div>`;
+            html += later.map(r => card(r, { border:'border-gray-100', txt:'text-gray-400', val:'text-gray-500', btn:'bg-gray-200 text-gray-600 hover:bg-gray-300' })).join('');
+        }
+
+        wrap.innerHTML = html;
+        wrap.classList.remove('hidden');
+
+        document.getElementById('reminders-manage-btn')?.addEventListener('click', () => this.openRemindersModal());
+        wrap.querySelectorAll('.reminder-register-btn').forEach(btn => {
+            btn.addEventListener('click', () => this.quickAddFromReminder(btn.dataset.reminderId));
+        });
+    },
+
+    quickAddFromReminder(id) {
+        const r = this.reminders.find(x => x.id === id);
+        if (!r) return;
+        // Pré-preenche o modal de lançamento
+        const today = new Date().toISOString().slice(0, 10);
+        const day   = String(r.day).padStart(2, '0');
+        const month = new Date().toISOString().slice(0, 7);
+        const date  = `${month}-${day}`;
+
+        document.getElementById('modal-date').value        = date <= today ? date : today;
+        document.getElementById('modal-description').value = r.name;
+        document.getElementById('modal-value').value       = r.amount > 0 ? r.amount.toFixed(2) : '';
+        if (r.category) {
+            const sel = document.getElementById('modal-category');
+            if (sel) { sel.value = r.category; if (!sel.value) sel.value = sel.options[0]?.value || ''; }
+        }
+        this.selectModalType(r.type || 'saida');
+        this.openModal();
+    },
+
+    bindRemindersUI() {
+        const modal = document.getElementById('reminders-modal');
+        document.getElementById('reminders-modal-close')?.addEventListener('click',  () => this.closeRemindersModal());
+        modal?.addEventListener('click', e => { if (e.target === modal) this.closeRemindersModal(); });
+        document.getElementById('reminder-add-btn')?.addEventListener('click', () => this.openReminderForm());
+
+        const fModal = document.getElementById('reminder-form-modal');
+        document.getElementById('reminder-form-close')?.addEventListener('click',  () => this.closeReminderForm());
+        document.getElementById('reminder-form-cancel')?.addEventListener('click', () => this.closeReminderForm());
+        fModal?.addEventListener('click', e => { if (e.target === fModal) this.closeReminderForm(); });
+        document.getElementById('reminder-form-save')?.addEventListener('click',   () => this.saveReminderForm());
+    },
+
+    openRemindersModal() {
+        document.getElementById('reminders-modal')?.classList.remove('hidden');
+        this.renderRemindersList();
+    },
+
+    closeRemindersModal() {
+        document.getElementById('reminders-modal')?.classList.add('hidden');
+    },
+
+    renderRemindersList() {
+        const list = document.getElementById('reminders-list-container');
+        if (!list) return;
+        if (!this.reminders.length) {
+            list.innerHTML = `<div class="text-center text-gray-400 py-8">
+                <div class="text-3xl mb-2">🔔</div>
+                <p class="text-sm">Nenhum lembrete cadastrado</p>
+                <p class="text-xs mt-1">Adicione pagamentos recorrentes para não esquecer</p>
+            </div>`;
+            return;
+        }
+        list.innerHTML = this.reminders.map(r => {
+            const amt = r.amount > 0 ? ` · ${this.formatCurrency(r.amount)}` : '';
+            const cat = r.category ? ` · ${r.category}` : '';
+            return `<div class="flex items-center gap-3 bg-gray-50 rounded-xl px-3 py-3 border border-gray-100">
+                <span class="text-2xl">${r.emoji || '🔔'}</span>
+                <div class="flex-1 min-w-0">
+                    <div class="font-semibold text-gray-800 text-sm truncate">${r.name}</div>
+                    <div class="text-xs text-gray-400">Todo dia ${r.day}${cat}${amt}</div>
+                </div>
+                <button class="reminder-edit-btn p-1.5 rounded-lg hover:bg-white text-gray-400 hover:text-blue-500" data-id="${r.id}" title="Editar">✏️</button>
+                <button class="reminder-del-btn  p-1.5 rounded-lg hover:bg-white text-gray-400 hover:text-red-500"  data-id="${r.id}" title="Excluir">🗑️</button>
+            </div>`;
+        }).join('');
+
+        list.querySelectorAll('.reminder-edit-btn').forEach(btn => {
+            btn.addEventListener('click', () => { const r = this.reminders.find(x => x.id === btn.dataset.id); if (r) this.openReminderForm(r); });
+        });
+        list.querySelectorAll('.reminder-del-btn').forEach(btn => {
+            btn.addEventListener('click', () => this.deleteReminder(btn.dataset.id));
+        });
+    },
+
+    openReminderForm(reminder = null) {
+        this.editingReminderId = reminder?.id || null;
+        document.getElementById('reminder-form-title').textContent = reminder ? 'Editar Lembrete' : 'Novo Lembrete';
+        document.getElementById('reminder-name-input').value    = reminder?.name    || '';
+        document.getElementById('reminder-day-input').value     = reminder?.day     || '';
+        document.getElementById('reminder-amount-input').value  = reminder?.amount > 0 ? reminder.amount : '';
+        document.getElementById('reminder-emoji-input').value   = reminder?.emoji   || '🔔';
+        document.getElementById('reminder-category-input').value = reminder?.category || '';
+        // Preenche o select de categoria com as categorias disponíveis
+        const catSel = document.getElementById('reminder-category-input');
+        catSel.innerHTML = `<option value="">— Sem categoria —</option>` +
+            this.categories.map(c => `<option value="${c.name}" ${reminder?.category === c.name ? 'selected' : ''}>${c.emoji} ${c.name}</option>`).join('');
+        // Tipo
+        const typeSel = document.getElementById('reminder-type-input');
+        const allTypes = [
+            { id: 'saida',   name: '💸 Saída (Gasto)' },
+            { id: 'entrada', name: '💰 Entrada (Receita)' },
+            ...Storage.getCustomTypes().map(t => ({ id: t.id, name: `${t.emoji} ${t.name}` }))
+        ];
+        typeSel.innerHTML = allTypes.map(t => `<option value="${t.id}" ${reminder?.type === t.id ? 'selected' : ''}>${t.name}</option>`).join('');
+        document.getElementById('reminder-form-modal')?.classList.remove('hidden');
+        document.getElementById('reminder-name-input').focus();
+    },
+
+    closeReminderForm() {
+        document.getElementById('reminder-form-modal')?.classList.add('hidden');
+        this.editingReminderId = null;
+    },
+
+    async saveReminderForm() {
+        const name   = document.getElementById('reminder-name-input').value.trim();
+        const day    = parseInt(document.getElementById('reminder-day-input').value);
+        const amount = parseFloat(document.getElementById('reminder-amount-input').value) || 0;
+        const emoji  = document.getElementById('reminder-emoji-input').value.trim() || '🔔';
+        const category = document.getElementById('reminder-category-input').value;
+        const type   = document.getElementById('reminder-type-input').value || 'saida';
+
+        if (!name) { document.getElementById('reminder-name-input').focus(); return; }
+        if (!day || day < 1 || day > 31) { this.showToast('⚠️ Dia inválido (1–31)', true); return; }
+
+        const btn = document.getElementById('reminder-form-save');
+        btn.disabled = true; btn.textContent = 'Salvando...';
+        try {
+            if (this.editingReminderId) {
+                await Storage.updateReminder(this.editingReminderId, { name, day, amount, emoji, category, type });
+                const idx = this.reminders.findIndex(r => r.id === this.editingReminderId);
+                if (idx !== -1) this.reminders[idx] = { ...this.reminders[idx], name, day, amount, emoji, category, type };
+            } else {
+                const r = await Storage.createReminder({ name, day, amount, emoji, category, type });
+                this.reminders.push(r);
+            }
+            this.reminders.sort((a, b) => a.day - b.day);
+            this.closeReminderForm();
+            this.renderRemindersList();
+            this.renderRemindersHome();
+            this.showToast(this.editingReminderId ? '✅ Lembrete atualizado!' : '✅ Lembrete criado!');
+        } catch (e) {
+            this.showToast('❌ Erro: ' + e.message, true);
+        } finally {
+            btn.disabled = false; btn.textContent = 'Salvar';
+        }
+    },
+
+    async deleteReminder(id) {
+        if (!confirm('Excluir este lembrete?')) return;
+        try {
+            await Storage.deleteReminder(id);
+            this.reminders = this.reminders.filter(r => r.id !== id);
+            this.renderRemindersList();
+            this.renderRemindersHome();
+            this.showToast('🗑️ Lembrete excluído');
+        } catch (e) {
+            this.showToast('❌ Erro: ' + e.message, true);
+        }
+    },
+
     // ─── Voice Input ──────────────────────────────────────────────────────────
     bindVoice() {
         const btn = document.getElementById('voice-btn');
@@ -953,6 +1174,7 @@ const App = {
         document.getElementById('total-expense').textContent = this.formatCurrency(summary.expense);
         document.getElementById('balance').className =
             `text-3xl font-bold ${summary.balance >= 0 ? 'text-green-400' : 'text-red-400'}`;
+        this.renderRemindersHome();
         this.renderTransactionList('home-transactions', list.slice(0, 30));
     },
 
