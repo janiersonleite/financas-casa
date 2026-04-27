@@ -516,6 +516,19 @@ const App = {
         this.renderModalTypeBtns();
         this.selectModalType(data.type || 'saida');
         this.renderCategorySelect(data.category || 'Outros');
+        // Exibe vínculo com lembrete (se existir)
+        const reminderBadgeEl = document.getElementById('modal-reminder-badge');
+        if (reminderBadgeEl) {
+            const linked = data.reminder_id ? this.reminders.find(r => r.id === data.reminder_id) : null;
+            if (linked) {
+                reminderBadgeEl.innerHTML = `<span class="inline-flex items-center gap-1.5 text-xs bg-blue-50 text-blue-600 border border-blue-200 rounded-xl px-3 py-1.5 font-medium">
+                    ${linked.emoji || '🔔'} Lembrete: <strong>${linked.name}</strong> — todo dia ${linked.day}
+                </span>`;
+                reminderBadgeEl.classList.remove('hidden');
+            } else {
+                reminderBadgeEl.classList.add('hidden');
+            }
+        }
         if (data.focusValue) setTimeout(() => document.getElementById('modal-value').focus(), 100);
     },
 
@@ -534,7 +547,8 @@ const App = {
             category:    document.getElementById('modal-category').value,
             description: document.getElementById('modal-description').value || 'Sem descrição',
             date:        document.getElementById('modal-date').value,
-            notes:       document.getElementById('modal-notes').value
+            notes:       document.getElementById('modal-notes').value,
+            ...(this._reminderSourceId && !this.editingId ? { reminder_id: this._reminderSourceId } : {})
         };
         const btn = document.getElementById('modal-save');
         btn.disabled = true; btn.textContent = 'Salvando...';
@@ -1316,12 +1330,20 @@ const App = {
                 const beh   = Storage.getBehavior(t.type);
                 const color = beh === 'soma' ? 'text-green-600' : beh === 'subtrai' ? 'text-red-600' : 'text-gray-500';
                 const sign  = beh === 'soma' ? '+' : beh === 'subtrai' ? '-' : '±';
+                // Badge de lembrete vinculado
+                const linkedReminder = t.reminder_id ? this.reminders.find(r => r.id === t.reminder_id) : null;
+                const reminderBadge  = linkedReminder
+                    ? `<span class="inline-flex items-center gap-1 text-xs bg-blue-50 text-blue-500 border border-blue-100 rounded-full px-2 py-0.5 mt-0.5">
+                           ${linkedReminder.emoji || '🔔'} ${linkedReminder.name}
+                       </span>`
+                    : '';
                 html += `
                 <div class="flex items-center gap-3 bg-white rounded-xl p-3 mb-2 shadow-sm border border-gray-100 transaction-item cursor-pointer" data-id="${t.id}">
                     <div class="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-xl flex-shrink-0">${icon}</div>
                     <div class="flex-1 min-w-0">
                         <div class="font-medium text-gray-800 truncate">${t.category}</div>
                         <div class="text-xs text-gray-400 truncate">${t.description}</div>
+                        ${reminderBadge}
                         ${this.getInserterBadge(t)}
                     </div>
                     <div class="flex flex-col items-end gap-1">
