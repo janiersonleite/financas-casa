@@ -2399,7 +2399,12 @@ const App = {
             this.renderQuickButtons();
             this.showToast(this.editingCatId ? '✅ Categoria atualizada!' : '✅ Categoria criada!');
         } catch (e) {
-            this.showToast('❌ Erro: ' + e.message, true);
+            const msg = e.message || '';
+            if (msg.includes('duplicate key') || msg.includes('unique constraint') || msg.includes('already exists')) {
+                this.showToast('⚠️ Já existe uma categoria com esse nome neste perfil.', true);
+            } else {
+                this.showToast('❌ Erro: ' + msg, true);
+            }
         } finally {
             btn.disabled = false; btn.textContent = 'Salvar';
         }
