@@ -825,13 +825,19 @@ const App = {
         // Esconde o botão vazio e renderiza os cards
         if (emptyBtn) emptyBtn.classList.add('hidden');
 
-        const today = new Date();
-        const todayDay = today.getDate();
-        const in7 = todayDay + 7;
+        // Usa o mês visualizado para comparação de datas
+        const today        = new Date();
+        const realToday    = today.toISOString().slice(0, 7);
+        const viewMonth    = this.currentMonth || realToday;
+        const isCurrentMonth = viewMonth === realToday;
+        const isFutureMonth  = viewMonth > realToday;
+        const refDay = isCurrentMonth ? today.getDate() : (isFutureMonth ? 0 : 32);
+        // refDay=0 → mês futuro, todos "upcoming"; refDay=32 → mês passado, todos "overdue"
+        const in7 = refDay + 7;
 
-        const overdue  = active.filter(r => r.day < todayDay);
-        const dueToday = active.filter(r => r.day === todayDay);
-        const upcoming = active.filter(r => r.day > todayDay && r.day <= in7);
+        const overdue  = active.filter(r => r.day < refDay);
+        const dueToday = active.filter(r => r.day === refDay);
+        const upcoming = active.filter(r => r.day > refDay && r.day <= in7);
         const later    = active.filter(r => r.day > in7);
 
         const card = (r, style) => {
@@ -908,8 +914,9 @@ const App = {
 
     // ── Reminder paid helpers ────────────────────────────────────────────────
     // Cada mês começa zerado — pago em abril não afeta maio.
-    // A chave é sempre o mês ATUAL do calendário: reminder_paid_YYYY-MM
-    _currentMonth() { return new Date().toISOString().slice(0, 7); },
+    // Usa o mês visualizado (currentMonth) para que navegar para outro mês
+    // mostre o estado de pago correto daquele mês.
+    _currentMonth() { return this.currentMonth || new Date().toISOString().slice(0, 7); },
     _paidKey(month) { return 'reminder_paid_' + month; },
     _getPaidReminders(month) {
         try { return JSON.parse(localStorage.getItem(this._paidKey(month)) || '[]'); } catch { return []; }
