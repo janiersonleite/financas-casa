@@ -423,24 +423,23 @@ const Storage = {
     async getCategories() {
         if (this.isCloud) {
             if (!this.isOnline) {
+                // Offline: usa cache do usuário apenas (sem categorias padrão)
                 const cached = this._getCachedCat();
-                const fallback = cached.length ? cached : this._defaultCategories;
-                return this._applyOverrides(fallback);
+                return this._applyOverrides(cached);
             }
             const uid = this.userId();
             const { data, error } = await this.db
                 .from('categories')
                 .select('*')
-                .or(`user_id.is.null,user_id.eq.${uid}`)
-                .order('sort_order', { ascending: true })
-                .order('name',       { ascending: true });
+                .eq('user_id', uid)   // apenas categorias do próprio usuário
+                .order('name', { ascending: true });
             if (error) throw error;
             if (data) this._cacheCat(data);
             return this._applyOverrides(data ?? []);
         }
+        // Modo local: apenas categorias criadas pelo usuário (sem padrões)
         const d = this._localGet();
-        const all = [...this._defaultCategories, ...(d.categories || [])];
-        return this._applyOverrides(all);
+        return this._applyOverrides(d.categories || []);
     },
 
     async createCategory(name, emoji, keywords, type) {

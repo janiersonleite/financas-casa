@@ -1853,6 +1853,7 @@ const App = {
                         this.categories.push(cat);
                     } catch (_) { /* ignora se já existir por race condition */ }
                 }
+                this.categories = this._sortCategories(this.categories);
                 NLP.setCategoryMap(this.categories);
                 this.renderCategorySelect();
                 this.renderQuickButtons();
@@ -2078,11 +2079,20 @@ const App = {
     },
 
     // ─── Categories ───────────────────────────────────────────────────────────
+    _sortCategories(cats) {
+        return [...cats].sort((a, b) => {
+            if (a.name === 'Outros') return 1;
+            if (b.name === 'Outros') return -1;
+            return a.name.localeCompare(b.name, 'pt-BR');
+        });
+    },
+
     async loadCategories() {
         try {
-            this.categories = await Storage.getCategories();
+            this.categories = this._sortCategories(await Storage.getCategories());
         } catch (e) {
             console.warn('loadCategories:', e);
+            this.categories = [];
         }
         NLP.setCategoryMap(this.categories);
         this.renderCategorySelect();
@@ -2380,6 +2390,7 @@ const App = {
             } else {
                 const cat = await Storage.createCategory(name, emoji, keywords, type);
                 this.categories.push(cat);
+                this.categories = this._sortCategories(this.categories);
             }
             NLP.setCategoryMap(this.categories);
             this.closeCategoryForm();
