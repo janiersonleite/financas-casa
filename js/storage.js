@@ -149,13 +149,13 @@ const Storage = {
         const { data: txData } = await q;
         if (txData) this._mergeTxCache(txData);
 
-        // Categorias
+        // Categorias (filtra pela finança ativa)
         const uid = this.userId();
-        const { data: catData } = await this.db
-            .from('categories')
-            .select('*')
-            .or(`user_id.is.null,user_id.eq.${uid}`)
-            .order('sort_order', { ascending: true });
+        const _fid = (this.activeFinancaId && this.activeFinancaId !== 'null') ? this.activeFinancaId : null;
+        let catQ = this.db.from('categories').select('*').eq('user_id', uid);
+        if (_fid) catQ = catQ.eq('financa_id', _fid);
+        else      catQ = catQ.is('financa_id', null);
+        const { data: catData } = await catQ;
         if (catData) this._cacheCat(catData);
 
         // Finanças
@@ -421,39 +421,46 @@ const Storage = {
     },
 
     async getCategories() {
+        const fid = (this.activeFinancaId && this.activeFinancaId !== 'null') ? this.activeFinancaId : null;
+        const cacheKey = 'cat_cache_' + (fid || 'personal');
+        const _getCached = () => { try { return JSON.parse(localStorage.getItem(cacheKey) || '[]'); } catch { return []; } };
+        const _setCache  = d  => { try { localStorage.setItem(cacheKey, JSON.stringify(d)); } catch {} };
+
         if (this.isCloud) {
             if (!this.isOnline) {
-                // Offline: usa cache do usuário apenas (sem categorias padrão)
-                const cached = this._getCachedCat();
-                return this._applyOverrides(cached);
+                return this._applyOverrides(_getCached());
             }
             const uid = this.userId();
-            const { data, error } = await this.db
-                .from('categories')
-                .select('*')
-                .eq('user_id', uid)   // apenas categorias do próprio usuário
-                .order('name', { ascending: true });
+            let q = this.db.from('categories').select('*').eq('user_id', uid);
+            if (fid) q = q.eq('financa_id', fid);
+            else     q = q.is('financa_id', null);
+            q = q.order('name', { ascending: true });
+            const { data, error } = await q;
             if (error) throw error;
-            if (data) this._cacheCat(data);
+            if (data) _setCache(data);
             return this._applyOverrides(data ?? []);
         }
-        // Modo local: apenas categorias criadas pelo usuário (sem padrões)
+        // Modo local: categorias separadas por finança
         const d = this._localGet();
-        return this._applyOverrides(d.categories || []);
+        const all = (d.categories || []).filter(c => (fid ? c.financa_id === fid : !c.financa_id));
+        return this._applyOverrides(all);
     },
 
     async createCategory(name, emoji, keywords, type) {
+        const fid = (this.activeFinancaId && this.activeFinancaId !== 'null') ? this.activeFinancaId : null;
         if (this.isCloud) {
+            const payload = { name, emoji, keywords, type, user_id: this.userId() };
+            if (fid) payload.financa_id = fid;
             const { data, error } = await this.db
                 .from('categories')
-                .insert({ name, emoji, keywords, type, user_id: this.userId() })
+                .insert(payload)
                 .select().single();
             if (error) throw error;
             return data;
         }
         const d = this._localGet();
         if (!d.categories) d.categories = [];
-        const cat = { id: Date.now().toString(), name, emoji, keywords, type, sort_order: 99, user_id: 'local' };
+        const cat = { id: Date.now().toString(), name, emoji, keywords, type, sort_order: 99, user_id: 'local', ...(fid ? { financa_id: fid } : {}) };
         d.categories.push(cat);
         this._localSave(d);
         return cat;
