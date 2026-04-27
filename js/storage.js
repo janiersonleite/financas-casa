@@ -491,7 +491,10 @@ const Storage = {
                 inserted_by_email: Auth?.user?.email ?? null,
                 ...(this.activeFinancaId ? { financa_id: this.activeFinancaId } : {})
             };
-            const payload = transactions.map(t => ({ ...base, ...t }));
+            const payload = transactions.map(t => {
+                const { _rawType, _offline, _constraintFallback, ...clean } = t;
+                return { ...base, ...clean };
+            });
             for (let i = 0; i < payload.length; i += 50) {
                 const { error } = await this.db.from('transactions').insert(payload.slice(i, i + 50));
                 if (error) throw error;
@@ -518,7 +521,8 @@ const Storage = {
                 this._queueOp('addTransaction', { ...t, financa_id: this.activeFinancaId }, tempId);
                 return tx;
             }
-            const payload = { ...t, user_id: this.userId() };
+            const { _rawType, _offline, _constraintFallback, ...tClean } = t;
+            const payload = { ...tClean, user_id: this.userId() };
             if (this.activeFinancaId) payload.financa_id = this.activeFinancaId;
             const { data, error } = await this.db
                 .from('transactions').insert(payload).select().single();
