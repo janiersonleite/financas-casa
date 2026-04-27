@@ -1756,9 +1756,18 @@ const App = {
             const beh    = Storage.getBehavior(t.type);
             const tColor = beh === 'soma' ? 'text-green-600' : beh === 'subtrai' ? 'text-red-600' : 'text-gray-500';
             const tArrow = beh === 'soma' ? '↓' : beh === 'subtrai' ? '↑' : '±';
-            const tName  = this._resolveTypeName(t.type) !== 'Saída' || t.type === 'saida'
-                ? this._resolveTypeName(t.type)
-                : (t._rawType || 'Saída');
+            const tName  = (() => {
+                // Se é um tipo customizado já cadastrado, mostra o nome resolvido
+                if (t.type !== 'saida' && t.type !== 'entrada') return this._resolveTypeName(t.type);
+                // Se tem rawType e NÃO é palavra-chave de saída/entrada padrão, mostra o nome bruto
+                if (t._rawType) {
+                    const n = t._rawType.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+                    const isStdSaida   = ['saida','debito','debit','despesa','expense','gasto'].some(k => n.includes(k));
+                    const isStdEntrada = ['entrada','credito','credit','receita','income'].some(k => n.includes(k));
+                    if (!isStdSaida && !isStdEntrada) return t._rawType; // ex: "Nubank", "Cartão"
+                }
+                return this._resolveTypeName(t.type);
+            })();
             return `<tr class="${i % 2 === 0 ? '' : 'bg-gray-50'}">
                 <td class="px-2 py-1.5 text-gray-700">${t.date}</td>
                 <td class="px-2 py-1.5 ${tColor}">${tArrow} ${tName}</td>
@@ -1774,6 +1783,31 @@ const App = {
 
         // Store for confirm
         this._importParsed = txns;
+
+        // Aviso de tipos novos que serão criados automaticamente
+        const newTypesWrap = document.getElementById('import-new-types');
+        if (newTypesWrap) {
+            const normStr = s => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+            const knownTypeNorms = new Set([
+                ...Storage.getCustomTypes().map(t => normStr(t.name)),
+                'entrada', 'saida'
+            ]);
+            const newTypeNames = [...new Set(
+                txns.map(t => t._rawType).filter(raw => {
+                    if (!raw) return false;
+                    const n = normStr(raw);
+                    if (['entrada','credito','receita','income'].some(k => n.includes(k))) return false;
+                    if (['saida','debito','despesa','expense','gasto'].some(k => n.includes(k))) return false;
+                    return !knownTypeNorms.has(n);
+                })
+            )];
+            if (newTypeNames.length) {
+                newTypesWrap.classList.remove('hidden');
+                document.getElementById('import-new-types-list').textContent = newTypeNames.join(', ');
+            } else {
+                newTypesWrap.classList.add('hidden');
+            }
+        }
 
         // Aviso de emails novos (só em finanças compartilhadas)
         const newEmailsWrap = document.getElementById('import-new-emails');
