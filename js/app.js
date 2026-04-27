@@ -195,6 +195,7 @@ const App = {
                 Storage.setActiveFinanca(f.id);
                 this.closeFinancaModal();
                 this.renderFinancaSwitcher();
+                await Promise.all([this.loadCategories(), this.loadReminders()]);
                 await this.renderCurrentTab();
                 if (navigator.onLine) this._warmOfflineCache();
                 if (this.currentTab !== 'home') await this.renderHome();
@@ -213,6 +214,8 @@ const App = {
                         this.activeFinanca = this.financas[0] || null;
                         Storage.setActiveFinanca(this.activeFinanca?.id || null);
                         this.renderFinancaSwitcher();
+                        await Promise.all([this.loadCategories(), this.loadReminders()]);
+                        await this.renderCurrentTab();
                     }
                     this.renderFinancaList();
                 } catch (err) { this.showToast('❌ Erro ao excluir', true); }
@@ -261,6 +264,7 @@ const App = {
             Storage.setActiveFinanca(f.id);
             this.closeCreateFinancaModal();
             this.renderFinancaSwitcher();
+            await Promise.all([this.loadCategories(), this.loadReminders()]);
             await this.renderCurrentTab();
             this.showToast('✅ Finança criada!');
         } catch (e) {
