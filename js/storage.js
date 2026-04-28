@@ -618,19 +618,23 @@ const Storage = {
 
     async addTransaction(t) {
         if (!t.date) t.date = new Date().toISOString().split('T')[0];
+        // _targetFinancaId: finança escolhida pontualmente (não altera activeFinancaId globalmente)
+        const targetFid = t._targetFinancaId !== undefined
+            ? (t._targetFinancaId || null)
+            : (this.activeFinancaId && this.activeFinancaId !== 'null' ? this.activeFinancaId : null);
         if (this.isCloud) {
             if (!this.isOnline) {
                 const tempId = 'temp_' + Date.now();
-                const tx = { ...t, id: tempId, user_id: this.userId(), financa_id: this.activeFinancaId, created_at: new Date().toISOString(), _offline: true };
+                const tx = { ...t, id: tempId, user_id: this.userId(), financa_id: targetFid, created_at: new Date().toISOString(), _offline: true };
                 const cached = this._getCachedTx();
                 cached.unshift(tx);
                 this._cacheTx(cached);
-                this._queueOp('addTransaction', { ...t, financa_id: this.activeFinancaId }, tempId);
+                this._queueOp('addTransaction', { ...t, financa_id: targetFid }, tempId);
                 return tx;
             }
-            const { _rawType, _offline, _constraintFallback, ...tClean } = t;
+            const { _rawType, _offline, _constraintFallback, _targetFinancaId, ...tClean } = t;
             const payload = { ...tClean, user_id: this.userId() };
-            if (this.activeFinancaId) payload.financa_id = this.activeFinancaId;
+            if (targetFid) payload.financa_id = targetFid;
             const { data, error } = await this.db
                 .from('transactions').insert(payload).select().single();
             if (error) {
@@ -648,7 +652,10 @@ const Storage = {
             const cached = this._getCachedTx(); cached.unshift(data); this._cacheTx(cached);
             return data;
         }
-        return this._localAdd(t);
+        // Local mode: strip internal fields before saving
+        const { _rawType, _offline, _constraintFallback, _targetFinancaId, ...tLocal } = t;
+        if (targetFid) tLocal.financa_id = targetFid;
+        return this._localAdd(tLocal);
     },
 
     async updateTransaction(id, updates) {
