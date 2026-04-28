@@ -681,6 +681,39 @@ const App = {
         }
     },
 
+    _showInstallmentEditDialog(t, futureCount, totalCount) {
+        return new Promise(resolve => {
+            const modal = document.createElement('div');
+            modal.className = 'fixed inset-0 bg-black/60 z-[90] flex items-center justify-center px-4';
+            modal.innerHTML = `
+                <div class="bg-white rounded-2xl w-full max-w-sm p-5 shadow-2xl">
+                    <h3 class="font-bold text-gray-800 text-base mb-1">Alterar parcela?</h3>
+                    <p class="text-sm text-gray-500 mb-4">Parcela ${t.installment_current} de ${t.installment_total}</p>
+                    <div class="space-y-2">
+                        <button id="_edit-single" class="w-full py-2.5 px-4 rounded-xl border-2 border-gray-200 text-gray-700 font-semibold text-sm text-left hover:bg-gray-50 transition-colors">
+                            ✏️ Só esta parcela
+                        </button>
+                        ${futureCount > 1 ? `<button id="_edit-future" class="w-full py-2.5 px-4 rounded-xl border-2 border-blue-200 text-blue-600 font-semibold text-sm text-left hover:bg-blue-50 transition-colors">
+                            📅 Esta e as próximas (${futureCount})
+                        </button>` : ''}
+                        ${totalCount > 1 ? `<button id="_edit-all" class="w-full py-2.5 px-4 rounded-xl border-2 border-purple-200 text-purple-600 font-semibold text-sm text-left hover:bg-purple-50 transition-colors">
+                            📦 Todas as parcelas (${totalCount})
+                        </button>` : ''}
+                        <button id="_edit-cancel" class="w-full py-2.5 rounded-xl border-2 border-gray-200 text-gray-400 text-sm hover:bg-gray-50 transition-colors">
+                            Cancelar
+                        </button>
+                    </div>
+                </div>`;
+            document.body.appendChild(modal);
+            const close = val => { modal.remove(); resolve(val); };
+            modal.querySelector('#_edit-single')?.addEventListener('click', () => close('single'));
+            modal.querySelector('#_edit-future')?.addEventListener('click', () => close('future'));
+            modal.querySelector('#_edit-all')?.addEventListener('click',    () => close('all'));
+            modal.querySelector('#_edit-cancel')?.addEventListener('click', () => close(null));
+            modal.addEventListener('click', e => { if (e.target === modal) close(null); });
+        });
+    },
+
     _showInstallmentDeleteDialog(t, futureCount, totalCount) {
         return new Promise(resolve => {
             const modal = document.createElement('div');
@@ -722,7 +755,9 @@ const App = {
         document.getElementById('modal-overlay').classList.remove('hidden');
         document.getElementById('modal-title').textContent = this.editingId ? 'Editar Lançamento' : 'Novo Lançamento';
         document.getElementById('modal-value').value       = data.value || '';
-        document.getElementById('modal-description').value = data.description || '';
+        // Remove sufixo "(X/N)" ao editar parcela para o campo ficar limpo
+        const cleanDesc = (data.description || '').replace(/\s*\(\d+\/\d+\)\s*$/, '');
+        document.getElementById('modal-description').value = cleanDesc;
         document.getElementById('modal-date').value        = data.date || new Date().toISOString().split('T')[0];
         document.getElementById('modal-notes').value       = data.rawText ? '📎 Processado via OCR' : (data.notes || '');
         this.renderModalTypeBtns();
@@ -801,8 +836,34 @@ const App = {
 
         try {
             let result;
+            const wasEditing = !!this.editingId;
             if (this.editingId) {
-                await Storage.updateTransaction(this.editingId, base);
+                // Verifica se é parcela para perguntar escopo da edição
+                const allTxns    = await Storage.getTransactions();
+                const original   = allTxns.find(x => x.id === this.editingId);
+
+                if (original?.installment_group_id) {
+                    const groupTxns  = allTxns
+                        .filter(x => x.installment_group_id === original.installment_group_id)
+                        .sort((a, b) => a.installment_current - b.installment_current);
+                    const futureTxns = groupTxns.filter(x => x.installment_current >= original.installment_current);
+
+                    const choice = await this._showInstallmentEditDialog(original, futureTxns.length, groupTxns.length);
+                    if (!choice) {
+                        btn.disabled = false; btn.textContent = 'Salvar';
+                        return;
+                    }
+                    const toUpdate = choice === 'all' ? groupTxns : choice === 'future' ? futureTxns : [original];
+                    for (const tx of toUpdate) {
+                        await Storage.updateTransaction(tx.id, {
+                            ...base,
+                            date:        tx.date,  // mantém a data de cada parcela
+                            description: `${baseDesc} (${tx.installment_current}/${tx.installment_total})`,
+                        });
+                    }
+                } else {
+                    await Storage.updateTransaction(this.editingId, base);
+                }
             } else if (installQty > 1) {
                 // Cria N transações, uma por mês
                 const groupId = 'inst_' + Date.now().toString(36);
@@ -837,7 +898,7 @@ const App = {
             } else if (result?._constraintFallback) {
                 this.showToast('⚠️ Salvo localmente. Para sincronizar, remova a restrição no Supabase (SQL: ALTER TABLE transactions DROP CONSTRAINT transactions_type_check)', true);
             } else {
-                this.showToast(this.editingId ? 'Lançamento atualizado!' : '✅ Lançamento salvo!');
+                this.showToast(wasEditing ? '✅ Lançamento atualizado!' : '✅ Lançamento salvo!');
             }
         } catch (e) {
             this.showToast('❌ Erro ao salvar: ' + e.message, true);
