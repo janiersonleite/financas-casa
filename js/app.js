@@ -548,8 +548,9 @@ const App = {
         list.querySelectorAll('.financa-select-item').forEach(btn => {
             btn.addEventListener('click', () => {
                 const fid = btn.dataset.fid || null;
+                const cb = this._financaSelectCallback;
                 this.closeFinancaSelectModal();
-                if (this._financaSelectCallback) this._financaSelectCallback(fid);
+                if (cb) cb(fid);
             });
         });
 
