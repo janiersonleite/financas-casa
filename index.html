@@ -7,7 +7,7 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <title>💰 Minhas Finanças</title>
-    <link rel="manifest" href="/manifest.json">
+    <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#3b82f6">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1150,7 +1150,7 @@
     if (!('serviceWorker' in navigator)) return;
 
     // Registra o SW
-    navigator.serviceWorker.register('/sw.js').catch(console.error);
+    navigator.serviceWorker.register('./sw.js').catch(console.error);
 
     // ── PWA Install prompt ────────────────────────────────────────────────────
     let deferredPrompt = null;

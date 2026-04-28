@@ -5,7 +5,7 @@ const RUNTIME_CACHE = 'app-runtime-v1';
 self.addEventListener('install', e => {
     e.waitUntil(
         caches.open(RUNTIME_CACHE)
-            .then(c => c.addAll(['/', '/index.html']))
+            .then(c => c.addAll(['/financas-casa/', '/financas-casa/index.html']))
             .then(() => self.skipWaiting())
     );
 });
@@ -25,7 +25,7 @@ self.addEventListener('fetch', event => {
     const url = new URL(event.request.url);
 
     // ── Share Target (POST /share-target) ────────────────────────────────────
-    if (event.request.method === 'POST' && url.pathname === '/share-target') {
+    if (event.request.method === 'POST' && url.pathname === '/financas-casa/share-target') {
         event.respondWith(handleShareTarget(event.request));
         return;
     }
@@ -47,7 +47,7 @@ self.addEventListener('fetch', event => {
                 return response;
             })
             .catch(() => caches.match(event.request)
-                .then(cached => cached || caches.match('/index.html'))
+                .then(cached => cached || caches.match('/financas-casa/index.html'))
             )
     );
 });
@@ -75,5 +75,5 @@ async function handleShareTarget(request) {
         }), { headers: { 'Content-Type': 'application/json' } }));
     }
 
-    return Response.redirect('/?shared=1', 303);
+    return Response.redirect('/financas-casa/?shared=1', 303);
 }
