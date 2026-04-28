@@ -3061,9 +3061,9 @@ const App = {
             const qtype = c.type === 'entrada' ? 'entrada' : 'saida';
             const isIncome = c.type === 'entrada';
             return `<button data-quick-cat="${c.name}" data-quick-type="${qtype}" data-quick-label="${c.name}"
-                class="flex flex-col items-center gap-1 ${isIncome ? 'bg-green-50 border-green-100' : 'bg-white border-gray-100'} rounded-xl p-3 shadow-sm border hover:border-blue-300 hover:shadow-md transition-all">
-                <span class="text-2xl">${c.emoji}</span>
-                <span class="text-xs ${isIncome ? 'text-green-700' : 'text-gray-600'} truncate w-full text-center">${c.name}</span>
+                class="flex flex-col items-center gap-0.5 ${isIncome ? 'bg-green-50 border-green-100' : 'bg-white border-gray-100'} rounded-xl px-1 py-2 shadow-sm border hover:border-blue-300 hover:shadow-md transition-all">
+                <span class="text-lg leading-none">${c.emoji}</span>
+                <span class="text-[11px] ${isIncome ? 'text-green-700' : 'text-gray-600'} truncate w-full text-center leading-tight">${c.name}</span>
             </button>`;
         }).join('') + `
         <button id="manage-cats-btn"
