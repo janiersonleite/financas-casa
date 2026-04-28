@@ -1762,8 +1762,9 @@ const App = {
 
     // ─── Export ───────────────────────────────────────────────────────────────
     bindExportButtons() {
-        document.getElementById('export-excel-btn')?.addEventListener('click', () => this.exportExcel());
-        document.getElementById('export-pdf-btn')?.addEventListener('click',   () => this.exportPDF());
+        document.getElementById('export-excel-btn')?.addEventListener('click',  () => this.exportExcel());
+        document.getElementById('export-pdf-btn')?.addEventListener('click',    () => this.exportPDF());
+        document.getElementById('export-backup-btn')?.addEventListener('click', () => this.exportFullBackup());
     },
 
     async exportExcel() {
@@ -1870,6 +1871,92 @@ const App = {
             this.showToast('❌ Erro ao exportar: ' + e.message, true);
         } finally {
             btn.disabled = false; btn.textContent = '📄 Exportar PDF';
+        }
+    },
+
+    // ─── Full Backup Export ───────────────────────────────────────────────────
+    async exportFullBackup() {
+        const btn = document.getElementById('export-backup-btn');
+        btn.disabled = true; btn.textContent = 'Gerando backup...';
+        try {
+            const financa = this.activeFinanca;
+            const fname   = financa?.name || 'Pessoal';
+            const today   = new Date().toISOString().slice(0, 10);
+
+            // 1. Todos os lançamentos (sem filtro de mês)
+            const allTxns = await Storage.getTransactions({});
+            const txRows  = allTxns.map(t => {
+                const beh = Storage.getBehavior(t.type);
+                return {
+                    'Data':            t.date,
+                    'Tipo':            this._resolveTypeName(t.type),
+                    'Categoria':       t.category,
+                    'Descrição':       t.description,
+                    'Valor (R$)':      beh === 'soma' ? Number(t.value) : beh === 'subtrai' ? -Number(t.value) : Number(t.value),
+                    'Inserido por':    t.inserted_by_email || '',
+                    'ID Lembrete':     t.reminder_id || '',
+                    'ID':              t.id,
+                    'Criado em':       t.created_at || ''
+                };
+            });
+
+            // 2. Resumo mensal
+            const months = [...new Set(allTxns.map(t => t.date?.slice(0, 7)).filter(Boolean))].sort();
+            const monthSummaries = await Promise.all(months.map(async m => {
+                const s = await Storage.getSummary(m);
+                return {
+                    'Mês':         m,
+                    'Entradas (R$)': s.income,
+                    'Saídas (R$)':   s.expense,
+                    'Saldo (R$)':    s.balance
+                };
+            }));
+
+            // 3. Categorias
+            const catRows = this.categories.map(c => ({
+                'Nome':       c.name,
+                'Emoji':      c.emoji,
+                'Tipo':       c.type,
+                'Palavras-chave': (c.keywords || []).join(', ')
+            }));
+
+            // 4. Lembretes
+            const remRows = this.reminders.map(r => ({
+                'Nome':       r.name,
+                'Emoji':      r.emoji,
+                'Dia':        r.day,
+                'Valor (R$)': r.amount || 0,
+                'Categoria':  r.category || '',
+                'Tipo':       this._resolveTypeName(r.type),
+                'Ativo':      r.active !== false ? 'Sim' : 'Não'
+            }));
+
+            // 5. Info do perfil
+            const infoRows = [
+                { 'Campo': 'Nome',           'Valor': financa?.name  || 'Pessoal' },
+                { 'Campo': 'Tipo',           'Valor': financa?.type  || 'individual' },
+                { 'Campo': 'Emoji',          'Valor': financa?.emoji || '💰' },
+                { 'Campo': 'Data do backup', 'Valor': today },
+                { 'Campo': 'Total lançamentos', 'Valor': allTxns.length },
+                { 'Campo': 'Total categorias',  'Valor': this.categories.length },
+                { 'Campo': 'Total lembretes',   'Valor': this.reminders.length }
+            ];
+
+            // Monta o workbook com todas as abas
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(txRows.length        ? txRows        : [{ '': 'Sem dados' }]), 'Lançamentos');
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(monthSummaries.length ? monthSummaries : [{ '': 'Sem dados' }]), 'Resumo Mensal');
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(catRows.length        ? catRows        : [{ '': 'Sem dados' }]), 'Categorias');
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(remRows.length        ? remRows        : [{ '': 'Sem dados' }]), 'Lembretes');
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(infoRows),                                                       'Info');
+
+            const safeName = fname.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+            XLSX.writeFile(wb, `backup_${safeName}_${today}.xlsx`);
+            this.showToast(`✅ Backup exportado — ${allTxns.length} lançamentos`);
+        } catch (e) {
+            this.showToast('❌ Erro ao gerar backup: ' + e.message, true);
+        } finally {
+            btn.disabled = false; btn.textContent = '📦 Backup completo';
         }
     },
 
