@@ -1016,7 +1016,22 @@
         </div>
         <div id="financa-select-list" class="px-4 py-3 space-y-2 max-h-72 overflow-y-auto"></div>
         <div class="px-4 pb-5 pt-1">
-            <p class="text-xs text-gray-400 text-center">Somente para este lançamento. Não altera o perfil ativo.</p>
+            <p class="text-xs text-gray-400 text-center">Selecione o perfil para este lançamento.</p>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════ MODAL: CONFIRMAR TROCA DE PERFIL ═══════════════ -->
+<div id="financa-confirm-modal" class="hidden fixed inset-0 bg-black/60 z-[80] flex items-center justify-center px-4">
+    <div class="bg-white rounded-2xl w-full max-w-sm p-5 shadow-2xl">
+        <div class="text-center mb-5">
+            <span id="financa-confirm-emoji" class="text-5xl block mb-2">💰</span>
+            <h3 class="font-bold text-gray-800 text-base">Mudar perfil financeiro?</h3>
+            <p id="financa-confirm-msg" class="text-sm text-gray-500 mt-1.5 leading-relaxed"></p>
+        </div>
+        <div class="flex gap-3">
+            <button id="financa-confirm-no"  class="flex-1 py-2.5 rounded-xl border-2 border-gray-200 text-gray-600 font-semibold text-sm hover:bg-gray-50 transition-colors">Não, manter</button>
+            <button id="financa-confirm-yes" class="flex-1 py-2.5 rounded-xl bg-blue-500 text-white font-semibold text-sm hover:bg-blue-600 transition-colors">Sim, mudar</button>
         </div>
     </div>
 </div>
@@ -1103,7 +1118,7 @@
 <script src="js/storage.js?v=20260424l"></script>
 <script src="js/nlp.js?v=20260424n"></script>
 <script src="js/ocr.js?v=20260424h"></script>
-<script src="js/app.js?v=20260428b"></script>
+<script src="js/app.js?v=20260428c"></script>
 
 <script>
 // ── Service Worker + PWA ──────────────────────────────────────────────────────
