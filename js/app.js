@@ -1778,8 +1778,14 @@ const App = {
                 const typeBadgeColor = beh === 'soma'    ? 'bg-green-50 text-green-600 border-green-100'
                                      : beh === 'subtrai' ? 'bg-red-50 text-red-500 border-red-100'
                                      :                     'bg-gray-100 text-gray-500 border-gray-200';
-                const typeBadge = t.type
-                    ? `<span class="inline-flex items-center text-xs border rounded-full px-2 py-0.5 ${typeBadgeColor} font-medium">${this._escHtml(t.type)}</span>`
+                const typeObj   = (this.transactionTypes || []).find(x => x.id === t.type);
+                const typeName  = typeObj ? typeObj.name
+                                : t.type === 'entrada' ? 'Entrada'
+                                : t.type === 'saida'   ? 'Saída'
+                                : t.type               ? this._escHtml(t.type)
+                                : '';
+                const typeBadge = typeName
+                    ? `<span class="inline-flex items-center text-xs border rounded-full px-2 py-0.5 ${typeBadgeColor} font-medium">${this._escHtml(typeName)}</span>`
                     : '';
                 html += `
                 <div class="flex items-center gap-3 bg-white rounded-xl p-3 mb-2 shadow-sm border border-gray-100 transaction-item cursor-pointer" data-id="${t.id}">
