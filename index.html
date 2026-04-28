@@ -634,6 +634,16 @@
 
         <div class="p-4 space-y-4 max-h-[80vh] overflow-y-auto">
 
+            <!-- Perfil financeiro de destino -->
+            <button id="modal-financa-picker" class="w-full flex items-center gap-2 bg-blue-50 border border-blue-100 rounded-xl px-3 py-2 text-left hover:bg-blue-100 transition-all">
+                <span id="modal-financa-emoji" class="text-lg">💰</span>
+                <div class="flex-1 min-w-0">
+                    <p class="text-xs text-blue-400 font-medium leading-none mb-0.5">Salvar em</p>
+                    <p id="modal-financa-name" class="text-sm font-semibold text-blue-700 truncate">Pessoal</p>
+                </div>
+                <span class="text-blue-300 text-xs">▼</span>
+            </button>
+
             <!-- Type toggle - renderizado dinamicamente pelo JS -->
             <div id="modal-types-container" class="flex gap-2 flex-wrap"></div>
             <button id="manage-types-link" class="text-xs text-blue-400 hover:text-blue-500 text-right w-full mt-1 transition-colors">+ Gerenciar tipos</button>
@@ -750,7 +760,9 @@
                         <p id="import-financa-name" class="text-sm font-bold text-blue-800 truncate">Pessoal</p>
                         <p id="import-financa-type" class="text-xs text-blue-400">Individual</p>
                     </div>
-                    <span class="text-blue-300 text-xl">🎯</span>
+                    <button id="import-change-financa-btn" class="text-xs font-semibold text-blue-500 bg-white border border-blue-200 rounded-lg px-2.5 py-1.5 hover:bg-blue-50 transition-all flex-shrink-0">
+                        Trocar
+                    </button>
                 </div>
                 <!-- Column mapping -->
                 <div>
@@ -995,6 +1007,20 @@
 <!-- Toast -->
 <div id="toast" class="hidden fixed bottom-24 left-1/2 -translate-x-1/2 px-4 py-2 rounded-full text-white text-sm font-medium shadow-lg z-50 bg-green-500 transition-all opacity-0"></div>
 
+<!-- ═══════════════ MODAL: SELECIONAR PERFIL FINANCEIRO ═══════════════ -->
+<div id="financa-select-modal" class="hidden fixed inset-0 bg-black/50 z-[70] flex items-end justify-center">
+    <div class="bg-white w-full max-w-md rounded-t-2xl">
+        <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+            <h2 class="font-bold text-gray-800">Selecionar perfil financeiro</h2>
+            <button id="financa-select-close" class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500">✕</button>
+        </div>
+        <div id="financa-select-list" class="px-4 py-3 space-y-2 max-h-72 overflow-y-auto"></div>
+        <div class="px-4 pb-5 pt-1">
+            <p class="text-xs text-gray-400 text-center">Somente para este lançamento. Não altera o perfil ativo.</p>
+        </div>
+    </div>
+</div>
+
 <!-- ═══════════════ MODAL: GERENCIAR LEMBRETES ═══════════════ -->
 <div id="reminders-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-end justify-center">
     <div class="bg-white w-full max-w-md rounded-t-2xl max-h-[85vh] flex flex-col">
@@ -1077,7 +1103,7 @@
 <script src="js/storage.js?v=20260424l"></script>
 <script src="js/nlp.js?v=20260424n"></script>
 <script src="js/ocr.js?v=20260424h"></script>
-<script src="js/app.js?v=20260428a"></script>
+<script src="js/app.js?v=20260428b"></script>
 
 <script>
 // ── Service Worker + PWA ──────────────────────────────────────────────────────

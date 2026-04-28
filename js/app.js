@@ -17,6 +17,9 @@ const App = {
     reminders:          [],
     editingReminderId:  null,
     _reminderSourceId:  null,
+    _modalFinancaId:    null,   // finança escolhida para o lançamento atual (null = usa a ativa)
+    _importFinancaId:   null,   // finança escolhida para o import atual
+    _financaSelectCallback: null, // callback ao confirmar seleção
 
     // ─── Init ─────────────────────────────────────────────────────────────────
     async init() {
@@ -503,10 +506,75 @@ const App = {
             if (btn) this.selectModalType(btn.dataset.typeBtn);
         });
         document.getElementById('manage-types-link')?.addEventListener('click', () => this.openTypesModal());
+
+        // Picker de finança no modal
+        document.getElementById('modal-financa-picker')?.addEventListener('click', () => {
+            this.openFinancaSelectModal(selectedId => {
+                this._modalFinancaId = selectedId;
+                this._renderModalFinancaPicker();
+            });
+        });
+
+        // Modal de seleção de finança
+        document.getElementById('financa-select-close')?.addEventListener('click', () => this.closeFinancaSelectModal());
+        document.getElementById('financa-select-modal')?.addEventListener('click', e => {
+            if (e.target === e.currentTarget) this.closeFinancaSelectModal();
+        });
+    },
+
+    // ─── Finança Select Modal ─────────────────────────────────────────────────
+    openFinancaSelectModal(callback) {
+        this._financaSelectCallback = callback;
+        const list = document.getElementById('financa-select-list');
+        const all  = [
+            { id: null, name: 'Pessoal', emoji: '💰', type: 'individual' },
+            ...this.financas
+        ];
+        list.innerHTML = all.map(f => {
+            const currentId = this._financaSelectCallback === callback
+                ? (this._modalFinancaId ?? (this.activeFinanca?.id || null))
+                : (this._importFinancaId ?? (this.activeFinanca?.id || null));
+            const isActive = (f.id === currentId) || (!f.id && !currentId);
+            return `<button class="financa-select-item w-full flex items-center gap-3 px-3 py-3 rounded-xl border-2 transition-all ${isActive ? 'border-blue-400 bg-blue-50' : 'border-gray-100 bg-gray-50 hover:border-blue-200'}" data-fid="${f.id || ''}">
+                <span class="text-2xl">${f.emoji || '💰'}</span>
+                <div class="flex-1 text-left">
+                    <p class="font-semibold text-gray-800 text-sm">${f.name}</p>
+                    <p class="text-xs text-gray-400">${f.type === 'compartilhada' ? '👥 Compartilhada' : '👤 Individual'}</p>
+                </div>
+                ${isActive ? '<span class="text-blue-500 text-lg">✓</span>' : ''}
+            </button>`;
+        }).join('');
+
+        list.querySelectorAll('.financa-select-item').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const fid = btn.dataset.fid || null;
+                this.closeFinancaSelectModal();
+                if (this._financaSelectCallback) this._financaSelectCallback(fid);
+            });
+        });
+
+        document.getElementById('financa-select-modal').classList.remove('hidden');
+    },
+
+    closeFinancaSelectModal() {
+        document.getElementById('financa-select-modal').classList.add('hidden');
+        this._financaSelectCallback = null;
+    },
+
+    _renderModalFinancaPicker() {
+        const fid  = this._modalFinancaId;
+        const f    = fid ? this.financas.find(x => x.id === fid) : null;
+        const name = f?.name  || this.activeFinanca?.name  || 'Pessoal';
+        const emoji= f?.emoji || this.activeFinanca?.emoji || '💰';
+        document.getElementById('modal-financa-emoji').textContent = emoji;
+        document.getElementById('modal-financa-name').textContent  = name;
     },
 
     openModal(data = {}) {
         this.editingId = data.id || null;
+        // Inicializa seletor de finança: ao editar usa a finança da transação; ao criar usa a ativa
+        this._modalFinancaId = data.financa_id || (this.editingId ? null : null);
+        this._renderModalFinancaPicker();
         document.getElementById('modal-overlay').classList.remove('hidden');
         document.getElementById('modal-title').textContent = this.editingId ? 'Editar Lançamento' : 'Novo Lançamento';
         document.getElementById('modal-value').value       = data.value || '';
@@ -536,6 +604,7 @@ const App = {
         document.getElementById('modal-overlay').classList.add('hidden');
         this.editingId = null;
         this._reminderSourceId = null;
+        this._modalFinancaId   = null;
     },
 
     async saveModal() {
@@ -548,7 +617,8 @@ const App = {
             description: document.getElementById('modal-description').value || 'Sem descrição',
             date:        document.getElementById('modal-date').value,
             notes:       document.getElementById('modal-notes').value,
-            ...(this._reminderSourceId && !this.editingId ? { reminder_id: this._reminderSourceId } : {})
+            ...(this._reminderSourceId && !this.editingId ? { reminder_id: this._reminderSourceId } : {}),
+            ...(!this.editingId && this._modalFinancaId !== undefined ? { _targetFinancaId: this._modalFinancaId } : {})
         };
         const btn = document.getElementById('modal-save');
         btn.disabled = true; btn.textContent = 'Salvando...';
@@ -1986,10 +2056,23 @@ const App = {
         document.getElementById('import-download-template')?.addEventListener('click', () => this.downloadImportTemplate());
         document.getElementById('import-back')?.addEventListener('click', () => this.importShowStep(1));
         document.getElementById('import-confirm')?.addEventListener('click', () => this.confirmImport());
+
+        // Botão trocar perfil no import
+        document.getElementById('import-change-financa-btn')?.addEventListener('click', () => {
+            this.openFinancaSelectModal(selectedId => {
+                this._importFinancaId = selectedId;
+                const f = selectedId ? this.financas.find(x => x.id === selectedId) : null;
+                document.getElementById('import-financa-emoji').textContent = f?.emoji || this.activeFinanca?.emoji || '💰';
+                document.getElementById('import-financa-name').textContent  = f?.name  || this.activeFinanca?.name  || 'Pessoal';
+                document.getElementById('import-financa-type').textContent  =
+                    (f?.type || this.activeFinanca?.type) === 'compartilhada' ? '👥 Compartilhada' : '👤 Individual';
+            });
+        });
     },
 
     openImportModal() {
         document.getElementById('import-modal').classList.remove('hidden');
+        this._importFinancaId = null; // reseta ao abrir
         this.importShowStep(1);
     },
 
@@ -2352,7 +2435,13 @@ const App = {
             }
 
             btn.textContent = `Importando ${txns.length}...`;
+            // Se o usuário trocou o perfil no import, sobrescreve temporariamente
+            const prevFinancaId = Storage.activeFinancaId;
+            if (this._importFinancaId !== null && this._importFinancaId !== undefined) {
+                Storage.activeFinancaId = this._importFinancaId;
+            }
             await Storage.bulkAddTransactions(txns);
+            Storage.activeFinancaId = prevFinancaId; // restaura
             this.closeImportModal();
             await this.renderCurrentTab();
             const catMsg     = newNames.length  ? ` · ${newNames.length} categoria${newNames.length > 1 ? 's' : ''} criada${newNames.length > 1 ? 's' : ''}` : '';
