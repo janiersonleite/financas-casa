@@ -21,6 +21,7 @@ const App = {
     _importFinancaId:   null,   // finança escolhida para o import atual
     _financaSelectCallback: null, // callback ao confirmar seleção
     _installmentQty:    1,      // número de parcelas (1 = à vista)
+    _homeSearch:        '',     // texto da pesquisa na home
 
     // ─── Init ─────────────────────────────────────────────────────────────────
     async init() {
@@ -39,6 +40,7 @@ const App = {
         this.bindOfflineSync();
         this.bindTypesUI();
         this.bindRemindersUI();
+        this.bindHomeSearch();
         await this.loadFinancas();
         await this.loadTransactionTypes();
         await this.loadCategories();
@@ -1632,7 +1634,7 @@ const App = {
 
     // ─── Render Home ──────────────────────────────────────────────────────────
     async renderHome() {
-        const [summary, list] = await Promise.all([
+        const [summary, allMonth] = await Promise.all([
             Storage.getSummary(this.currentMonth),
             Storage.getTransactions({ month: this.currentMonth })
         ]);
@@ -1642,7 +1644,72 @@ const App = {
         document.getElementById('balance').className =
             `text-3xl font-bold ${summary.balance >= 0 ? 'text-green-400' : 'text-red-400'}`;
         this.renderRemindersHome();
-        this.renderTransactionList('home-transactions', list.slice(0, 30));
+
+        const q = this._homeSearch.trim().toLowerCase();
+        const label = document.getElementById('home-section-label');
+
+        if (q) {
+            // Busca em TODOS os meses
+            const allTxns = await Storage.getTransactions();
+            const filtered = allTxns.filter(t =>
+                (t.description || '').toLowerCase().includes(q) ||
+                (t.category    || '').toLowerCase().includes(q)
+            );
+            if (label) label.textContent = filtered.length
+                ? `${filtered.length} resultado${filtered.length !== 1 ? 's' : ''} encontrado${filtered.length !== 1 ? 's' : ''}`
+                : 'Nenhum resultado';
+            this.renderTransactionList('home-transactions', filtered, q);
+        } else {
+            if (label) label.textContent = 'Lançamentos do mês';
+            this.renderTransactionList('home-transactions', allMonth.slice(0, 30));
+        }
+    },
+
+    // ─── Bind Home Search ─────────────────────────────────────────────────────
+    bindHomeSearch() {
+        const toggleBtn = document.getElementById('home-search-toggle');
+        const bar       = document.getElementById('home-search-bar');
+        const input     = document.getElementById('home-search');
+        const clearBtn  = document.getElementById('home-search-clear');
+        if (!toggleBtn || !bar || !input) return;
+
+        // Abre/fecha a barra
+        toggleBtn.addEventListener('click', () => {
+            const isOpen = !bar.classList.contains('hidden');
+            if (isOpen) {
+                // Fecha e limpa
+                bar.classList.add('hidden');
+                input.value = '';
+                this._homeSearch = '';
+                toggleBtn.classList.remove('text-blue-500', 'bg-blue-50');
+                this.renderHome();
+            } else {
+                bar.classList.remove('hidden');
+                toggleBtn.classList.add('text-blue-500', 'bg-blue-50');
+                setTimeout(() => input.focus(), 50);
+            }
+        });
+
+        // Digitar na busca
+        input.addEventListener('input', () => {
+            this._homeSearch = input.value;
+            clearBtn.classList.toggle('hidden', !input.value);
+            this.renderHome();
+        });
+
+        // Botão ✕ dentro do input
+        clearBtn.addEventListener('click', () => {
+            input.value = '';
+            this._homeSearch = '';
+            clearBtn.classList.add('hidden');
+            input.focus();
+            this.renderHome();
+        });
+
+        // ESC fecha a barra
+        input.addEventListener('keydown', e => {
+            if (e.key === 'Escape') toggleBtn.click();
+        });
     },
 
     // ─── Render History ───────────────────────────────────────────────────────
@@ -1661,15 +1728,21 @@ const App = {
         }
     },
 
-    renderTransactionList(containerId, transactions) {
+    renderTransactionList(containerId, transactions, highlight = '') {
         const container = document.getElementById(containerId);
         if (!container) return;
         if (!transactions.length) {
-            container.innerHTML = `<div class="text-center text-gray-400 py-10">
-                <div class="text-4xl mb-2">📭</div>
-                <p>Nenhum lançamento ainda</p>
-                <p class="text-sm mt-1">Use o campo acima para adicionar</p>
-            </div>`;
+            container.innerHTML = highlight
+                ? `<div class="text-center text-gray-400 py-10">
+                       <div class="text-4xl mb-2">🔍</div>
+                       <p>Nenhum lançamento encontrado</p>
+                       <p class="text-sm mt-1">Tente outro termo de busca</p>
+                   </div>`
+                : `<div class="text-center text-gray-400 py-10">
+                       <div class="text-4xl mb-2">📭</div>
+                       <p>Nenhum lançamento ainda</p>
+                       <p class="text-sm mt-1">Use o campo acima para adicionar</p>
+                   </div>`;
             return;
         }
         const grouped = {};
@@ -1699,12 +1772,14 @@ const App = {
                            📦 ${t.installment_current}/${t.installment_total}
                        </span>`
                     : '';
+                const catDisplay  = highlight ? this._hlText(t.category,    highlight) : this._escHtml(t.category);
+                const descDisplay = highlight ? this._hlText(t.description, highlight) : this._escHtml(t.description);
                 html += `
                 <div class="flex items-center gap-3 bg-white rounded-xl p-3 mb-2 shadow-sm border border-gray-100 transaction-item cursor-pointer" data-id="${t.id}">
                     <div class="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-xl flex-shrink-0">${icon}</div>
                     <div class="flex-1 min-w-0">
-                        <div class="font-medium text-gray-800 truncate">${t.category}</div>
-                        <div class="text-xs text-gray-400 truncate">${t.description}</div>
+                        <div class="font-medium text-gray-800 truncate">${catDisplay}</div>
+                        <div class="text-xs text-gray-400 truncate">${descDisplay}</div>
                         ${reminderBadge}${installBadge}
                         ${this.getInserterBadge(t)}
                     </div>
@@ -2876,6 +2951,21 @@ const App = {
     },
 
     // ─── Helpers ──────────────────────────────────────────────────────────────
+
+    // Escapa caracteres HTML perigosos em texto puro
+    _escHtml(str) {
+        return (str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    },
+
+    // Destaca todas as ocorrências de `query` em `str` (case-insensitive)
+    _hlText(str, query) {
+        if (!str || !query) return this._escHtml(str);
+        const safe  = this._escHtml(str);
+        const safeQ = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        return safe.replace(new RegExp(`(${safeQ})`, 'gi'),
+            '<mark class="bg-yellow-200 text-yellow-900 rounded-sm px-0.5 not-italic">$1</mark>');
+    },
+
     formatCurrency(value) {
         return (value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
     },
