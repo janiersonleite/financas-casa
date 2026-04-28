@@ -20,6 +20,7 @@ const App = {
     _modalFinancaId:    null,   // finança escolhida para o lançamento atual (null = usa a ativa)
     _importFinancaId:   null,   // finança escolhida para o import atual
     _financaSelectCallback: null, // callback ao confirmar seleção
+    _installmentQty:    1,      // número de parcelas (1 = à vista)
 
     // ─── Init ─────────────────────────────────────────────────────────────────
     async init() {
@@ -547,6 +548,27 @@ const App = {
         document.getElementById('financa-select-modal')?.addEventListener('click', e => {
             if (e.target === e.currentTarget) this.closeFinancaSelectModal();
         });
+
+        // Picker de parcelas
+        document.getElementById('modal-overlay')?.addEventListener('click', e => {
+            const btn = e.target.closest('.installment-opt');
+            if (!btn) return;
+            this._installmentQty = parseInt(btn.dataset.qty) || 1;
+            const customInput = document.getElementById('modal-installment-custom');
+            if (customInput) customInput.value = '';
+            this._renderInstallmentPicker();
+        });
+        document.getElementById('modal-installment-custom')?.addEventListener('input', e => {
+            const v = parseInt(e.target.value);
+            if (v >= 2 && v <= 48) {
+                this._installmentQty = v;
+                this._renderInstallmentPicker(true);
+            }
+        });
+        // Atualiza preview quando a data muda
+        document.getElementById('modal-date')?.addEventListener('change', () => {
+            if ((this._installmentQty || 1) > 1) this._renderInstallmentPicker();
+        });
     },
 
     // ─── Finança Select Modal ─────────────────────────────────────────────────
@@ -623,6 +645,75 @@ const App = {
         noBtn.addEventListener('click',  () => { close(); if (onCancel) onCancel(); });
     },
 
+    // ─── Installment helpers ──────────────────────────────────────────────────
+    _addMonths(dateStr, months) {
+        if (!months) return dateStr;
+        const [y, m, d] = dateStr.split('-').map(Number);
+        const result = new Date(y, m - 1 + months, 1);
+        const maxDay = new Date(result.getFullYear(), result.getMonth() + 1, 0).getDate();
+        result.setDate(Math.min(d, maxDay));
+        return result.toISOString().split('T')[0];
+    },
+
+    _renderInstallmentPicker(customActive = false) {
+        const qty = this._installmentQty || 1;
+        document.querySelectorAll('.installment-opt').forEach(btn => {
+            const bQty   = parseInt(btn.dataset.qty);
+            const active = !customActive && bQty === qty;
+            btn.className = active
+                ? 'installment-opt px-3 py-1.5 rounded-xl text-xs font-semibold border-2 border-blue-400 bg-blue-50 text-blue-600 transition-all'
+                : 'installment-opt px-3 py-1.5 rounded-xl text-xs font-semibold border-2 border-gray-200 text-gray-500 hover:border-blue-300 transition-all';
+        });
+        const preview = document.getElementById('modal-installment-preview');
+        if (!preview) return;
+        if (qty > 1) {
+            const date = document.getElementById('modal-date')?.value;
+            if (date) {
+                const lastDate = this._addMonths(date, qty - 1);
+                const [ly, lm] = lastDate.split('-');
+                const lastMonth = new Date(Number(ly), Number(lm) - 1, 1)
+                    .toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+                preview.textContent = `${qty} parcelas — até ${lastMonth}`;
+                preview.classList.remove('hidden');
+            }
+        } else {
+            preview.classList.add('hidden');
+        }
+    },
+
+    _showInstallmentDeleteDialog(t, futureCount, totalCount) {
+        return new Promise(resolve => {
+            const modal = document.createElement('div');
+            modal.className = 'fixed inset-0 bg-black/60 z-[90] flex items-center justify-center px-4';
+            modal.innerHTML = `
+                <div class="bg-white rounded-2xl w-full max-w-sm p-5 shadow-2xl">
+                    <h3 class="font-bold text-gray-800 text-base mb-1">Excluir parcela?</h3>
+                    <p class="text-sm text-gray-500 mb-4">Parcela ${t.installment_current} de ${t.installment_total}</p>
+                    <div class="space-y-2">
+                        <button id="_del-single" class="w-full py-2.5 px-4 rounded-xl border-2 border-gray-200 text-gray-700 font-semibold text-sm text-left hover:bg-gray-50 transition-colors">
+                            🗑️ Só esta parcela
+                        </button>
+                        ${futureCount > 1 ? `<button id="_del-future" class="w-full py-2.5 px-4 rounded-xl border-2 border-orange-200 text-orange-600 font-semibold text-sm text-left hover:bg-orange-50 transition-colors">
+                            📅 Esta e as próximas (${futureCount})
+                        </button>` : ''}
+                        ${totalCount > 1 ? `<button id="_del-all" class="w-full py-2.5 px-4 rounded-xl border-2 border-red-200 text-red-600 font-semibold text-sm text-left hover:bg-red-50 transition-colors">
+                            ✕ Todas as parcelas (${totalCount})
+                        </button>` : ''}
+                        <button id="_del-cancel" class="w-full py-2.5 rounded-xl border-2 border-gray-200 text-gray-400 text-sm hover:bg-gray-50 transition-colors">
+                            Cancelar
+                        </button>
+                    </div>
+                </div>`;
+            document.body.appendChild(modal);
+            const close = val => { modal.remove(); resolve(val); };
+            modal.querySelector('#_del-single')?.addEventListener('click', () => close('single'));
+            modal.querySelector('#_del-future')?.addEventListener('click', () => close('future'));
+            modal.querySelector('#_del-all')?.addEventListener('click',    () => close('all'));
+            modal.querySelector('#_del-cancel')?.addEventListener('click', () => close(null));
+            modal.addEventListener('click', e => { if (e.target === modal) close(null); });
+        });
+    },
+
     openModal(data = {}) {
         this.editingId = data.id || null;
         // Inicializa seletor de finança: ao editar usa a finança da transação; ao criar usa a ativa
@@ -637,6 +728,32 @@ const App = {
         this.renderModalTypeBtns();
         this.selectModalType(data.type || 'saida');
         this.renderCategorySelect(data.category || 'Outros');
+        // Seção de parcelas
+        this._installmentQty = 1;
+        const installWrap    = document.getElementById('modal-installment-wrap');
+        const pickerSection  = document.getElementById('modal-installment-picker-section');
+        const infoSection    = document.getElementById('modal-installment-info');
+        const customInput    = document.getElementById('modal-installment-custom');
+        if (customInput) customInput.value = '';
+        if (installWrap && pickerSection && infoSection) {
+            if (this.editingId && data.installment_group_id) {
+                // Editando uma parcela existente: mostra info, esconde picker
+                installWrap.classList.remove('hidden');
+                pickerSection.classList.add('hidden');
+                infoSection.classList.remove('hidden');
+                const infoText = document.getElementById('modal-installment-info-text');
+                if (infoText) infoText.textContent = `${data.installment_current}/${data.installment_total}`;
+            } else if (this.editingId) {
+                // Editando lançamento simples: esconde seção
+                installWrap.classList.add('hidden');
+            } else {
+                // Novo lançamento: mostra picker
+                installWrap.classList.remove('hidden');
+                pickerSection.classList.remove('hidden');
+                infoSection.classList.add('hidden');
+                this._renderInstallmentPicker();
+            }
+        }
         // Exibe vínculo com lembrete (se existir)
         const reminderBadgeEl = document.getElementById('modal-reminder-badge');
         if (reminderBadgeEl) {
@@ -663,22 +780,44 @@ const App = {
     async saveModal() {
         const value = parseFloat(document.getElementById('modal-value').value);
         if (!value || value <= 0) { this.shake(document.getElementById('modal-value')); return; }
-        const transaction = {
+
+        const installQty = !this.editingId ? (this._installmentQty || 1) : 1;
+        const baseDesc   = document.getElementById('modal-description').value || 'Sem descrição';
+
+        const base = {
             value,
             type:        document.getElementById('modal-type').value,
             category:    document.getElementById('modal-category').value,
-            description: document.getElementById('modal-description').value || 'Sem descrição',
+            description: baseDesc,
             date:        document.getElementById('modal-date').value,
             notes:       document.getElementById('modal-notes').value,
             ...(this._reminderSourceId && !this.editingId ? { reminder_id: this._reminderSourceId } : {}),
             ...(!this.editingId && this._modalFinancaId ? { _targetFinancaId: this._modalFinancaId } : {})
         };
+
         const btn = document.getElementById('modal-save');
-        btn.disabled = true; btn.textContent = 'Salvando...';
+        btn.disabled = true;
+        btn.textContent = installQty > 1 ? `Criando ${installQty} parcelas...` : 'Salvando...';
+
         try {
             let result;
-            if (this.editingId) await Storage.updateTransaction(this.editingId, transaction);
-            else                result = await Storage.addTransaction(transaction);
+            if (this.editingId) {
+                await Storage.updateTransaction(this.editingId, base);
+            } else if (installQty > 1) {
+                // Cria N transações, uma por mês
+                const groupId = 'inst_' + Date.now().toString(36);
+                const txns = Array.from({ length: installQty }, (_, i) => ({
+                    ...base,
+                    date:                 this._addMonths(base.date, i),
+                    description:          `${baseDesc} (${i + 1}/${installQty})`,
+                    installment_group_id: groupId,
+                    installment_current:  i + 1,
+                    installment_total:    installQty,
+                }));
+                await Storage.bulkAddTransactions(txns);
+            } else {
+                result = await Storage.addTransaction(base);
+            }
 
             // Marca lembrete como pago se o modal foi aberto via "Registrar"
             const paidReminderId = this._reminderSourceId;
@@ -693,6 +832,8 @@ const App = {
                 const monthLabel = new Date(Number(py), Number(pm) - 1, 1)
                     .toLocaleDateString('pt-BR', { month: 'long' });
                 this.showToast(`✅ ${rem?.name || 'Lembrete'} pago — ${monthLabel}`);
+            } else if (installQty > 1) {
+                this.showToast(`✅ ${installQty} parcelas criadas!`);
             } else if (result?._constraintFallback) {
                 this.showToast('⚠️ Salvo localmente. Para sincronizar, remova a restrição no Supabase (SQL: ALTER TABLE transactions DROP CONSTRAINT transactions_type_check)', true);
             } else {
@@ -1456,13 +1597,19 @@ const App = {
                            ${linkedReminder.emoji || '🔔'} ${linkedReminder.name}
                        </span>`
                     : '';
+                // Badge de parcela
+                const installBadge = t.installment_group_id
+                    ? `<span class="inline-flex items-center gap-1 text-xs bg-purple-50 text-purple-500 border border-purple-100 rounded-full px-2 py-0.5 mt-0.5">
+                           📦 ${t.installment_current}/${t.installment_total}
+                       </span>`
+                    : '';
                 html += `
                 <div class="flex items-center gap-3 bg-white rounded-xl p-3 mb-2 shadow-sm border border-gray-100 transaction-item cursor-pointer" data-id="${t.id}">
                     <div class="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-xl flex-shrink-0">${icon}</div>
                     <div class="flex-1 min-w-0">
                         <div class="font-medium text-gray-800 truncate">${t.category}</div>
                         <div class="text-xs text-gray-400 truncate">${t.description}</div>
-                        ${reminderBadge}
+                        ${reminderBadge}${installBadge}
                         ${this.getInserterBadge(t)}
                     </div>
                     <div class="flex flex-col items-end gap-1">
@@ -1486,9 +1633,23 @@ const App = {
         container.querySelectorAll('.delete-btn').forEach(btn => {
             btn.addEventListener('click', async e => {
                 e.stopPropagation();
-                if (!confirm('Remover este lançamento?')) return;
                 try {
-                    await Storage.deleteTransaction(btn.dataset.id);
+                    const all = await Storage.getTransactions();
+                    const t   = all.find(x => x.id === btn.dataset.id);
+                    if (t?.installment_group_id) {
+                        // Lançamento parcelado: pergunta o que deletar
+                        const groupTxns  = all.filter(x => x.installment_group_id === t.installment_group_id);
+                        const futureTxns = groupTxns.filter(x => x.installment_current >= t.installment_current);
+                        const choice = await this._showInstallmentDeleteDialog(t, futureTxns.length, groupTxns.length);
+                        if (!choice) return;
+                        const toDelete = choice === 'all'    ? groupTxns
+                                       : choice === 'future' ? futureTxns
+                                       :                       [t];
+                        for (const tx of toDelete) await Storage.deleteTransaction(tx.id);
+                    } else {
+                        if (!confirm('Remover este lançamento?')) return;
+                        await Storage.deleteTransaction(btn.dataset.id);
+                    }
                     await this.renderCurrentTab();
                     if (this.currentTab !== 'home') await this.renderHome();
                 } catch (err) { this.showToast('❌ Erro ao remover', true); }
