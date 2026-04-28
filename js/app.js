@@ -549,6 +549,11 @@ const App = {
             if (e.target === e.currentTarget) this.closeFinancaSelectModal();
         });
 
+        // Máscara de moeda no campo de valor
+        document.getElementById('modal-value')?.addEventListener('input', e => {
+            this._applyCurrencyMask(e.target);
+        });
+
         // Picker de parcelas
         document.getElementById('modal-overlay')?.addEventListener('click', e => {
             const btn = e.target.closest('.installment-opt');
@@ -643,6 +648,28 @@ const App = {
         const close = () => modal.classList.add('hidden');
         yesBtn.addEventListener('click', () => { close(); onConfirm(); });
         noBtn.addEventListener('click',  () => { close(); if (onCancel) onCancel(); });
+    },
+
+    // ─── Currency mask helpers ────────────────────────────────────────────────
+    _applyCurrencyMask(input) {
+        const raw = input.value.replace(/\D/g, '');
+        if (!raw) { input.value = ''; return; }
+        const num     = parseInt(raw, 10) || 0;
+        const str     = String(num).padStart(3, '0');
+        const decPart = str.slice(-2);
+        const intPart = (str.slice(0, -2) || '0').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+        input.value   = intPart + ',' + decPart;
+    },
+
+    _toMaskedCurrency(num) {
+        if (!num && num !== 0) return '';
+        const [intRaw, dec] = Number(num).toFixed(2).split('.');
+        return intRaw.replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ',' + dec;
+    },
+
+    _parseMaskedCurrency(str) {
+        if (!str) return 0;
+        return parseFloat(str.replace(/\./g, '').replace(',', '.')) || 0;
     },
 
     // ─── Installment helpers ──────────────────────────────────────────────────
@@ -754,7 +781,7 @@ const App = {
         this._renderModalFinancaPicker();
         document.getElementById('modal-overlay').classList.remove('hidden');
         document.getElementById('modal-title').textContent = this.editingId ? 'Editar Lançamento' : 'Novo Lançamento';
-        document.getElementById('modal-value').value       = data.value || '';
+        document.getElementById('modal-value').value       = data.value ? this._toMaskedCurrency(data.value) : '';
         // Remove sufixo "(X/N)" ao editar parcela para o campo ficar limpo
         const cleanDesc = (data.description || '').replace(/\s*\(\d+\/\d+\)\s*$/, '');
         document.getElementById('modal-description').value = cleanDesc;
@@ -813,7 +840,7 @@ const App = {
     },
 
     async saveModal() {
-        const value = parseFloat(document.getElementById('modal-value').value);
+        const value = this._parseMaskedCurrency(document.getElementById('modal-value').value);
         if (!value || value <= 0) { this.shake(document.getElementById('modal-value')); return; }
 
         const installQty = !this.editingId ? (this._installmentQty || 1) : 1;
@@ -1274,7 +1301,7 @@ const App = {
 
         document.getElementById('modal-date').value        = date <= today ? date : today;
         document.getElementById('modal-description').value = r.name;
-        document.getElementById('modal-value').value       = r.amount > 0 ? r.amount.toFixed(2) : '';
+        document.getElementById('modal-value').value       = r.amount > 0 ? this._toMaskedCurrency(r.amount) : '';
         if (r.category) {
             const sel = document.getElementById('modal-category');
             if (sel) { sel.value = r.category; if (!sel.value) sel.value = sel.options[0]?.value || ''; }
