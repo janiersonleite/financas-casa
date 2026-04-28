@@ -3016,7 +3016,16 @@ const App = {
 
     async loadCategories() {
         try {
-            this.categories = this._sortCategories(await Storage.getCategories());
+            const raw = await Storage.getCategories();
+            // Remove duplicatas pelo nome (case-insensitive), mantém a primeira ocorrência
+            const seen = new Set();
+            const deduped = raw.filter(c => {
+                const key = (c.name || '').trim().toLowerCase();
+                if (seen.has(key)) return false;
+                seen.add(key);
+                return true;
+            });
+            this.categories = this._sortCategories(deduped);
         } catch (e) {
             console.warn('loadCategories:', e);
             this.categories = [];
@@ -3040,7 +3049,14 @@ const App = {
     renderQuickButtons() {
         const grid = document.getElementById('quick-cats-grid');
         if (!grid) return;
-        const visible = this.categories.slice(0, 7);
+        // Garante sem duplicatas por nome antes de renderizar
+        const seen = new Set();
+        const unique = this.categories.filter(c => {
+            const key = (c.name || '').trim().toLowerCase();
+            if (seen.has(key)) return false;
+            seen.add(key); return true;
+        });
+        const visible = unique.slice(0, 7);
         grid.innerHTML = visible.map(c => {
             const qtype = c.type === 'entrada' ? 'entrada' : 'saida';
             const isIncome = c.type === 'entrada';
