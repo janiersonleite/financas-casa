@@ -510,8 +510,35 @@ const App = {
         // Picker de finança no modal
         document.getElementById('modal-financa-picker')?.addEventListener('click', () => {
             this.openFinancaSelectModal(selectedId => {
-                this._modalFinancaId = selectedId;
-                this._renderModalFinancaPicker();
+                const activeId = this.activeFinanca?.id || null;
+                const isSame   = selectedId === activeId || (!selectedId && !activeId);
+                if (isSame) {
+                    // Mesmo perfil: sem confirmação, só atualiza display
+                    this._modalFinancaId = null;
+                    this._renderModalFinancaPicker();
+                    return;
+                }
+                // Perfil diferente: pergunta se quer trocar
+                this._showFinancaConfirm(
+                    selectedId,
+                    async () => {
+                        // Sim: muda perfil ativo + lançamento vai para o novo perfil
+                        const newF = selectedId
+                            ? this.financas.find(x => x.id === selectedId)
+                            : { id: null, name: 'Pessoal', emoji: '💰', type: 'individual' };
+                        this.activeFinanca = newF;
+                        Storage.setActiveFinanca(newF?.id || null);
+                        this.renderFinancaSwitcher();
+                        await Promise.all([this.loadCategories(), this.loadReminders()]);
+                        this._modalFinancaId = null; // null = usa o perfil ativo (já trocado)
+                        this._renderModalFinancaPicker();
+                    },
+                    () => {
+                        // Não: mantém perfil atual, lançamento fica no perfil ativo
+                        this._modalFinancaId = null;
+                        this._renderModalFinancaPicker();
+                    }
+                );
             });
         });
 
@@ -569,6 +596,31 @@ const App = {
         const emoji= f?.emoji || this.activeFinanca?.emoji || '💰';
         document.getElementById('modal-financa-emoji').textContent = emoji;
         document.getElementById('modal-financa-name').textContent  = name;
+    },
+
+    _showFinancaConfirm(newFid, onConfirm, onCancel) {
+        const f     = newFid ? this.financas.find(x => x.id === newFid) : null;
+        const name  = f?.name  || 'Pessoal';
+        const emoji = f?.emoji || '💰';
+
+        document.getElementById('financa-confirm-emoji').textContent = emoji;
+        document.getElementById('financa-confirm-msg').textContent =
+            `O perfil ativo e este lançamento serão movidos para "${name}". Deseja continuar?`;
+
+        const modal = document.getElementById('financa-confirm-modal');
+        modal.classList.remove('hidden');
+
+        // Recria os botões para não acumular listeners de chamadas anteriores
+        const oldYes = document.getElementById('financa-confirm-yes');
+        const oldNo  = document.getElementById('financa-confirm-no');
+        const yesBtn = oldYes.cloneNode(true);
+        const noBtn  = oldNo.cloneNode(true);
+        oldYes.replaceWith(yesBtn);
+        oldNo.replaceWith(noBtn);
+
+        const close = () => modal.classList.add('hidden');
+        yesBtn.addEventListener('click', () => { close(); onConfirm(); });
+        noBtn.addEventListener('click',  () => { close(); if (onCancel) onCancel(); });
     },
 
     openModal(data = {}) {
