@@ -14,6 +14,9 @@ const App = {
     transactionTypes:   [],
     editingTypeId:      null,
     customTypesChart:   null,
+    reminders:          [],
+    editingReminderId:  null,
+    _reminderSourceId:  null,
 
     // ─── Init ─────────────────────────────────────────────────────────────────
     async init() {
@@ -31,9 +34,11 @@ const App = {
         this.bindImportUI();
         this.bindOfflineSync();
         this.bindTypesUI();
+        this.bindRemindersUI();
         await this.loadFinancas();
         await this.loadTransactionTypes();
         await this.loadCategories();
+        await this.loadReminders();
         await this.renderHome();
         this.refreshMonthDisplay();
         // Aquece o cache offline em segundo plano (não bloqueia a UI)
@@ -190,6 +195,7 @@ const App = {
                 Storage.setActiveFinanca(f.id);
                 this.closeFinancaModal();
                 this.renderFinancaSwitcher();
+                await Promise.all([this.loadCategories(), this.loadReminders()]);
                 await this.renderCurrentTab();
                 if (navigator.onLine) this._warmOfflineCache();
                 if (this.currentTab !== 'home') await this.renderHome();
@@ -208,6 +214,8 @@ const App = {
                         this.activeFinanca = this.financas[0] || null;
                         Storage.setActiveFinanca(this.activeFinanca?.id || null);
                         this.renderFinancaSwitcher();
+                        await Promise.all([this.loadCategories(), this.loadReminders()]);
+                        await this.renderCurrentTab();
                     }
                     this.renderFinancaList();
                 } catch (err) { this.showToast('❌ Erro ao excluir', true); }
@@ -256,6 +264,7 @@ const App = {
             Storage.setActiveFinanca(f.id);
             this.closeCreateFinancaModal();
             this.renderFinancaSwitcher();
+            await Promise.all([this.loadCategories(), this.loadReminders()]);
             await this.renderCurrentTab();
             this.showToast('✅ Finança criada!');
         } catch (e) {
@@ -507,12 +516,26 @@ const App = {
         this.renderModalTypeBtns();
         this.selectModalType(data.type || 'saida');
         this.renderCategorySelect(data.category || 'Outros');
+        // Exibe vínculo com lembrete (se existir)
+        const reminderBadgeEl = document.getElementById('modal-reminder-badge');
+        if (reminderBadgeEl) {
+            const linked = data.reminder_id ? this.reminders.find(r => r.id === data.reminder_id) : null;
+            if (linked) {
+                reminderBadgeEl.innerHTML = `<span class="inline-flex items-center gap-1.5 text-xs bg-blue-50 text-blue-600 border border-blue-200 rounded-xl px-3 py-1.5 font-medium">
+                    ${linked.emoji || '🔔'} Lembrete: <strong>${linked.name}</strong> — todo dia ${linked.day}
+                </span>`;
+                reminderBadgeEl.classList.remove('hidden');
+            } else {
+                reminderBadgeEl.classList.add('hidden');
+            }
+        }
         if (data.focusValue) setTimeout(() => document.getElementById('modal-value').focus(), 100);
     },
 
     closeModal() {
         document.getElementById('modal-overlay').classList.add('hidden');
         this.editingId = null;
+        this._reminderSourceId = null;
     },
 
     async saveModal() {
@@ -524,7 +547,8 @@ const App = {
             category:    document.getElementById('modal-category').value,
             description: document.getElementById('modal-description').value || 'Sem descrição',
             date:        document.getElementById('modal-date').value,
-            notes:       document.getElementById('modal-notes').value
+            notes:       document.getElementById('modal-notes').value,
+            ...(this._reminderSourceId && !this.editingId ? { reminder_id: this._reminderSourceId } : {})
         };
         const btn = document.getElementById('modal-save');
         btn.disabled = true; btn.textContent = 'Salvando...';
@@ -532,9 +556,21 @@ const App = {
             let result;
             if (this.editingId) await Storage.updateTransaction(this.editingId, transaction);
             else                result = await Storage.addTransaction(transaction);
+
+            // Marca lembrete como pago se o modal foi aberto via "Registrar"
+            const paidReminderId = this._reminderSourceId;
             this.closeModal();
             await this.renderCurrentTab();
-            if (result?._constraintFallback) {
+
+            if (paidReminderId) {
+                const rem = this.reminders.find(r => r.id === paidReminderId);
+                const paidMonth = this._markReminderPaid(paidReminderId);
+                this.renderRemindersHome();
+                const [py, pm] = paidMonth.split('-');
+                const monthLabel = new Date(Number(py), Number(pm) - 1, 1)
+                    .toLocaleDateString('pt-BR', { month: 'long' });
+                this.showToast(`✅ ${rem?.name || 'Lembrete'} pago — ${monthLabel}`);
+            } else if (result?._constraintFallback) {
                 this.showToast('⚠️ Salvo localmente. Para sincronizar, remova a restrição no Supabase (SQL: ALTER TABLE transactions DROP CONSTRAINT transactions_type_check)', true);
             } else {
                 this.showToast(this.editingId ? 'Lançamento atualizado!' : '✅ Lançamento salvo!');
@@ -761,6 +797,298 @@ const App = {
         }
     },
 
+    // ─── Reminders ───────────────────────────────────────────────────────────
+    async loadReminders() {
+        try { this.reminders = await Storage.getReminders(); } catch { this.reminders = []; }
+    },
+
+    renderRemindersHome() {
+        const wrap = document.getElementById('reminders-home-section');
+        if (!wrap) return;
+
+        // Bind do botão vazio (só uma vez)
+        const emptyBtn = document.getElementById('reminders-empty-btn');
+        if (emptyBtn && !emptyBtn._bound) {
+            emptyBtn._bound = true;
+            emptyBtn.addEventListener('click', () => this.openRemindersModal());
+        }
+
+        const active = this.reminders.filter(r => r.active !== false);
+        if (!active.length) {
+            // Mostra só o botão de acesso vazio
+            if (emptyBtn) emptyBtn.classList.remove('hidden');
+            // Remove cards anteriores se existirem
+            wrap.querySelectorAll('.reminder-cards-wrap').forEach(el => el.remove());
+            return;
+        }
+
+        // Esconde o botão vazio e renderiza os cards
+        if (emptyBtn) emptyBtn.classList.add('hidden');
+
+        // Usa o mês visualizado para comparação de datas
+        const today        = new Date();
+        const realToday    = today.toISOString().slice(0, 7);
+        const viewMonth    = this.currentMonth || realToday;
+        const isCurrentMonth = viewMonth === realToday;
+        const isFutureMonth  = viewMonth > realToday;
+        const refDay = isCurrentMonth ? today.getDate() : (isFutureMonth ? 0 : 32);
+        // refDay=0 → mês futuro, todos "upcoming"; refDay=32 → mês passado, todos "overdue"
+        const in7 = refDay + 7;
+
+        const overdue  = active.filter(r => r.day < refDay);
+        const dueToday = active.filter(r => r.day === refDay);
+        const upcoming = active.filter(r => r.day > refDay && r.day <= in7);
+        const later    = active.filter(r => r.day > in7);
+
+        const card = (r, style) => {
+            const paid = this.isReminderPaid(r.id);
+            const amt  = r.amount > 0 ? `<span class="text-xs font-semibold ${paid ? 'text-green-500' : style.val}">${this.formatCurrency(r.amount)}</span>` : '';
+            if (paid) {
+                const refMonth = this._reminderPaidMonth(r.id);
+                const [ry, rm] = refMonth.split('-');
+                const monthName = new Date(Number(ry), Number(rm) - 1, 1)
+                    .toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+                return `<div class="flex items-center gap-3 bg-green-50 rounded-xl px-3 py-2.5 border border-green-200 opacity-80">
+                    <span class="text-2xl">${r.emoji || '🔔'}</span>
+                    <div class="flex-1 min-w-0">
+                        <div class="text-sm font-semibold text-gray-500 truncate line-through">${r.name}</div>
+                        <div class="text-xs text-green-500 font-medium">✅ Pago em ${monthName}</div>
+                    </div>
+                    ${amt}
+                    <button class="reminder-unpay-btn ml-1 text-xs text-gray-400 hover:text-red-400 flex-shrink-0 px-1" data-reminder-id="${r.id}" title="Desfazer">↩</button>
+                </div>`;
+            }
+            return `<div class="flex items-center gap-3 bg-white rounded-xl px-3 py-2.5 shadow-sm border ${style.border}">
+                <span class="text-2xl">${r.emoji || '🔔'}</span>
+                <div class="flex-1 min-w-0">
+                    <div class="text-sm font-semibold text-gray-800 truncate">${r.name}</div>
+                    <div class="text-xs ${style.txt}">Dia ${r.day}${r.category ? ' · ' + r.category : ''}</div>
+                </div>
+                ${amt}
+                <button class="reminder-register-btn ml-1 text-xs font-semibold px-2.5 py-1.5 rounded-lg ${style.btn} transition-all flex-shrink-0" data-reminder-id="${r.id}">
+                    Registrar
+                </button>
+            </div>`;
+        };
+
+        let html = `<div class="flex items-center justify-between mb-2">
+            <p class="text-xs font-semibold text-gray-400 uppercase">🔔 Lembretes</p>
+            <button id="reminders-manage-btn" class="text-xs text-blue-500 font-medium">Gerenciar</button>
+        </div>`;
+
+        if (dueToday.length) {
+            html += `<div class="text-xs font-bold text-orange-600 mb-1 mt-1">📅 Vence hoje</div>`;
+            html += dueToday.map(r => card(r, { border:'border-orange-200 bg-orange-50', txt:'text-orange-600', val:'text-orange-600', btn:'bg-orange-500 text-white hover:bg-orange-600' })).join('');
+        }
+        if (overdue.length) {
+            html += `<div class="text-xs font-bold text-red-500 mb-1 mt-2">⚠️ Vencidos este mês</div>`;
+            html += overdue.map(r => card(r, { border:'border-red-200', txt:'text-red-400', val:'text-red-500', btn:'bg-red-500 text-white hover:bg-red-600' })).join('');
+        }
+        if (upcoming.length) {
+            html += `<div class="text-xs font-bold text-blue-500 mb-1 mt-2">📆 Próximos 7 dias</div>`;
+            html += upcoming.map(r => card(r, { border:'border-blue-100', txt:'text-blue-400', val:'text-blue-600', btn:'bg-blue-500 text-white hover:bg-blue-600' })).join('');
+        }
+        if (later.length) {
+            html += `<div class="text-xs font-bold text-gray-400 mb-1 mt-2">🗓️ Este mês</div>`;
+            html += later.map(r => card(r, { border:'border-gray-100', txt:'text-gray-400', val:'text-gray-500', btn:'bg-gray-200 text-gray-600 hover:bg-gray-300' })).join('');
+        }
+
+        // Injeta os cards numa div separada para não sobrescrever o botão vazio
+        wrap.querySelectorAll('.reminder-cards-wrap').forEach(el => el.remove());
+        const cardsDiv = document.createElement('div');
+        cardsDiv.className = 'reminder-cards-wrap space-y-1.5';
+        cardsDiv.innerHTML = html;
+        wrap.appendChild(cardsDiv);
+
+        cardsDiv.querySelector('#reminders-manage-btn')?.addEventListener('click', () => this.openRemindersModal());
+        cardsDiv.querySelectorAll('.reminder-register-btn').forEach(btn => {
+            btn.addEventListener('click', () => this.quickAddFromReminder(btn.dataset.reminderId));
+        });
+        cardsDiv.querySelectorAll('.reminder-unpay-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                this._unmarkReminderPaid(btn.dataset.reminderId);
+                this.renderRemindersHome();
+            });
+        });
+    },
+
+    // ── Reminder paid helpers ────────────────────────────────────────────────
+    // Cada mês começa zerado — pago em abril não afeta maio.
+    // Usa o mês visualizado (currentMonth) para que navegar para outro mês
+    // mostre o estado de pago correto daquele mês.
+    _currentMonth() { return this.currentMonth || new Date().toISOString().slice(0, 7); },
+    _paidKey(month) { return 'reminder_paid_' + month; },
+    _getPaidReminders(month) {
+        try { return JSON.parse(localStorage.getItem(this._paidKey(month)) || '[]'); } catch { return []; }
+    },
+    _markReminderPaid(id) {
+        const month = this._currentMonth();
+        const list  = this._getPaidReminders(month);
+        if (!list.includes(id)) { list.push(id); localStorage.setItem(this._paidKey(month), JSON.stringify(list)); }
+        return month;
+    },
+    _unmarkReminderPaid(id) {
+        const month = this._currentMonth();
+        const list  = this._getPaidReminders(month).filter(x => x !== id);
+        localStorage.setItem(this._paidKey(month), JSON.stringify(list));
+    },
+    isReminderPaid(id) {
+        return this._getPaidReminders(this._currentMonth()).includes(id);
+    },
+    _reminderPaidMonth(id) { return this._currentMonth(); },
+
+    quickAddFromReminder(id) {
+        const r = this.reminders.find(x => x.id === id);
+        if (!r) return;
+        this._reminderSourceId = id;   // rastreia qual lembrete gerou o modal
+        // Pré-preenche o modal de lançamento
+        const today = new Date().toISOString().slice(0, 10);
+        const day   = String(r.day).padStart(2, '0');
+        const month = new Date().toISOString().slice(0, 7);
+        const date  = `${month}-${day}`;
+
+        document.getElementById('modal-date').value        = date <= today ? date : today;
+        document.getElementById('modal-description').value = r.name;
+        document.getElementById('modal-value').value       = r.amount > 0 ? r.amount.toFixed(2) : '';
+        if (r.category) {
+            const sel = document.getElementById('modal-category');
+            if (sel) { sel.value = r.category; if (!sel.value) sel.value = sel.options[0]?.value || ''; }
+        }
+        this.selectModalType(r.type || 'saida');
+        this.openModal();
+    },
+
+    bindRemindersUI() {
+        const modal = document.getElementById('reminders-modal');
+        document.getElementById('reminders-modal-close')?.addEventListener('click',  () => this.closeRemindersModal());
+        modal?.addEventListener('click', e => { if (e.target === modal) this.closeRemindersModal(); });
+        document.getElementById('reminder-add-btn')?.addEventListener('click', () => this.openReminderForm());
+
+        const fModal = document.getElementById('reminder-form-modal');
+        document.getElementById('reminder-form-close')?.addEventListener('click',  () => this.closeReminderForm());
+        document.getElementById('reminder-form-cancel')?.addEventListener('click', () => this.closeReminderForm());
+        fModal?.addEventListener('click', e => { if (e.target === fModal) this.closeReminderForm(); });
+        document.getElementById('reminder-form-save')?.addEventListener('click',   () => this.saveReminderForm());
+    },
+
+    openRemindersModal() {
+        document.getElementById('reminders-modal')?.classList.remove('hidden');
+        this.renderRemindersList();
+    },
+
+    closeRemindersModal() {
+        document.getElementById('reminders-modal')?.classList.add('hidden');
+    },
+
+    renderRemindersList() {
+        const list = document.getElementById('reminders-list-container');
+        if (!list) return;
+        if (!this.reminders.length) {
+            list.innerHTML = `<div class="text-center text-gray-400 py-8">
+                <div class="text-3xl mb-2">🔔</div>
+                <p class="text-sm">Nenhum lembrete cadastrado</p>
+                <p class="text-xs mt-1">Adicione pagamentos recorrentes para não esquecer</p>
+            </div>`;
+            return;
+        }
+        list.innerHTML = this.reminders.map(r => {
+            const amt = r.amount > 0 ? ` · ${this.formatCurrency(r.amount)}` : '';
+            const cat = r.category ? ` · ${r.category}` : '';
+            return `<div class="flex items-center gap-3 bg-gray-50 rounded-xl px-3 py-3 border border-gray-100">
+                <span class="text-2xl">${r.emoji || '🔔'}</span>
+                <div class="flex-1 min-w-0">
+                    <div class="font-semibold text-gray-800 text-sm truncate">${r.name}</div>
+                    <div class="text-xs text-gray-400">Todo dia ${r.day}${cat}${amt}</div>
+                </div>
+                <button class="reminder-edit-btn p-1.5 rounded-lg hover:bg-white text-gray-400 hover:text-blue-500" data-id="${r.id}" title="Editar">✏️</button>
+                <button class="reminder-del-btn  p-1.5 rounded-lg hover:bg-white text-gray-400 hover:text-red-500"  data-id="${r.id}" title="Excluir">🗑️</button>
+            </div>`;
+        }).join('');
+
+        list.querySelectorAll('.reminder-edit-btn').forEach(btn => {
+            btn.addEventListener('click', () => { const r = this.reminders.find(x => x.id === btn.dataset.id); if (r) this.openReminderForm(r); });
+        });
+        list.querySelectorAll('.reminder-del-btn').forEach(btn => {
+            btn.addEventListener('click', () => this.deleteReminder(btn.dataset.id));
+        });
+    },
+
+    openReminderForm(reminder = null) {
+        this.editingReminderId = reminder?.id || null;
+        document.getElementById('reminder-form-title').textContent = reminder ? 'Editar Lembrete' : 'Novo Lembrete';
+        document.getElementById('reminder-name-input').value    = reminder?.name    || '';
+        document.getElementById('reminder-day-input').value     = reminder?.day     || '';
+        document.getElementById('reminder-amount-input').value  = reminder?.amount > 0 ? reminder.amount : '';
+        document.getElementById('reminder-emoji-input').value   = reminder?.emoji   || '🔔';
+        document.getElementById('reminder-category-input').value = reminder?.category || '';
+        // Preenche o select de categoria com as categorias disponíveis
+        const catSel = document.getElementById('reminder-category-input');
+        catSel.innerHTML = `<option value="">— Sem categoria —</option>` +
+            this.categories.map(c => `<option value="${c.name}" ${reminder?.category === c.name ? 'selected' : ''}>${c.emoji} ${c.name}</option>`).join('');
+        // Tipo
+        const typeSel = document.getElementById('reminder-type-input');
+        const allTypes = [
+            { id: 'saida',   name: '💸 Saída (Gasto)' },
+            { id: 'entrada', name: '💰 Entrada (Receita)' },
+            ...Storage.getCustomTypes().map(t => ({ id: t.id, name: `${t.emoji} ${t.name}` }))
+        ];
+        typeSel.innerHTML = allTypes.map(t => `<option value="${t.id}" ${reminder?.type === t.id ? 'selected' : ''}>${t.name}</option>`).join('');
+        document.getElementById('reminder-form-modal')?.classList.remove('hidden');
+        document.getElementById('reminder-name-input').focus();
+    },
+
+    closeReminderForm() {
+        document.getElementById('reminder-form-modal')?.classList.add('hidden');
+        this.editingReminderId = null;
+    },
+
+    async saveReminderForm() {
+        const name   = document.getElementById('reminder-name-input').value.trim();
+        const day    = parseInt(document.getElementById('reminder-day-input').value);
+        const amount = parseFloat(document.getElementById('reminder-amount-input').value) || 0;
+        const emoji  = document.getElementById('reminder-emoji-input').value.trim() || '🔔';
+        const category = document.getElementById('reminder-category-input').value;
+        const type   = document.getElementById('reminder-type-input').value || 'saida';
+
+        if (!name) { document.getElementById('reminder-name-input').focus(); return; }
+        if (!day || day < 1 || day > 31) { this.showToast('⚠️ Dia inválido (1–31)', true); return; }
+
+        const btn = document.getElementById('reminder-form-save');
+        btn.disabled = true; btn.textContent = 'Salvando...';
+        try {
+            if (this.editingReminderId) {
+                await Storage.updateReminder(this.editingReminderId, { name, day, amount, emoji, category, type });
+                const idx = this.reminders.findIndex(r => r.id === this.editingReminderId);
+                if (idx !== -1) this.reminders[idx] = { ...this.reminders[idx], name, day, amount, emoji, category, type };
+            } else {
+                const r = await Storage.createReminder({ name, day, amount, emoji, category, type });
+                this.reminders.push(r);
+            }
+            this.reminders.sort((a, b) => a.day - b.day);
+            this.closeReminderForm();
+            this.renderRemindersList();
+            this.renderRemindersHome();
+            this.showToast(this.editingReminderId ? '✅ Lembrete atualizado!' : '✅ Lembrete criado!');
+        } catch (e) {
+            this.showToast('❌ Erro: ' + e.message, true);
+        } finally {
+            btn.disabled = false; btn.textContent = 'Salvar';
+        }
+    },
+
+    async deleteReminder(id) {
+        if (!confirm('Excluir este lembrete?')) return;
+        try {
+            await Storage.deleteReminder(id);
+            this.reminders = this.reminders.filter(r => r.id !== id);
+            this.renderRemindersList();
+            this.renderRemindersHome();
+            this.showToast('🗑️ Lembrete excluído');
+        } catch (e) {
+            this.showToast('❌ Erro: ' + e.message, true);
+        }
+    },
+
     // ─── Voice Input ──────────────────────────────────────────────────────────
     bindVoice() {
         const btn = document.getElementById('voice-btn');
@@ -953,6 +1281,7 @@ const App = {
         document.getElementById('total-expense').textContent = this.formatCurrency(summary.expense);
         document.getElementById('balance').className =
             `text-3xl font-bold ${summary.balance >= 0 ? 'text-green-400' : 'text-red-400'}`;
+        this.renderRemindersHome();
         this.renderTransactionList('home-transactions', list.slice(0, 30));
     },
 
@@ -997,12 +1326,20 @@ const App = {
                 const beh   = Storage.getBehavior(t.type);
                 const color = beh === 'soma' ? 'text-green-600' : beh === 'subtrai' ? 'text-red-600' : 'text-gray-500';
                 const sign  = beh === 'soma' ? '+' : beh === 'subtrai' ? '-' : '±';
+                // Badge de lembrete vinculado
+                const linkedReminder = t.reminder_id ? this.reminders.find(r => r.id === t.reminder_id) : null;
+                const reminderBadge  = linkedReminder
+                    ? `<span class="inline-flex items-center gap-1 text-xs bg-blue-50 text-blue-500 border border-blue-100 rounded-full px-2 py-0.5 mt-0.5">
+                           ${linkedReminder.emoji || '🔔'} ${linkedReminder.name}
+                       </span>`
+                    : '';
                 html += `
                 <div class="flex items-center gap-3 bg-white rounded-xl p-3 mb-2 shadow-sm border border-gray-100 transaction-item cursor-pointer" data-id="${t.id}">
                     <div class="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-xl flex-shrink-0">${icon}</div>
                     <div class="flex-1 min-w-0">
                         <div class="font-medium text-gray-800 truncate">${t.category}</div>
                         <div class="text-xs text-gray-400 truncate">${t.description}</div>
+                        ${reminderBadge}
                         ${this.getInserterBadge(t)}
                     </div>
                     <div class="flex flex-col items-end gap-1">
@@ -1425,8 +1762,9 @@ const App = {
 
     // ─── Export ───────────────────────────────────────────────────────────────
     bindExportButtons() {
-        document.getElementById('export-excel-btn')?.addEventListener('click', () => this.exportExcel());
-        document.getElementById('export-pdf-btn')?.addEventListener('click',   () => this.exportPDF());
+        document.getElementById('export-excel-btn')?.addEventListener('click',  () => this.exportExcel());
+        document.getElementById('export-pdf-btn')?.addEventListener('click',    () => this.exportPDF());
+        document.getElementById('export-backup-btn')?.addEventListener('click', () => this.exportFullBackup());
     },
 
     async exportExcel() {
@@ -1437,14 +1775,17 @@ const App = {
             const summary      = await Storage.getSummary(this.currentMonth);
 
             // Sheet 1: transactions
-            const rows = transactions.map(t => ({
-                'Data':         t.date,
-                'Tipo':         t.type === 'entrada' ? 'Entrada' : 'Saída',
-                'Categoria':    t.category,
-                'Descrição':    t.description,
-                'Valor (R$)':   t.type === 'entrada' ? Number(t.value) : -Number(t.value),
-                'Inserido por': t.inserted_by_email || ''
-            }));
+            const rows = transactions.map(t => {
+                const beh = Storage.getBehavior(t.type);
+                return {
+                    'Data':         t.date,
+                    'Tipo':         this._resolveTypeName(t.type),
+                    'Categoria':    t.category,
+                    'Descrição':    t.description,
+                    'Valor (R$)':   beh === 'soma' ? Number(t.value) : beh === 'subtrai' ? -Number(t.value) : Number(t.value),
+                    'Inserido por': t.inserted_by_email || ''
+                };
+            });
 
             // Sheet 2: summary
             const sumRows = [
@@ -1513,14 +1854,11 @@ const App = {
             doc.autoTable({
                 startY: cardY + 32,
                 head: [['Data', 'Tipo', 'Categoria', 'Descrição', 'Valor', 'Inserido por']],
-                body: transactions.map(t => [
-                    t.date,
-                    t.type === 'entrada' ? 'Entrada' : 'Saída',
-                    t.category,
-                    t.description,
-                    (t.type === 'entrada' ? '+' : '-') + this.formatCurrency(Number(t.value)),
-                    t.inserted_by_email || ''
-                ]),
+                body: transactions.map(t => {
+                    const beh  = Storage.getBehavior(t.type);
+                    const sign = beh === 'soma' ? '+' : beh === 'subtrai' ? '-' : '±';
+                    return [t.date, this._resolveTypeName(t.type), t.category, t.description, sign + this.formatCurrency(Number(t.value)), t.inserted_by_email || ''];
+                }),
                 styles:      { fontSize: 7, cellPadding: 2 },
                 headStyles:  { fillColor: [37, 99, 235], textColor: 255, fontStyle: 'bold' },
                 columnStyles: { 4: { halign: 'right' }, 5: { textColor: [100, 100, 100] } },
@@ -1533,6 +1871,92 @@ const App = {
             this.showToast('❌ Erro ao exportar: ' + e.message, true);
         } finally {
             btn.disabled = false; btn.textContent = '📄 Exportar PDF';
+        }
+    },
+
+    // ─── Full Backup Export ───────────────────────────────────────────────────
+    async exportFullBackup() {
+        const btn = document.getElementById('export-backup-btn');
+        btn.disabled = true; btn.textContent = 'Gerando backup...';
+        try {
+            const financa = this.activeFinanca;
+            const fname   = financa?.name || 'Pessoal';
+            const today   = new Date().toISOString().slice(0, 10);
+
+            // 1. Todos os lançamentos (sem filtro de mês)
+            const allTxns = await Storage.getTransactions({});
+            const txRows  = allTxns.map(t => {
+                const beh = Storage.getBehavior(t.type);
+                return {
+                    'Data':            t.date,
+                    'Tipo':            this._resolveTypeName(t.type),
+                    'Categoria':       t.category,
+                    'Descrição':       t.description,
+                    'Valor (R$)':      beh === 'soma' ? Number(t.value) : beh === 'subtrai' ? -Number(t.value) : Number(t.value),
+                    'Inserido por':    t.inserted_by_email || '',
+                    'ID Lembrete':     t.reminder_id || '',
+                    'ID':              t.id,
+                    'Criado em':       t.created_at || ''
+                };
+            });
+
+            // 2. Resumo mensal
+            const months = [...new Set(allTxns.map(t => t.date?.slice(0, 7)).filter(Boolean))].sort();
+            const monthSummaries = await Promise.all(months.map(async m => {
+                const s = await Storage.getSummary(m);
+                return {
+                    'Mês':         m,
+                    'Entradas (R$)': s.income,
+                    'Saídas (R$)':   s.expense,
+                    'Saldo (R$)':    s.balance
+                };
+            }));
+
+            // 3. Categorias
+            const catRows = this.categories.map(c => ({
+                'Nome':       c.name,
+                'Emoji':      c.emoji,
+                'Tipo':       c.type,
+                'Palavras-chave': (c.keywords || []).join(', ')
+            }));
+
+            // 4. Lembretes
+            const remRows = this.reminders.map(r => ({
+                'Nome':       r.name,
+                'Emoji':      r.emoji,
+                'Dia':        r.day,
+                'Valor (R$)': r.amount || 0,
+                'Categoria':  r.category || '',
+                'Tipo':       this._resolveTypeName(r.type),
+                'Ativo':      r.active !== false ? 'Sim' : 'Não'
+            }));
+
+            // 5. Info do perfil
+            const infoRows = [
+                { 'Campo': 'Nome',           'Valor': financa?.name  || 'Pessoal' },
+                { 'Campo': 'Tipo',           'Valor': financa?.type  || 'individual' },
+                { 'Campo': 'Emoji',          'Valor': financa?.emoji || '💰' },
+                { 'Campo': 'Data do backup', 'Valor': today },
+                { 'Campo': 'Total lançamentos', 'Valor': allTxns.length },
+                { 'Campo': 'Total categorias',  'Valor': this.categories.length },
+                { 'Campo': 'Total lembretes',   'Valor': this.reminders.length }
+            ];
+
+            // Monta o workbook com todas as abas
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(txRows.length        ? txRows        : [{ '': 'Sem dados' }]), 'Lançamentos');
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(monthSummaries.length ? monthSummaries : [{ '': 'Sem dados' }]), 'Resumo Mensal');
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(catRows.length        ? catRows        : [{ '': 'Sem dados' }]), 'Categorias');
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(remRows.length        ? remRows        : [{ '': 'Sem dados' }]), 'Lembretes');
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(infoRows),                                                       'Info');
+
+            const safeName = fname.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+            XLSX.writeFile(wb, `backup_${safeName}_${today}.xlsx`);
+            this.showToast(`✅ Backup exportado — ${allTxns.length} lançamentos`);
+        } catch (e) {
+            this.showToast('❌ Erro ao gerar backup: ' + e.message, true);
+        } finally {
+            btn.disabled = false; btn.textContent = '📦 Backup completo';
         }
     },
 
@@ -1577,6 +2001,18 @@ const App = {
     importShowStep(step) {
         document.getElementById('import-step-upload').classList.toggle('hidden',  step !== 1);
         document.getElementById('import-step-preview').classList.toggle('hidden', step !== 2);
+        if (step === 2) this._renderImportFinancaBanner();
+    },
+
+    _renderImportFinancaBanner() {
+        const f = this.activeFinanca;
+        if (!f) return;
+        const emojiEl = document.getElementById('import-financa-emoji');
+        const nameEl  = document.getElementById('import-financa-name');
+        const typeEl  = document.getElementById('import-financa-type');
+        if (emojiEl) emojiEl.textContent = f.emoji || '💰';
+        if (nameEl)  nameEl.textContent  = f.name  || 'Pessoal';
+        if (typeEl)  typeEl.textContent  = f.type === 'compartilhada' ? '👥 Compartilhada' : '👤 Individual';
     },
 
     async handleImportFile(file) {
@@ -1690,11 +2126,18 @@ const App = {
 
     _parseImportType(raw, value) {
         if (raw) {
-            const v = String(raw).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+            const norm = s => String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+            const v = norm(raw);
+            // 1. Tipos customizados (verificados primeiro para não confundir com fixos)
+            for (const ct of Storage.getCustomTypes()) {
+                const ctv = norm(ct.name);
+                if (ctv.length >= 2 && (v === ctv || v.includes(ctv) || ctv.includes(v))) return ct.id;
+            }
+            // 2. Tipos fixos
             if (['entrada','credito','credit','receita','income'].some(k => v.includes(k))) return 'entrada';
             if (['saida','debito','debit','despesa','expense','gasto'].some(k => v.includes(k))) return 'saida';
         }
-        return value >= 0 ? 'entrada' : 'saida';
+        return 'saida'; // fallback seguro — não adivinha pelo sinal do valor
     },
 
     _getMapping() {
@@ -1706,11 +2149,13 @@ const App = {
         const col = name => name === '(ignorar)' ? '' : row[this._importColumns.indexOf(name)] ?? '';
         const rawVal  = this._parseImportValue(col(map.value));
         const absVal  = Math.abs(rawVal);
-        const type    = this._parseImportType(col(map.type), rawVal);
+        const rawType = String(col(map.type) || '').trim();
+        const type    = this._parseImportType(rawType, rawVal);
         const inserter = String(col(map.inserter) || '').trim();
         return {
             date:        this._parseImportDate(col(map.date)),
             type,
+            _rawType:    rawType,
             category:    String(col(map.category) || 'Outros').trim() || 'Outros',
             description: String(col(map.description) || '').trim() || 'Importado',
             value:       absVal || 0,
@@ -1732,12 +2177,27 @@ const App = {
         tbody.innerHTML = shown.map((t, i) => {
             const inserter = t.inserted_by_email || fallbackEmail;
             const inserterDisplay = inserter ? (inserter.split('@')[0] || inserter) : '—';
+            const beh    = Storage.getBehavior(t.type);
+            const tColor = beh === 'soma' ? 'text-green-600' : beh === 'subtrai' ? 'text-red-600' : 'text-gray-500';
+            const tArrow = beh === 'soma' ? '↓' : beh === 'subtrai' ? '↑' : '±';
+            const tName  = (() => {
+                // Se é um tipo customizado já cadastrado, mostra o nome resolvido
+                if (t.type !== 'saida' && t.type !== 'entrada') return this._resolveTypeName(t.type);
+                // Se tem rawType e NÃO é palavra-chave de saída/entrada padrão, mostra o nome bruto
+                if (t._rawType) {
+                    const n = t._rawType.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+                    const isStdSaida   = ['saida','debito','debit','despesa','expense','gasto'].some(k => n.includes(k));
+                    const isStdEntrada = ['entrada','credito','credit','receita','income'].some(k => n.includes(k));
+                    if (!isStdSaida && !isStdEntrada) return t._rawType; // ex: "Nubank", "Cartão"
+                }
+                return this._resolveTypeName(t.type);
+            })();
             return `<tr class="${i % 2 === 0 ? '' : 'bg-gray-50'}">
                 <td class="px-2 py-1.5 text-gray-700">${t.date}</td>
-                <td class="px-2 py-1.5 ${t.type === 'entrada' ? 'text-green-600' : 'text-red-600'}">${t.type === 'entrada' ? '↓' : '↑'} ${t.type === 'entrada' ? 'Entrada' : 'Saída'}</td>
+                <td class="px-2 py-1.5 ${tColor}">${tArrow} ${tName}</td>
                 <td class="px-2 py-1.5 text-gray-700">${t.category}</td>
                 <td class="px-2 py-1.5 text-gray-500 max-w-[80px] truncate">${t.description}</td>
-                <td class="px-2 py-1.5 text-right font-medium ${t.type === 'entrada' ? 'text-green-600' : 'text-red-600'}">${this.formatCurrency(t.value)}</td>
+                <td class="px-2 py-1.5 text-right font-medium ${tColor}">${this.formatCurrency(t.value)}</td>
                 <td class="px-2 py-1.5 text-gray-400 text-xs truncate max-w-[80px]">${inserterDisplay}</td>
             </tr>`;
         }).join('');
@@ -1747,6 +2207,31 @@ const App = {
 
         // Store for confirm
         this._importParsed = txns;
+
+        // Aviso de tipos novos que serão criados automaticamente
+        const newTypesWrap = document.getElementById('import-new-types');
+        if (newTypesWrap) {
+            const normStr = s => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+            const knownTypeNorms = new Set([
+                ...Storage.getCustomTypes().map(t => normStr(t.name)),
+                'entrada', 'saida'
+            ]);
+            const newTypeNames = [...new Set(
+                txns.map(t => t._rawType).filter(raw => {
+                    if (!raw) return false;
+                    const n = normStr(raw);
+                    if (['entrada','credito','receita','income'].some(k => n.includes(k))) return false;
+                    if (['saida','debito','despesa','expense','gasto'].some(k => n.includes(k))) return false;
+                    return !knownTypeNorms.has(n);
+                })
+            )];
+            if (newTypeNames.length) {
+                newTypesWrap.classList.remove('hidden');
+                document.getElementById('import-new-types-list').textContent = newTypeNames.join(', ');
+            } else {
+                newTypesWrap.classList.add('hidden');
+            }
+        }
 
         // Aviso de emails novos (só em finanças compartilhadas)
         const newEmailsWrap = document.getElementById('import-new-emails');
@@ -1770,6 +2255,11 @@ const App = {
         const txns = this._importParsed;
         if (!txns?.length) { this.showToast('Nenhum lançamento válido encontrado', true); return; }
 
+        const f    = this.activeFinanca;
+        const nome = f ? `${f.emoji || '💰'} ${f.name}` : 'Pessoal';
+        const tipo = f?.type === 'compartilhada' ? ' (Compartilhada)' : ' (Individual)';
+        if (!confirm(`Confirmar importação?\n\n📥 ${txns.length} lançamento${txns.length !== 1 ? 's' : ''} serão adicionados em:\n${nome}${tipo}\n\nEssa ação não pode ser desfeita em massa.`)) return;
+
         const btn = document.getElementById('import-confirm');
         btn.disabled = true; btn.textContent = 'Preparando...';
         try {
@@ -1787,9 +2277,45 @@ const App = {
                         this.categories.push(cat);
                     } catch (_) { /* ignora se já existir por race condition */ }
                 }
+                this.categories = this._sortCategories(this.categories);
                 NLP.setCategoryMap(this.categories);
                 this.renderCategorySelect();
                 this.renderQuickButtons();
+            }
+
+            // Auto-criar tipos customizados não reconhecidos
+            const normStr = s => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+            const fixedIds = new Set(['entrada', 'saida']);
+            const knownTypeNorms = new Set([
+                ...Storage.getCustomTypes().map(t => normStr(t.name)),
+                ...Storage.getCustomTypes().map(t => t.id)
+            ]);
+            const unknownTypeNames = [...new Set(
+                txns.map(t => t._rawType).filter(raw => {
+                    if (!raw) return false;
+                    const n = normStr(raw);
+                    if (fixedIds.has(n)) return false;
+                    if (['entrada','credito','receita','income'].some(k => n.includes(k))) return false;
+                    if (['saida','debito','despesa','expense','gasto'].some(k => n.includes(k))) return false;
+                    return !knownTypeNorms.has(n);
+                })
+            )];
+            if (unknownTypeNames.length) {
+                btn.textContent = `Criando ${unknownTypeNames.length} tipo${unknownTypeNames.length > 1 ? 's' : ''}...`;
+                const typeEmojis = ['🏷️','💳','📋','🔖','📌','💡','🗂️','📁'];
+                const typeColors = ['gray','purple','teal','orange','indigo','pink','yellow'];
+                for (let i = 0; i < unknownTypeNames.length; i++) {
+                    const name = unknownTypeNames[i];
+                    try {
+                        const ct = await Storage.createTransactionType(name, 'subtrai', typeEmojis[i % typeEmojis.length], typeColors[i % typeColors.length]);
+                        // Remapeia transações para usar o novo ID
+                        const nName = normStr(name);
+                        for (const t of txns) {
+                            if (t._rawType && normStr(t._rawType) === nName) t.type = ct.id;
+                        }
+                    } catch (_) {}
+                }
+                this.transactionTypes = await Storage.getTransactionTypes();
             }
 
             // Auto-convidar emails não cadastrados (só em finanças compartilhadas)
@@ -1840,15 +2366,18 @@ const App = {
     },
 
     downloadImportTemplate() {
-        const wb  = XLSX.utils.book_new();
-        const ws  = XLSX.utils.aoa_to_sheet([
-            ['Data',       'Tipo',    'Categoria',   'Descrição',         'Valor'],
-            ['23/04/2026', 'saída',   'Alimentação', 'Mercado da semana', 150.00],
-            ['23/04/2026', 'entrada', 'Salário',     'Salário abril',     3000.00],
-            ['22/04/2026', 'saída',   'Transporte',  'Uber',              25.50],
-            ['21/04/2026', 'saída',   'Moradia',     'Aluguel',           1200.00]
+        const wb      = XLSX.utils.book_new();
+        const customs = Storage.getCustomTypes();
+        const tipoEx  = customs.length ? customs[0].name : 'Investimento';
+        const ws = XLSX.utils.aoa_to_sheet([
+            ['Data',       'Tipo',    'Categoria',   'Descrição',         'Valor',  'Inserido por'],
+            ['23/04/2026', 'saída',   'Alimentação', 'Mercado da semana', 150.00,   ''],
+            ['23/04/2026', 'entrada', 'Salário',     'Salário abril',     3000.00,  ''],
+            ['22/04/2026', 'saída',   'Transporte',  'Uber',              25.50,    'amigo@email.com'],
+            ['21/04/2026', 'saída',   'Moradia',     'Aluguel',           1200.00,  ''],
+            ['20/04/2026', tipoEx,    'Outros',      'Exemplo tipo extra', 500.00,  ''],
         ]);
-        ws['!cols'] = [{ wch: 14 }, { wch: 10 }, { wch: 16 }, { wch: 28 }, { wch: 12 }];
+        ws['!cols'] = [{ wch: 14 }, { wch: 14 }, { wch: 16 }, { wch: 28 }, { wch: 12 }, { wch: 24 }];
         XLSX.utils.book_append_sheet(wb, ws, 'Modelo');
         XLSX.writeFile(wb, 'modelo-financas.xlsx');
         this.showToast('✅ Modelo baixado!');
@@ -1974,11 +2503,20 @@ const App = {
     },
 
     // ─── Categories ───────────────────────────────────────────────────────────
+    _sortCategories(cats) {
+        return [...cats].sort((a, b) => {
+            if (a.name === 'Outros') return 1;
+            if (b.name === 'Outros') return -1;
+            return a.name.localeCompare(b.name, 'pt-BR');
+        });
+    },
+
     async loadCategories() {
         try {
-            this.categories = await Storage.getCategories();
+            this.categories = this._sortCategories(await Storage.getCategories());
         } catch (e) {
             console.warn('loadCategories:', e);
+            this.categories = [];
         }
         NLP.setCategoryMap(this.categories);
         this.renderCategorySelect();
@@ -2276,6 +2814,7 @@ const App = {
             } else {
                 const cat = await Storage.createCategory(name, emoji, keywords, type);
                 this.categories.push(cat);
+                this.categories = this._sortCategories(this.categories);
             }
             NLP.setCategoryMap(this.categories);
             this.closeCategoryForm();
@@ -2284,7 +2823,12 @@ const App = {
             this.renderQuickButtons();
             this.showToast(this.editingCatId ? '✅ Categoria atualizada!' : '✅ Categoria criada!');
         } catch (e) {
-            this.showToast('❌ Erro: ' + e.message, true);
+            const msg = e.message || '';
+            if (msg.includes('duplicate key') || msg.includes('unique constraint') || msg.includes('already exists')) {
+                this.showToast('⚠️ Já existe uma categoria com esse nome neste perfil.', true);
+            } else {
+                this.showToast('❌ Erro: ' + msg, true);
+            }
         } finally {
             btn.disabled = false; btn.textContent = 'Salvar';
         }
@@ -2308,6 +2852,20 @@ const App = {
         ];
         const cls = isMe ? 'bg-blue-100 text-blue-600' : palettes[seed % palettes.length];
         return `<span class="inline-block text-xs px-1.5 py-0.5 rounded-full ${cls} font-medium leading-tight">${name}</span>`;
+    },
+
+    _resolveTypeName(typeId) {
+        if (typeId === 'entrada') return 'Entrada';
+        if (typeId === 'saida')   return 'Saída';
+        // Tenta pela lista carregada em memória
+        const inMem = this.transactionTypes.find(t => t.id === typeId);
+        if (inMem) return inMem.name;
+        // Tenta direto do localStorage (cobre migração de IDs)
+        const inStorage = Storage.getCustomTypes().find(t => t.id === typeId);
+        if (inStorage) return inStorage.name;
+        // Heurística: ID começa com 'ct' → era um tipo customizado removido
+        if (String(typeId).startsWith('ct')) return `Tipo (${typeId})`;
+        return 'Saída';
     },
 
     getCategoryIcon(cat) {

@@ -36,13 +36,15 @@ const Storage = {
     },
 
     async createTransactionType(name, behavior, emoji, color) {
-        // ID curto (≤10 chars) para caber no VARCHAR(10) do Supabase
+        // ID curto (≤10 chars) para caber no VARCHAR(10) da coluna transactions.type
+        // NÃO sobrescreve com UUID do Supabase — nosso ID curto é o canônico
         const t = { id: 'ct' + Date.now().toString(36).slice(-6), name, behavior, emoji, color };
         if (this.isCloud) {
             try {
                 const { data } = await this.db.from('transaction_types')
                     .insert({ name, behavior, emoji, color, user_id: this.userId() }).select().single();
-                if (data) t.id = data.id;
+                // Guarda o UUID do Supabase separado (para update/delete), mas mantém nosso ID curto
+                if (data?.id) t._supabaseId = data.id;
             } catch (_) {}
         }
         const list = this.getCustomTypes();
@@ -53,7 +55,16 @@ const Storage = {
 
     async updateTransactionType(id, updates) {
         if (this.isCloud) {
-            try { await this.db.from('transaction_types').update(updates).eq('id', id).eq('user_id', this.userId()); } catch (_) {}
+            try {
+                const ct = this.getCustomTypes().find(t => t.id === id);
+                const supaId = ct?._supabaseId || null;
+                if (supaId) {
+                    await this.db.from('transaction_types').update(updates).eq('id', supaId).eq('user_id', this.userId());
+                } else {
+                    // fallback: busca pelo nome se não tiver UUID salvo
+                    await this.db.from('transaction_types').update(updates).eq('name', ct?.name || id).eq('user_id', this.userId());
+                }
+            } catch (_) {}
         }
         const list = this.getCustomTypes();
         const idx = list.findIndex(t => t.id === id);
@@ -62,7 +73,15 @@ const Storage = {
 
     async deleteTransactionType(id) {
         if (this.isCloud) {
-            try { await this.db.from('transaction_types').delete().eq('id', id).eq('user_id', this.userId()); } catch (_) {}
+            try {
+                const ct = this.getCustomTypes().find(t => t.id === id);
+                const supaId = ct?._supabaseId || null;
+                if (supaId) {
+                    await this.db.from('transaction_types').delete().eq('id', supaId).eq('user_id', this.userId());
+                } else {
+                    await this.db.from('transaction_types').delete().eq('name', ct?.name || id).eq('user_id', this.userId());
+                }
+            } catch (_) {}
         }
         this._saveCustomTypes(this.getCustomTypes().filter(t => t.id !== id));
     },
@@ -130,13 +149,13 @@ const Storage = {
         const { data: txData } = await q;
         if (txData) this._mergeTxCache(txData);
 
-        // Categorias
+        // Categorias (filtra pela finança ativa)
         const uid = this.userId();
-        const { data: catData } = await this.db
-            .from('categories')
-            .select('*')
-            .or(`user_id.is.null,user_id.eq.${uid}`)
-            .order('sort_order', { ascending: true });
+        const _fid = (this.activeFinancaId && this.activeFinancaId !== 'null') ? this.activeFinancaId : null;
+        let catQ = this.db.from('categories').select('*').eq('user_id', uid);
+        if (_fid) catQ = catQ.eq('financa_id', _fid);
+        else      catQ = catQ.is('financa_id', null);
+        const { data: catData } = await catQ;
         if (catData) this._cacheCat(catData);
 
         // Finanças
@@ -219,9 +238,10 @@ const Storage = {
 
     // ── Finance state ─────────────────────────────────────────────────────────
     setActiveFinanca(id) {
-        this.activeFinancaId = id;
-        if (id) localStorage.setItem('active_financa_id', id);
-        else    localStorage.removeItem('active_financa_id');
+        const safe = (id && id !== 'null') ? id : null;
+        this.activeFinancaId = safe;
+        if (safe) localStorage.setItem('active_financa_id', safe);
+        else      localStorage.removeItem('active_financa_id');
     },
 
     // ── Finance CRUD ──────────────────────────────────────────────────────────
@@ -401,40 +421,46 @@ const Storage = {
     },
 
     async getCategories() {
+        const fid = (this.activeFinancaId && this.activeFinancaId !== 'null') ? this.activeFinancaId : null;
+        const cacheKey = 'cat_cache_' + (fid || 'personal');
+        const _getCached = () => { try { return JSON.parse(localStorage.getItem(cacheKey) || '[]'); } catch { return []; } };
+        const _setCache  = d  => { try { localStorage.setItem(cacheKey, JSON.stringify(d)); } catch {} };
+
         if (this.isCloud) {
             if (!this.isOnline) {
-                const cached = this._getCachedCat();
-                const fallback = cached.length ? cached : this._defaultCategories;
-                return this._applyOverrides(fallback);
+                return this._applyOverrides(_getCached());
             }
             const uid = this.userId();
-            const { data, error } = await this.db
-                .from('categories')
-                .select('*')
-                .or(`user_id.is.null,user_id.eq.${uid}`)
-                .order('sort_order', { ascending: true })
-                .order('name',       { ascending: true });
+            let q = this.db.from('categories').select('*').eq('user_id', uid);
+            if (fid) q = q.eq('financa_id', fid);
+            else     q = q.is('financa_id', null);
+            q = q.order('name', { ascending: true });
+            const { data, error } = await q;
             if (error) throw error;
-            if (data) this._cacheCat(data);
+            if (data) _setCache(data);
             return this._applyOverrides(data ?? []);
         }
+        // Modo local: categorias separadas por finança
         const d = this._localGet();
-        const all = [...this._defaultCategories, ...(d.categories || [])];
+        const all = (d.categories || []).filter(c => (fid ? c.financa_id === fid : !c.financa_id));
         return this._applyOverrides(all);
     },
 
     async createCategory(name, emoji, keywords, type) {
+        const fid = (this.activeFinancaId && this.activeFinancaId !== 'null') ? this.activeFinancaId : null;
         if (this.isCloud) {
+            const payload = { name, emoji, keywords, type, user_id: this.userId() };
+            if (fid) payload.financa_id = fid;
             const { data, error } = await this.db
                 .from('categories')
-                .insert({ name, emoji, keywords, type, user_id: this.userId() })
+                .insert(payload)
                 .select().single();
             if (error) throw error;
             return data;
         }
         const d = this._localGet();
         if (!d.categories) d.categories = [];
-        const cat = { id: Date.now().toString(), name, emoji, keywords, type, sort_order: 99, user_id: 'local' };
+        const cat = { id: Date.now().toString(), name, emoji, keywords, type, sort_order: 99, user_id: 'local', ...(fid ? { financa_id: fid } : {}) };
         d.categories.push(cat);
         this._localSave(d);
         return cat;
@@ -482,6 +508,74 @@ const Storage = {
         localStorage.removeItem('cat_hidden');
     },
 
+    // ── Reminders ─────────────────────────────────────────────────────────────
+    REMINDERS_KEY: 'user_reminders',
+
+    _getLocalReminders() {
+        try { return JSON.parse(localStorage.getItem(this.REMINDERS_KEY) || '[]'); } catch { return []; }
+    },
+    _saveLocalReminders(list) {
+        localStorage.setItem(this.REMINDERS_KEY, JSON.stringify(list));
+    },
+
+    async getReminders() {
+        const fid = (this.activeFinancaId && this.activeFinancaId !== 'null') ? this.activeFinancaId : null;
+        if (this.isCloud) {
+            try {
+                let q = this.db.from('reminders').select('*').eq('user_id', this.userId()).eq('active', true);
+                if (fid) q = q.eq('financa_id', fid);
+                else     q = q.is('financa_id', null);
+                q = q.order('day', { ascending: true });
+                const { data, error } = await q;
+                if (error) throw error;
+                // Sincroniza cache local
+                const all = this._getLocalReminders().filter(r => r._localOnly);
+                this._saveLocalReminders([...(data ?? []), ...all]);
+                return data ?? [];
+            } catch (_) {}
+        }
+        // Local fallback: filtra por finança
+        return this._getLocalReminders().filter(r => fid ? r.financa_id === fid : !r.financa_id);
+    },
+
+    async createReminder({ name, day, amount, category, type, emoji, financa_id }) {
+        const fid = financa_id ?? ((this.activeFinancaId && this.activeFinancaId !== 'null') ? this.activeFinancaId : null);
+        const localId = 'rem_' + Date.now().toString(36);
+        const base = { name, day: Number(day), amount: Number(amount) || 0, category: category || '', type: type || 'saida', emoji: emoji || '🔔', active: true };
+        if (this.isCloud) {
+            try {
+                const payload = { ...base, user_id: this.userId(), ...(fid ? { financa_id: fid } : {}) };
+                const { data, error } = await this.db.from('reminders').insert(payload).select().single();
+                if (error) throw error;
+                const list = this._getLocalReminders();
+                list.push(data);
+                this._saveLocalReminders(list);
+                return data;
+            } catch (_) {}
+        }
+        const rem = { ...base, id: localId, user_id: 'local', _localOnly: true, ...(fid ? { financa_id: fid } : {}), created_at: new Date().toISOString() };
+        const list = this._getLocalReminders();
+        list.push(rem);
+        this._saveLocalReminders(list);
+        return rem;
+    },
+
+    async updateReminder(id, updates) {
+        if (this.isCloud) {
+            try { await this.db.from('reminders').update(updates).eq('id', id).eq('user_id', this.userId()); } catch (_) {}
+        }
+        const list = this._getLocalReminders();
+        const idx = list.findIndex(r => r.id === id);
+        if (idx !== -1) { list[idx] = { ...list[idx], ...updates }; this._saveLocalReminders(list); }
+    },
+
+    async deleteReminder(id) {
+        if (this.isCloud) {
+            try { await this.db.from('reminders').delete().eq('id', id).eq('user_id', this.userId()); } catch (_) {}
+        }
+        this._saveLocalReminders(this._getLocalReminders().filter(r => r.id !== id));
+    },
+
     // ── Transactions ──────────────────────────────────────────────────────────
     async bulkAddTransactions(transactions) {
         if (this.isCloud) {
@@ -490,10 +584,27 @@ const Storage = {
                 inserted_by_email: Auth?.user?.email ?? null,
                 ...(this.activeFinancaId ? { financa_id: this.activeFinancaId } : {})
             };
-            const payload = transactions.map(t => ({ ...base, ...t }));
+            const payload = transactions.map(t => {
+                const { _rawType, _offline, _constraintFallback, ...clean } = t;
+                return { ...base, ...clean };
+            });
             for (let i = 0; i < payload.length; i += 50) {
                 const { error } = await this.db.from('transactions').insert(payload.slice(i, i + 50));
-                if (error) throw error;
+                if (error) {
+                    // CHECK constraint ainda existe no Supabase → salva localmente e enfileira para sync
+                    if (error.message?.includes('type_check') || error.message?.includes('check constraint') || error.message?.includes('violates check')) {
+                        const batch = payload.slice(i, i + 50);
+                        const d = this._localGet();
+                        for (const tx of batch) {
+                            const tempId = 'temp_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+                            d.transactions.unshift({ ...tx, id: tempId, created_at: new Date().toISOString(), _offline: true, _constraintFallback: true });
+                        }
+                        this._localSave(d);
+                        // Não lança erro — continua os próximos batches
+                        continue;
+                    }
+                    throw error;
+                }
             }
             return;
         }
@@ -517,7 +628,8 @@ const Storage = {
                 this._queueOp('addTransaction', { ...t, financa_id: this.activeFinancaId }, tempId);
                 return tx;
             }
-            const payload = { ...t, user_id: this.userId() };
+            const { _rawType, _offline, _constraintFallback, ...tClean } = t;
+            const payload = { ...tClean, user_id: this.userId() };
             if (this.activeFinancaId) payload.financa_id = this.activeFinancaId;
             const { data, error } = await this.db
                 .from('transactions').insert(payload).select().single();
@@ -613,8 +725,9 @@ const Storage = {
                 .order('date',       { ascending: false })
                 .order('created_at', { ascending: false });
 
-            if (this.activeFinancaId) {
-                q = q.eq('financa_id', this.activeFinancaId);
+            const _fid = (this.activeFinancaId && this.activeFinancaId !== 'null') ? this.activeFinancaId : null;
+            if (_fid) {
+                q = q.eq('financa_id', _fid);
             } else {
                 q = q.eq('user_id', this.userId());
             }

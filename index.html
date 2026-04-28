@@ -209,6 +209,19 @@
             </div>
         </div>
 
+        <!-- Reminders Section -->
+        <div id="reminders-home-section" class="space-y-1.5">
+            <!-- fallback quando não há lembretes -->
+            <button id="reminders-empty-btn" class="w-full flex items-center gap-3 bg-white border border-dashed border-gray-200 rounded-xl px-4 py-3 text-left hover:border-blue-300 hover:bg-blue-50 transition-all">
+                <span class="text-2xl">🔔</span>
+                <div>
+                    <p class="text-sm font-semibold text-gray-600">Lembretes de pagamento</p>
+                    <p class="text-xs text-gray-400">Adicione contas recorrentes: aluguel, água, luz…</p>
+                </div>
+                <span class="ml-auto text-gray-300 text-lg">›</span>
+            </button>
+        </div>
+
         <!-- Recent Transactions -->
         <div>
             <p class="text-xs font-semibold text-gray-400 uppercase mb-2 px-1">Lançamentos do mês</p>
@@ -312,6 +325,10 @@
                     📄 PDF
                 </button>
             </div>
+            <button id="export-backup-btn"
+                class="w-full flex items-center justify-center gap-2 py-3 bg-purple-600 text-white rounded-2xl text-sm font-semibold hover:bg-purple-700 transition-colors shadow-sm">
+                📦 Backup completo do perfil
+            </button>
             <p class="text-xs font-semibold text-gray-400 uppercase px-1 pt-1">Importar</p>
             <button id="import-excel-btn"
                 class="w-full flex items-center justify-center gap-2 py-3 bg-blue-500 text-white rounded-2xl text-sm font-semibold hover:bg-blue-600 transition-colors shadow-sm">
@@ -657,6 +674,9 @@
             <!-- Notes (hidden, used for OCR context) -->
             <input id="modal-notes" type="hidden">
 
+            <!-- Reminder link badge -->
+            <div id="modal-reminder-badge" class="hidden pb-1"></div>
+
             <!-- Actions -->
             <div class="flex gap-3 pt-1 pb-2">
                 <button id="modal-cancel"
@@ -722,6 +742,16 @@
         <!-- Step 2: Map + Preview -->
         <div id="import-step-preview" class="hidden overflow-y-auto" style="max-height:calc(92vh - 64px)">
             <div class="p-4 space-y-4">
+                <!-- Finança de destino -->
+                <div id="import-target-financa" class="flex items-center gap-3 bg-blue-50 border-2 border-blue-200 rounded-2xl px-4 py-3">
+                    <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-2xl flex-shrink-0" id="import-financa-emoji">💰</div>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-xs text-blue-500 font-semibold uppercase tracking-wide">Importar para</p>
+                        <p id="import-financa-name" class="text-sm font-bold text-blue-800 truncate">Pessoal</p>
+                        <p id="import-financa-type" class="text-xs text-blue-400">Individual</p>
+                    </div>
+                    <span class="text-blue-300 text-xl">🎯</span>
+                </div>
                 <!-- Column mapping -->
                 <div>
                     <p class="text-xs font-semibold text-gray-500 uppercase mb-2">Mapeamento de colunas</p>
@@ -735,6 +765,11 @@
                     <div id="import-inserter-info" class="mb-2 flex items-center gap-2 text-xs bg-blue-50 border border-blue-100 rounded-xl px-3 py-2">
                         <span class="text-gray-500">👤 Insertor:</span>
                         <span id="import-inserter-email" class="font-semibold text-blue-700"></span>
+                    </div>
+                    <div id="import-new-types" class="hidden mb-3 text-xs bg-blue-50 border border-blue-200 rounded-xl px-3 py-2 space-y-0.5">
+                        <div class="font-semibold text-blue-700">🏷️ Novos tipos de lançamento encontrados</div>
+                        <div class="text-blue-600">Serão criados automaticamente ao importar:</div>
+                        <div id="import-new-types-list" class="font-medium text-blue-800 break-all"></div>
                     </div>
                     <div id="import-new-emails" class="hidden mb-3 text-xs bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 space-y-0.5">
                         <div class="font-semibold text-amber-700">📨 Novos e-mails encontrados</div>
@@ -960,6 +995,81 @@
 <!-- Toast -->
 <div id="toast" class="hidden fixed bottom-24 left-1/2 -translate-x-1/2 px-4 py-2 rounded-full text-white text-sm font-medium shadow-lg z-50 bg-green-500 transition-all opacity-0"></div>
 
+<!-- ═══════════════ MODAL: GERENCIAR LEMBRETES ═══════════════ -->
+<div id="reminders-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-end justify-center">
+    <div class="bg-white w-full max-w-md rounded-t-2xl max-h-[85vh] flex flex-col">
+        <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+            <h2 class="font-bold text-gray-800">🔔 Lembretes de Pagamento</h2>
+            <button id="reminders-modal-close" class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500">✕</button>
+        </div>
+        <div class="flex-1 overflow-y-auto px-4 py-3 space-y-2">
+            <div id="reminders-list-container"></div>
+        </div>
+        <div class="px-4 pb-5 pt-2 border-t border-gray-100">
+            <button id="reminder-add-btn" class="w-full py-3 rounded-xl border-2 border-dashed border-blue-300 text-blue-500 text-sm font-semibold hover:border-blue-400 hover:bg-blue-50 transition-all">
+                + Novo Lembrete
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════ MODAL: FORM LEMBRETE ═══════════════ -->
+<div id="reminder-form-modal" class="hidden fixed inset-0 bg-black/50 z-[60] flex items-end justify-center">
+    <div class="bg-white w-full max-w-md rounded-t-2xl">
+        <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+            <h2 id="reminder-form-title" class="font-bold text-gray-800">Novo Lembrete</h2>
+            <button id="reminder-form-close" class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500">✕</button>
+        </div>
+        <div class="px-4 py-4 space-y-3">
+            <!-- Nome + Emoji -->
+            <div class="flex gap-2">
+                <div class="w-16">
+                    <label class="text-xs text-gray-500 font-medium mb-1 block">Emoji</label>
+                    <input id="reminder-emoji-input" type="text" maxlength="2" value="🔔"
+                        class="w-full border border-gray-200 rounded-xl px-2 py-2.5 text-center text-xl focus:outline-none focus:ring-2 focus:ring-blue-300">
+                </div>
+                <div class="flex-1">
+                    <label class="text-xs text-gray-500 font-medium mb-1 block">Nome do lembrete *</label>
+                    <input id="reminder-name-input" type="text" placeholder="Ex: Aluguel, Água, Luz..."
+                        class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
+                </div>
+            </div>
+            <!-- Dia + Valor -->
+            <div class="flex gap-2">
+                <div class="flex-1">
+                    <label class="text-xs text-gray-500 font-medium mb-1 block">Dia do mês *</label>
+                    <input id="reminder-day-input" type="number" min="1" max="31" placeholder="Ex: 10"
+                        class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
+                </div>
+                <div class="flex-1">
+                    <label class="text-xs text-gray-500 font-medium mb-1 block">Valor (opcional)</label>
+                    <input id="reminder-amount-input" type="number" step="0.01" min="0" placeholder="0,00"
+                        class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
+                </div>
+            </div>
+            <!-- Categoria -->
+            <div>
+                <label class="text-xs text-gray-500 font-medium mb-1 block">Categoria (opcional)</label>
+                <select id="reminder-category-input" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
+                    <option value="">— Sem categoria —</option>
+                </select>
+            </div>
+            <!-- Tipo -->
+            <div>
+                <label class="text-xs text-gray-500 font-medium mb-1 block">Tipo de lançamento</label>
+                <select id="reminder-type-input" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
+                    <option value="saida">💸 Saída (Gasto)</option>
+                    <option value="entrada">💰 Entrada (Receita)</option>
+                </select>
+            </div>
+        </div>
+        <div class="px-4 pb-5 flex gap-2">
+            <button id="reminder-form-cancel" class="flex-1 py-3 rounded-xl bg-gray-100 text-gray-600 text-sm font-semibold">Cancelar</button>
+            <button id="reminder-form-save"   class="flex-1 py-3 rounded-xl bg-blue-500 text-white text-sm font-semibold hover:bg-blue-600 transition-all">Salvar</button>
+        </div>
+    </div>
+</div>
+
 </div><!-- /#main-app -->
 
 <script src="js/config.js?v=20260423j"></script>
@@ -967,7 +1077,7 @@
 <script src="js/storage.js?v=20260424l"></script>
 <script src="js/nlp.js?v=20260424n"></script>
 <script src="js/ocr.js?v=20260424h"></script>
-<script src="js/app.js?v=20260424o"></script>
+<script src="js/app.js?v=20260428a"></script>
 
 <script>
 // ── Service Worker + PWA ──────────────────────────────────────────────────────
