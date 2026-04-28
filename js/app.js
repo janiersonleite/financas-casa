@@ -671,7 +671,7 @@ const App = {
             date:        document.getElementById('modal-date').value,
             notes:       document.getElementById('modal-notes').value,
             ...(this._reminderSourceId && !this.editingId ? { reminder_id: this._reminderSourceId } : {}),
-            ...(!this.editingId && this._modalFinancaId !== undefined ? { _targetFinancaId: this._modalFinancaId } : {})
+            ...(!this.editingId && this._modalFinancaId ? { _targetFinancaId: this._modalFinancaId } : {})
         };
         const btn = document.getElementById('modal-save');
         btn.disabled = true; btn.textContent = 'Salvando...';
