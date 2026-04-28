@@ -1774,13 +1774,20 @@ const App = {
                     : '';
                 const catDisplay  = highlight ? this._hlText(t.category,    highlight) : this._escHtml(t.category);
                 const descDisplay = highlight ? this._hlText(t.description, highlight) : this._escHtml(t.description);
+                // Badge de tipo (Entrada / Saída / tipo customizado)
+                const typeBadgeColor = beh === 'soma'    ? 'bg-green-50 text-green-600 border-green-100'
+                                     : beh === 'subtrai' ? 'bg-red-50 text-red-500 border-red-100'
+                                     :                     'bg-gray-100 text-gray-500 border-gray-200';
+                const typeBadge = t.type
+                    ? `<span class="inline-flex items-center text-xs border rounded-full px-2 py-0.5 ${typeBadgeColor} font-medium">${this._escHtml(t.type)}</span>`
+                    : '';
                 html += `
                 <div class="flex items-center gap-3 bg-white rounded-xl p-3 mb-2 shadow-sm border border-gray-100 transaction-item cursor-pointer" data-id="${t.id}">
                     <div class="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-xl flex-shrink-0">${icon}</div>
                     <div class="flex-1 min-w-0">
                         <div class="font-medium text-gray-800 truncate">${catDisplay}</div>
                         <div class="text-xs text-gray-400 truncate">${descDisplay}</div>
-                        ${reminderBadge}${installBadge}
+                        <div class="flex flex-wrap items-center gap-1 mt-0.5">${typeBadge}${reminderBadge}${installBadge}</div>
                         ${this.getInserterBadge(t)}
                     </div>
                     <div class="flex flex-col items-end gap-0.5">
