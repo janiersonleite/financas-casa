@@ -3063,7 +3063,7 @@ const App = {
             return `<button data-quick-cat="${c.name}" data-quick-type="${qtype}" data-quick-label="${c.name}"
                 class="flex flex-col items-center gap-1 ${isIncome ? 'bg-green-50 border-green-100' : 'bg-white border-gray-100'} rounded-xl p-3 shadow-sm border hover:border-blue-300 hover:shadow-md transition-all">
                 <span class="text-2xl">${c.emoji}</span>
-                <span class="text-xs ${isIncome ? 'text-green-700' : 'text-gray-600'} truncate w-full text-center">${c.name.split(' ')[0]}</span>
+                <span class="text-xs ${isIncome ? 'text-green-700' : 'text-gray-600'} truncate w-full text-center">${c.name}</span>
             </button>`;
         }).join('') + `
         <button id="manage-cats-btn"
