@@ -1463,15 +1463,23 @@ const App = {
         this.recognition.onerror = e => {
             this.stopListening();
             const msgs = {
-                'network':        'Reconhecimento de voz requer conexão com a internet.',
-                'not-allowed':    'Permissão de microfone negada. Clique no 🔒 da barra de endereço e permita o microfone.',
-                'no-speech':      'Nenhuma fala detectada. Tente novamente.',
-                'network':        'Erro de rede. A API de voz requer conexão com a internet.',
-                'audio-capture':  'Microfone não encontrado ou ocupado por outro app.',
-                'service-not-allowed': 'Serviço de voz bloqueado. Use HTTPS ou localhost.'
+                'network':             'Sem internet. Digite o lançamento no campo de texto.',
+                'not-allowed':         'Microfone bloqueado. Clique no 🔒 da barra de endereço e permita o microfone.',
+                'no-speech':           'Nenhuma fala detectada. Tente novamente.',
+                'audio-capture':       'Microfone não encontrado ou ocupado por outro app.',
+                'service-not-allowed': 'Serviço de voz bloqueado. Use HTTPS ou localhost.',
             };
             const msg = msgs[e.error] || `Erro de voz: ${e.error}`;
             this.showToast('🎤 ' + msg, true);
+            // Fallback: foca no campo de texto para o usuário digitar
+            const input = document.getElementById('quick-input');
+            if (input) {
+                input.focus();
+                input.placeholder = '✏️ Digite o lançamento aqui...';
+                setTimeout(() => {
+                    input.placeholder = 'Ex: "Gastei 50 no mercado" ou "Recebi 1500 de salário"';
+                }, 4000);
+            }
         };
         this.recognition.onend = () => this.stopListening();
         btn.addEventListener('click', () => {
