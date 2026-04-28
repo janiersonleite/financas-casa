@@ -1673,7 +1673,8 @@ const App = {
                         ${reminderBadge}${installBadge}
                         ${this.getInserterBadge(t)}
                     </div>
-                    <div class="flex flex-col items-end gap-1">
+                    <div class="flex flex-col items-end gap-0.5">
+                        ${t.installment_group_id ? `<div class="text-xs text-gray-400 font-normal">Total ${this.formatCurrency(t.value * t.installment_total)}</div>` : ''}
                         <div class="font-bold ${color}">${sign}${this.formatCurrency(t.value)}</div>
                         <button class="text-xs text-gray-300 hover:text-red-400 delete-btn" data-id="${t.id}">✕</button>
                     </div>
