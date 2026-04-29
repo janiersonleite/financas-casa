@@ -1540,6 +1540,117 @@ const App = {
         document.getElementById('reminder-form-cancel')?.addEventListener('click', () => this.closeReminderForm());
         fModal?.addEventListener('click', e => { if (e.target === fModal) this.closeReminderForm(); });
         document.getElementById('reminder-form-save')?.addEventListener('click',   () => this.saveReminderForm());
+
+        // ── Áudio no form de lembrete ──────────────────────────────────────────
+        document.getElementById('reminder-voice-btn')?.addEventListener('click', () => {
+            this._startReminderVoice();
+        });
+    },
+
+    _startReminderVoice() {
+        const btn  = document.getElementById('reminder-voice-btn');
+        const hint = document.getElementById('reminder-voice-hint');
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+        if (!SpeechRecognition) {
+            this.showToast('⚠️ Seu navegador não suporta reconhecimento de voz', true);
+            return;
+        }
+
+        if (btn._listening) return; // evita duplo clique
+
+        const rec = new SpeechRecognition();
+        rec.lang           = 'pt-BR';
+        rec.interimResults = false;
+        rec.maxAlternatives = 1;
+
+        btn._listening = true;
+        btn.textContent = '🔴';
+        btn.classList.add('listening');
+        if (hint) hint.textContent = 'Ouvindo... fale agora';
+
+        rec.onresult = (e) => {
+            const text = e.results[0][0].transcript.trim();
+            if (hint) hint.textContent = `"${text}"`;
+            this._fillReminderFromVoice(text);
+        };
+
+        rec.onerror = (e) => {
+            const msgs = {
+                'not-allowed':  'Permissão de microfone negada.',
+                'no-speech':    'Nenhuma fala detectada.',
+                'network':      'Erro de rede. Verifique a conexão.',
+                'aborted':      'Gravação cancelada.',
+            };
+            const msg = msgs[e.error] || `Erro: ${e.error}`;
+            this.showToast(`⚠️ ${msg}`, true);
+            if (hint) hint.textContent = 'Ex: "Luz dia 10 valor 120 reais"';
+        };
+
+        rec.onend = () => {
+            btn._listening  = false;
+            btn.textContent = '🎤';
+            btn.classList.remove('listening');
+            setTimeout(() => {
+                if (hint && !hint.textContent.startsWith('"'))
+                    hint.textContent = 'Ex: "Luz dia 10 valor 120 reais"';
+            }, 3000);
+        };
+
+        rec.start();
+    },
+
+    _fillReminderFromVoice(text) {
+        const lower = text.toLowerCase();
+
+        // ── Nome: tudo antes de "dia", "valor", "reais", número ──────────────
+        const nameMatch = text.match(/^([^\d]+?)(?:\s+dia\s|\s+valor\s|\s+\d|$)/i);
+        const name = nameMatch ? nameMatch[1].trim() : text.split(' ').slice(0, 3).join(' ');
+        if (name) {
+            const nameEl = document.getElementById('reminder-name-input');
+            if (nameEl) nameEl.value = name.charAt(0).toUpperCase() + name.slice(1);
+        }
+
+        // ── Dia: "dia 10", "todo dia 5", ou número isolado 1-31 ─────────────
+        const dayMatch = lower.match(/\bdia\s+(\d{1,2})\b/) || lower.match(/\b(0?[1-9]|[12]\d|3[01])\b/);
+        if (dayMatch) {
+            const d = parseInt(dayMatch[1]);
+            if (d >= 1 && d <= 31) {
+                const dayEl = document.getElementById('reminder-day-input');
+                if (dayEl) dayEl.value = d;
+            }
+        }
+
+        // ── Valor: "valor 120", "120 reais", "r$ 150,00" ────────────────────
+        const valMatch = lower.match(/(?:valor|r\$)\s*(\d+(?:[.,]\d{1,2})?)/)
+                      || lower.match(/(\d+(?:[.,]\d{1,2})?)\s*(?:reais|real)/);
+        if (valMatch) {
+            const v = parseFloat(valMatch[1].replace(',', '.'));
+            if (!isNaN(v) && v > 0) {
+                const amtEl = document.getElementById('reminder-amount-input');
+                if (amtEl) amtEl.value = v.toFixed(2);
+            }
+        }
+
+        // ── Categoria: via NLP ───────────────────────────────────────────────
+        const cat = NLP.extractCategory(text);
+        if (cat && cat !== 'Outros') {
+            const catEl = document.getElementById('reminder-category-input');
+            if (catEl && [...catEl.options].some(o => o.value === cat))
+                catEl.value = cat;
+        }
+
+        // ── Emoji: tenta adivinhar pela categoria ────────────────────────────
+        const emojiMap = {
+            'Alimentação':'🍔','Transporte':'🚗','Saúde':'💊','Moradia':'🏠',
+            'Educação':'📚','Lazer':'🎮','Vestuário':'👕','PIX':'💸','Salário':'💰',
+        };
+        if (cat && emojiMap[cat]) {
+            const emojiEl = document.getElementById('reminder-emoji-input');
+            if (emojiEl && emojiEl.value === '🔔') emojiEl.value = emojiMap[cat];
+        }
+
+        this.showToast('✅ Campos preenchidos por voz!');
     },
 
     openRemindersModal() {

@@ -1127,6 +1127,17 @@
             <button id="reminder-form-close" class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500">✕</button>
         </div>
         <div class="px-4 py-4 space-y-3">
+            <!-- Áudio -->
+            <div class="flex items-center gap-2 bg-blue-50 border border-blue-100 rounded-xl px-3 py-2">
+                <button id="reminder-voice-btn"
+                    class="w-9 h-9 flex-shrink-0 bg-blue-500 hover:bg-blue-600 rounded-xl flex items-center justify-center text-white text-lg transition-colors"
+                    title="Ditar lembrete por voz">🎤</button>
+                <div class="flex-1 min-w-0">
+                    <p class="text-xs font-semibold text-blue-700">Preencher por voz</p>
+                    <p id="reminder-voice-hint" class="text-xs text-blue-400">Ex: "Luz dia 10 valor 120 reais"</p>
+                </div>
+            </div>
+
             <!-- Nome + Emoji -->
             <div class="flex gap-2">
                 <div class="w-16">
@@ -1183,7 +1194,7 @@
 <script src="js/storage.js?v=20260424l"></script>
 <script src="js/nlp.js?v=20260429c"></script>
 <script src="js/ocr.js?v=20260424h"></script>
-<script src="js/app.js?v=20260429l"></script>
+<script src="js/app.js?v=20260429m"></script>
 
 <script>
 // ── Service Worker + PWA ──────────────────────────────────────────────────────
