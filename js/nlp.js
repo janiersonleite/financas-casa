@@ -28,7 +28,7 @@ const NLP = {
     },
 
     categories: {
-        'Alimentação': ['mercado', 'supermercado', 'restaurante', 'lanche', 'comida', 'almoço', 'jantar', 'café', 'cafeteria', 'hamburguer', 'hamburger', 'pizza', 'açaí', 'acai', 'padaria', 'ifood', 'rappi', 'delivery', 'marmita', 'feira', 'hortifruti', 'fruta', 'verdura', 'pão', 'pao', 'salgado', 'carne', 'frango', 'peixe', 'sorvete', 'doce', 'biscoito', 'bebida', 'refrigerante', 'cerveja', 'bar'],
+        'Alimentação': ['mercado', 'supermercado', 'restaurante', 'lanche', 'comida', 'almoço', 'jantar', 'café', 'cafeteria', 'hamburguer', 'hamburger', 'pizza', 'açaí', 'acai', 'padaria', 'ifood', 'rappi', 'delivery', 'marmita', 'feira', 'hortifruti', 'fruta', 'verdura', 'pão', 'pao', 'salgado', 'carne', 'frango', 'peixe', 'sorvete', 'doce', 'biscoito', 'bebida', 'refrigerante', 'cerveja', 'bar', 'merenda', 'lancheira', 'refeição', 'refeicao', 'quentinha', 'misto', 'tapioca', 'coxinha', 'pastel'],
         'Transporte': ['uber', 'taxi', '99', 'ônibus', 'onibus', 'metrô', 'metro', 'gasolina', 'combustível', 'combustivel', 'estacionamento', 'pedágio', 'pedagio', 'passagem', 'mototaxi', 'bicicleta', 'scooter', '99pop', 'cabify'],
         'Saúde': ['farmácia', 'farmacia', 'remédio', 'remedio', 'médico', 'medico', 'hospital', 'consulta', 'dentista', 'exame', 'plano', 'academia', 'drogaria', 'manipulação', 'manipulacao', 'vacina', 'fisioterapia'],
         'Moradia': ['aluguel', 'condomínio', 'condominio', 'água', 'agua', 'luz', 'energia', 'internet', 'gás', 'gas', 'telefone', 'celular', 'tv', 'streaming', 'netflix', 'aluguel'],
@@ -196,11 +196,16 @@ const NLP = {
     },
 
     extractType(text) {
+        // Usa borda de palavra para evitar falsos positivos:
+        // ex: 'renda' NÃO deve casar dentro de 'merenda'
+        const norm = text.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
         for (const kw of this.incomeKeywords) {
-            if (text.includes(kw)) return 'entrada';
+            const safe = kw.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            if (new RegExp(`\\b${safe}\\b`).test(norm)) return 'entrada';
         }
         for (const kw of this.expenseKeywords) {
-            if (text.includes(kw)) return 'saida';
+            const safe = kw.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            if (new RegExp(`\\b${safe}\\b`).test(norm)) return 'saida';
         }
         return 'saida';
     },
