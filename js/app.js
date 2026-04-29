@@ -703,11 +703,36 @@ const App = {
 
     _renderModalFinancaPicker() {
         const fid  = this._modalFinancaId;
-        const f    = fid ? this.financas.find(x => x.id === fid) : null;
-        const name = f?.name  || this.activeFinanca?.name  || 'Pessoal';
-        const emoji= f?.emoji || this.activeFinanca?.emoji || '💰';
+        const f    = fid ? this.financas.find(x => x.id === fid) : this.activeFinanca;
+        const name  = f?.name  || 'Pessoal';
+        const emoji = f?.emoji || '💰';
+        const type  = f?.type  || 'individual';
+
         document.getElementById('modal-financa-emoji').textContent = emoji;
         document.getElementById('modal-financa-name').textContent  = name;
+
+        const typeLabels = {
+            individual:    '👤 Individual',
+            familiar:      '👨‍👩‍👧 Familiar',
+            compartilhada: '🤝 Compartilhada',
+        };
+        const typeEl = document.getElementById('modal-financa-type');
+        if (typeEl) typeEl.textContent = typeLabels[type] || '👤 Individual';
+
+        // Gradiente e cor do dot conforme tipo
+        const btn = document.getElementById('modal-financa-picker');
+        const dot = document.getElementById('modal-financa-active-label');
+        if (btn) {
+            const configs = {
+                familiar:      { bg: 'linear-gradient(135deg,#9333ea,#6b21a8)', border: '#7c3aed', dot: 'text-purple-200' },
+                compartilhada: { bg: 'linear-gradient(135deg,#0d9488,#0f766e)', border: '#0d9488', dot: 'text-teal-200'   },
+                individual:    { bg: 'linear-gradient(135deg,#3b82f6,#1d4ed8)', border: '#2563eb', dot: 'text-blue-200'   },
+            };
+            const cfg = configs[type] || configs.individual;
+            btn.style.background   = cfg.bg;
+            btn.style.borderColor  = cfg.border;
+            if (dot) dot.className = `text-[10px] font-bold uppercase tracking-widest leading-none mb-1 ${cfg.dot}`;
+        }
     },
 
     _showFinancaConfirm(newFid, onConfirm, onCancel) {

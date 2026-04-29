@@ -673,13 +673,16 @@
             <input id="modal-type" type="hidden" value="saida">
 
             <!-- 2. Perfil financeiro de destino -->
-            <button id="modal-financa-picker" class="w-full flex items-center gap-2 bg-blue-50 border border-blue-100 rounded-xl px-3 py-2 text-left hover:bg-blue-100 transition-all">
-                <span id="modal-financa-emoji" class="text-lg">💰</span>
+            <button id="modal-financa-picker"
+                class="w-full flex items-center gap-3 rounded-2xl px-4 py-3 text-left shadow-md transition-all active:scale-95 border-2"
+                style="background: linear-gradient(135deg,#3b82f6,#1d4ed8); border-color: #2563eb;">
+                <span id="modal-financa-emoji" class="text-3xl flex-shrink-0 leading-none">💰</span>
                 <div class="flex-1 min-w-0">
-                    <p class="text-xs text-blue-400 font-medium leading-none mb-0.5">Perfil financeiro</p>
-                    <p id="modal-financa-name" class="text-sm font-semibold text-blue-700 truncate">Pessoal</p>
+                    <p id="modal-financa-active-label" class="text-[10px] font-bold uppercase tracking-widest leading-none mb-1 text-blue-200">● Perfil ativo</p>
+                    <p id="modal-financa-name" class="text-base font-extrabold text-white truncate leading-tight">Pessoal</p>
+                    <p id="modal-financa-type" class="text-xs text-blue-200 mt-0.5"></p>
                 </div>
-                <span class="text-blue-300 text-xs">▼</span>
+                <span class="text-white/60 text-xs flex-shrink-0">trocar ▼</span>
             </button>
 
             <!-- 3. Data -->
@@ -1180,7 +1183,7 @@
 <script src="js/storage.js?v=20260424l"></script>
 <script src="js/nlp.js?v=20260429c"></script>
 <script src="js/ocr.js?v=20260424h"></script>
-<script src="js/app.js?v=20260429k"></script>
+<script src="js/app.js?v=20260429l"></script>
 
 <script>
 // ── Service Worker + PWA ──────────────────────────────────────────────────────
