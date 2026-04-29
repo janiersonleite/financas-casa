@@ -6,13 +6,13 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <title>💰 Minhas Finanças</title>
+    <title>💰 Minhas Carteiras</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#3b82f6">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <meta name="apple-mobile-web-app-title" content="Finanças">
+    <meta name="apple-mobile-web-app-title" content="Carteiras">
     <link rel="apple-touch-icon" href="icon.svg">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -49,7 +49,7 @@
 <div id="auth-screen" class="hidden fixed inset-0 bg-gradient-to-br from-blue-600 to-blue-900 z-50 flex flex-col items-center justify-center px-6">
     <div class="text-center mb-8">
         <div class="text-5xl mb-3">💰</div>
-        <h1 class="text-2xl font-bold text-white">Minhas Finanças</h1>
+        <h1 class="text-2xl font-bold text-white">Minhas Carteiras</h1>
         <p class="text-blue-200 text-sm mt-1">Controle seus gastos com simplicidade</p>
     </div>
 
@@ -148,7 +148,7 @@
                 class="flex-1 flex items-center gap-3 bg-white rounded-2xl px-4 py-3 shadow-lg transition-all cursor-pointer active:scale-95">
                 <span id="financa-switcher-emoji" class="text-3xl flex-shrink-0 leading-none">💰</span>
                 <div class="flex-1 min-w-0">
-                    <p class="text-[10px] font-bold uppercase tracking-widest leading-none mb-1 text-blue-400">● Perfil ativo</p>
+                    <p class="text-[10px] font-bold uppercase tracking-widest leading-none mb-1 text-blue-400">● Carteira ativa</p>
                     <p id="financa-switcher-name" class="text-lg font-extrabold text-gray-800 truncate leading-tight">Carregando...</p>
                     <p id="financa-switcher-type" class="text-xs font-medium text-gray-400 mt-0.5"></p>
                 </div>
@@ -156,7 +156,7 @@
             </div>
             <button id="financa-share-btn"
                 class="w-10 h-10 flex items-center justify-center rounded-2xl bg-white/15 hover:bg-white/30 border border-white/25 text-lg flex-shrink-0 transition-all"
-                title="Compartilhar finança">👥</button>
+                title="Compartilhar carteira">👥</button>
         </div>
         <!-- Month nav + logout -->
         <div class="flex items-center justify-between mb-4">
@@ -403,7 +403,7 @@
             <ol class="text-xs text-gray-600 space-y-1 list-decimal list-inside">
                 <li>Abra o comprovante no app do banco</li>
                 <li>Toque em <strong>Compartilhar</strong> (ícone ↑ ou &hellip;)</li>
-                <li>Selecione <strong>Finanças Casa</strong> na lista</li>
+                <li>Selecione <strong>Carteiras</strong> na lista</li>
                 <li>O lançamento é criado automaticamente 🎉</li>
             </ol>
         </div>
@@ -524,7 +524,7 @@
 <div id="financa-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-end justify-center">
     <div class="bg-white w-full max-w-md rounded-t-3xl shadow-xl overflow-hidden">
         <div class="p-4 border-b border-gray-100 flex items-center justify-between">
-            <h3 class="font-bold text-lg text-gray-800">Minhas Finanças</h3>
+            <h3 class="font-bold text-lg text-gray-800">Minhas Carteiras</h3>
             <button id="financa-modal-close" class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-gray-200">✕</button>
         </div>
         <div class="p-4 max-h-[70vh] overflow-y-auto">
@@ -532,7 +532,7 @@
             <button id="financa-create-btn"
                 class="w-full flex items-center gap-3 border-2 border-dashed border-gray-200 rounded-2xl p-4 mt-2 hover:border-blue-400 hover:bg-blue-50 transition-all text-gray-500 hover:text-blue-600">
                 <span class="text-2xl">➕</span>
-                <span class="text-sm font-medium">Nova Finança</span>
+                <span class="text-sm font-medium">Nova Carteira</span>
             </button>
             <button id="check-invites-btn"
                 class="w-full flex items-center gap-3 bg-blue-50 border border-blue-200 rounded-2xl p-4 mt-2 hover:bg-blue-100 transition-all text-blue-700">
@@ -549,7 +549,7 @@
 <!-- ═══════════════════════ CREATE FINANÇA MODAL ══════════════════ -->
 <div id="financa-create-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center px-4">
     <div class="bg-white w-full max-w-sm rounded-3xl shadow-xl p-6 space-y-4">
-        <h3 class="font-bold text-lg text-gray-800">Nova Finança</h3>
+        <h3 class="font-bold text-lg text-gray-800">Nova Carteira</h3>
 
         <!-- Emoji -->
         <div>
@@ -642,10 +642,10 @@
             <!-- Link existing transactions -->
             <div id="link-txns-section" class="hidden border-t border-gray-100 pt-4">
                 <label class="block text-xs font-semibold text-gray-500 mb-1 uppercase">Seus lançamentos pessoais</label>
-                <p class="text-xs text-gray-400 mb-3">Lançamentos criados fora desta finança não são visíveis aos membros. Vincule-os para compartilhar.</p>
+                <p class="text-xs text-gray-400 mb-3">Lançamentos criados fora desta carteira não são visíveis aos membros. Vincule-os para compartilhar.</p>
                 <button id="link-txns-btn"
                     class="w-full flex items-center justify-center gap-2 py-3 bg-amber-500 text-white rounded-xl text-sm font-semibold hover:bg-amber-600 transition-colors">
-                    🔗 Vincular meus lançamentos a esta finança
+                    🔗 Vincular meus lançamentos a esta carteira
                 </button>
                 <p id="link-txns-count" class="text-xs text-gray-400 text-center mt-1.5 hidden"></p>
             </div>
@@ -672,13 +672,13 @@
             <button id="manage-types-link" class="text-xs text-blue-400 hover:text-blue-500 text-right w-full -mt-2 transition-colors">+ Gerenciar tipos</button>
             <input id="modal-type" type="hidden" value="saida">
 
-            <!-- 2. Perfil financeiro de destino -->
+            <!-- 2. Carteira de destino -->
             <button id="modal-financa-picker"
                 class="w-full flex items-center gap-3 rounded-2xl px-4 py-3 text-left shadow-md transition-all active:scale-95 border-2"
                 style="background: linear-gradient(135deg,#3b82f6,#1d4ed8); border-color: #2563eb;">
                 <span id="modal-financa-emoji" class="text-3xl flex-shrink-0 leading-none">💰</span>
                 <div class="flex-1 min-w-0">
-                    <p id="modal-financa-active-label" class="text-[10px] font-bold uppercase tracking-widest leading-none mb-1 text-blue-200">● Perfil ativo</p>
+                    <p id="modal-financa-active-label" class="text-[10px] font-bold uppercase tracking-widest leading-none mb-1 text-blue-200">● Carteira ativa</p>
                     <p id="modal-financa-name" class="text-base font-extrabold text-white truncate leading-tight">Pessoal</p>
                     <p id="modal-financa-type" class="text-xs text-blue-200 mt-0.5"></p>
                 </div>
@@ -850,7 +850,7 @@
                     </div>
                     <div id="import-new-emails" class="hidden mb-3 text-xs bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 space-y-0.5">
                         <div class="font-semibold text-amber-700">📨 Novos e-mails encontrados</div>
-                        <div class="text-amber-600">Serão convidados automaticamente para a finança compartilhada:</div>
+                        <div class="text-amber-600">Serão convidados automaticamente para a carteira compartilhada:</div>
                         <div id="import-new-emails-list" class="font-medium text-amber-800 break-all"></div>
                     </div>
                     <div class="overflow-x-auto rounded-xl border border-gray-200">
@@ -1076,12 +1076,12 @@
 <div id="financa-select-modal" class="hidden fixed inset-0 bg-black/50 z-[70] flex items-end justify-center">
     <div class="bg-white w-full max-w-md rounded-t-2xl">
         <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-            <h2 class="font-bold text-gray-800">Selecionar perfil financeiro</h2>
+            <h2 class="font-bold text-gray-800">Selecionar carteira</h2>
             <button id="financa-select-close" class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500">✕</button>
         </div>
         <div id="financa-select-list" class="px-4 py-3 space-y-2 max-h-72 overflow-y-auto"></div>
         <div class="px-4 pb-5 pt-1">
-            <p class="text-xs text-gray-400 text-center">Selecione o perfil para este lançamento.</p>
+            <p class="text-xs text-gray-400 text-center">Selecione a carteira para este lançamento.</p>
         </div>
     </div>
 </div>
@@ -1091,7 +1091,7 @@
     <div class="bg-white rounded-2xl w-full max-w-sm p-5 shadow-2xl">
         <div class="text-center mb-5">
             <span id="financa-confirm-emoji" class="text-5xl block mb-2">💰</span>
-            <h3 class="font-bold text-gray-800 text-base">Mudar perfil financeiro?</h3>
+            <h3 class="font-bold text-gray-800 text-base">Mudar carteira?</h3>
             <p id="financa-confirm-msg" class="text-sm text-gray-500 mt-1.5 leading-relaxed"></p>
         </div>
         <div class="flex gap-3">
@@ -1194,7 +1194,7 @@
 <script src="js/storage.js?v=20260424l"></script>
 <script src="js/nlp.js?v=20260429c"></script>
 <script src="js/ocr.js?v=20260424h"></script>
-<script src="js/app.js?v=20260429m"></script>
+<script src="js/app.js?v=20260429n"></script>
 
 <script>
 // ── Service Worker + PWA ──────────────────────────────────────────────────────

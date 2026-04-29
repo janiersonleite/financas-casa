@@ -89,7 +89,7 @@ const App = {
                             .from('financas').select('*').order('created_at', { ascending: true });
                         financas = refreshed ?? financas;
                         this.financas = financas;
-                        this.showToast(`✅ Você foi adicionado a ${accepted} finança${accepted > 1 ? 's' : ''}!`);
+                        this.showToast(`✅ Você foi adicionado a ${accepted} carteira${accepted > 1 ? 's' : ''}!`);
                     }
                 } catch (_) {}
             }
@@ -115,7 +115,7 @@ const App = {
         const typeEl  = document.getElementById('financa-switcher-type');
         const header  = document.getElementById('home-header');
 
-        if (nameEl)  nameEl.textContent  = f?.name  || 'Finanças';
+        if (nameEl)  nameEl.textContent  = f?.name  || 'Carteiras';
         if (emojiEl) emojiEl.textContent = f?.emoji || '💰';
 
         // Label do tipo
@@ -126,7 +126,7 @@ const App = {
         };
         if (typeEl) typeEl.textContent = typeLabels[f?.type] || '👤 Individual';
 
-        // Cor do dot "● Perfil ativo" conforme tipo
+        // Cor do dot "● Carteira ativa" conforme tipo
         const activeDot = document.querySelector('#financa-switcher p:first-child');
         if (activeDot) {
             activeDot.className = 'text-[10px] font-bold uppercase tracking-widest leading-none mb-1 '
@@ -319,7 +319,7 @@ const App = {
             this.renderFinancaSwitcher();
             await Promise.all([this.loadCategories(), this.loadReminders()]);
             await this.renderCurrentTab();
-            this.showToast('✅ Finança criada!');
+            this.showToast('✅ Carteira criada!');
         } catch (e) {
             this.showToast('❌ ' + e.message, true);
         } finally {
@@ -448,7 +448,7 @@ const App = {
         } catch (e) {
             this.showToast('❌ Erro ao vincular: ' + e.message, true);
         } finally {
-            btn.disabled = false; btn.textContent = '🔗 Vincular meus lançamentos a esta finança';
+            btn.disabled = false; btn.textContent = '🔗 Vincular meus lançamentos a esta carteira';
         }
     },
 
@@ -473,7 +473,7 @@ const App = {
         const banner   = document.getElementById('invite-banner');
         const bannerTx = document.getElementById('invite-banner-text');
         this._pendingInvites = invites;
-        const names = invites.map(i => `${i.financa?.emoji || '💰'} ${i.financa?.name || 'Finança'}`).join(', ');
+        const names = invites.map(i => `${i.financa?.emoji || '💰'} ${i.financa?.name || 'Carteira'}`).join(', ');
         bannerTx.textContent = `Convite${invites.length > 1 ? 's' : ''}: ${names}`;
         banner.classList.remove('hidden');
         // Offset tab content so banner doesn't overlap
@@ -484,7 +484,7 @@ const App = {
         invites = invites || this._pendingInvites || [];
         for (const invite of invites) {
             const financa = invite.financa;
-            const name = `${financa?.emoji || '💰'} ${financa?.name || 'uma finança'}`;
+            const name = `${financa?.emoji || '💰'} ${financa?.name || 'uma carteira'}`;
             if (!confirm(`Você foi convidado para "${name}". Aceitar?`)) continue;
             try {
                 await Storage.acceptInvite(invite.id, invite.financa_id);
@@ -742,7 +742,7 @@ const App = {
 
         document.getElementById('financa-confirm-emoji').textContent = emoji;
         document.getElementById('financa-confirm-msg').textContent =
-            `O perfil ativo e este lançamento serão movidos para "${name}". Deseja continuar?`;
+            `A carteira ativa e este lançamento serão movidos para "${name}". Deseja continuar?`;
 
         const modal = document.getElementById('financa-confirm-modal');
         modal.classList.remove('hidden');

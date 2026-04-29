@@ -1,6 +1,6 @@
 {
-  "name": "Finanças Casa",
-  "short_name": "Finanças",
+  "name": "Minhas Carteiras",
+  "short_name": "Carteiras",
   "description": "Controle financeiro pessoal e familiar",
   "start_url": "/financas-casa/",
   "scope": "/financas-casa/",
