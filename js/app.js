@@ -126,6 +126,15 @@ const App = {
         };
         if (typeEl) typeEl.textContent = typeLabels[f?.type] || '👤 Individual';
 
+        // Cor do dot "● Perfil ativo" conforme tipo
+        const activeDot = document.querySelector('#financa-switcher p:first-child');
+        if (activeDot) {
+            activeDot.className = 'text-[10px] font-bold uppercase tracking-widest leading-none mb-1 '
+                + (f?.type === 'familiar'      ? 'text-purple-500'
+                 : f?.type === 'compartilhada' ? 'text-teal-500'
+                 :                               'text-blue-400');
+        }
+
         // Cor do header por tipo de perfil (remove classes anteriores com segurança)
         if (header) {
             const allGrads = [
