@@ -5,7 +5,11 @@ const NLP = {
     setCategoryMap(categoriesArray) {
         this.dynamicCategories = {};
         for (const cat of categoriesArray) {
-            this.dynamicCategories[cat.name] = cat.keywords || [];
+            // Keywords do banco + keywords estáticos (mesclados, sem duplicatas)
+            const dbKw     = cat.keywords || [];
+            const staticKw = this.categories[cat.name] || [];
+            const merged   = [...new Set([...dbKw, ...staticKw])];
+            this.dynamicCategories[cat.name] = merged;
         }
     },
 
@@ -211,7 +215,11 @@ const NLP = {
     },
 
     extractCategory(text) {
-        const cats = this.dynamicCategories || this.categories;
+        // Usa dynamicCategories se disponível; caso contrário, estático puro
+        // Em ambos os casos, garante que keywords estáticos de fallback sejam checados
+        const cats = this.dynamicCategories
+            ? { ...this.categories, ...this.dynamicCategories }
+            : this.categories;
         const norm = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
         // 1. Mapa aprendido tem prioridade m\u00e1xima
