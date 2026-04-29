@@ -126,16 +126,20 @@ const App = {
         };
         if (typeEl) typeEl.textContent = typeLabels[f?.type] || '👤 Individual';
 
-        // Cor do header por tipo de perfil
+        // Cor do header por tipo de perfil (remove classes anteriores com segurança)
         if (header) {
-            header.className = header.className
-                .replace(/from-\S+\s+to-\S+/, '');   // remove gradiente anterior
+            const allGrads = [
+                'from-blue-600','to-blue-800',
+                'from-purple-600','to-purple-800',
+                'from-teal-600','to-teal-800',
+            ];
+            header.classList.remove(...allGrads);
             const grad = f?.type === 'familiar'
-                ? 'from-purple-600 to-purple-800'
+                ? ['from-purple-600','to-purple-800']
                 : f?.type === 'compartilhada'
-                ? 'from-teal-600 to-teal-800'
-                : 'from-blue-600 to-blue-800';
-            header.classList.add(...grad.split(' '));
+                ? ['from-teal-600','to-teal-800']
+                : ['from-blue-600','to-blue-800'];
+            header.classList.add(...grad);
         }
     },
 

@@ -143,21 +143,21 @@
         </div>
 
         <!-- Finance Switcher — card de destaque -->
-        <button id="financa-switcher"
-            class="w-full flex items-center gap-3 bg-white/15 hover:bg-white/25 active:bg-white/30 border border-white/25 rounded-2xl px-4 py-3 mb-3 transition-all text-left">
-            <span id="financa-switcher-emoji" class="text-3xl flex-shrink-0 leading-none">💰</span>
-            <div class="flex-1 min-w-0">
-                <p class="text-[10px] font-semibold text-white/60 uppercase tracking-widest leading-none mb-1">Perfil ativo</p>
-                <p id="financa-switcher-name" class="text-lg font-bold text-white truncate leading-tight">Carregando...</p>
-                <p id="financa-switcher-type" class="text-xs text-white/70 mt-0.5"></p>
+        <div class="flex items-center gap-2 mb-3">
+            <div id="financa-switcher"
+                class="flex-1 flex items-center gap-3 bg-white/15 hover:bg-white/25 active:bg-white/30 border border-white/25 rounded-2xl px-4 py-3 transition-all cursor-pointer">
+                <span id="financa-switcher-emoji" class="text-3xl flex-shrink-0 leading-none">💰</span>
+                <div class="flex-1 min-w-0">
+                    <p class="text-[10px] font-semibold text-white/60 uppercase tracking-widest leading-none mb-1">Perfil ativo</p>
+                    <p id="financa-switcher-name" class="text-lg font-bold text-white truncate leading-tight">Carregando...</p>
+                    <p id="financa-switcher-type" class="text-xs text-white/70 mt-0.5"></p>
+                </div>
+                <span class="text-white/50 text-xs flex-shrink-0">trocar ▼</span>
             </div>
-            <div class="flex flex-col items-center gap-1 flex-shrink-0">
-                <button id="financa-share-btn"
-                    class="w-7 h-7 flex items-center justify-center rounded-full bg-white/20 hover:bg-white/40 text-sm"
-                    title="Compartilhar finança">👥</button>
-                <span class="text-white/50 text-[10px]">trocar ▼</span>
-            </div>
-        </button>
+            <button id="financa-share-btn"
+                class="w-10 h-10 flex items-center justify-center rounded-2xl bg-white/15 hover:bg-white/30 border border-white/25 text-lg flex-shrink-0 transition-all"
+                title="Compartilhar finança">👥</button>
+        </div>
         <!-- Month nav + logout -->
         <div class="flex items-center justify-between mb-4">
             <button data-month-prev class="w-8 h-8 flex items-center justify-center rounded-full bg-white/20 hover:bg-white/30 text-lg">‹</button>
@@ -1180,7 +1180,7 @@
 <script src="js/storage.js?v=20260424l"></script>
 <script src="js/nlp.js?v=20260429c"></script>
 <script src="js/ocr.js?v=20260424h"></script>
-<script src="js/app.js?v=20260429i"></script>
+<script src="js/app.js?v=20260429j"></script>
 
 <script>
 // ── Service Worker + PWA ──────────────────────────────────────────────────────
