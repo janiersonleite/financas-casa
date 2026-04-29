@@ -23,6 +23,7 @@ const App = {
     _installmentQty:    1,      // número de parcelas (1 = à vista)
     _homeSearch:        '',     // texto da pesquisa na home
     _LEARN_KEY: 'financas_learned_cats',  // chave localStorage para aprendizado
+    _catUserPicked:     false,  // true quando usuário escolheu categoria manualmente no modal
 
     // ─── Init ─────────────────────────────────────────────────────────────────
     async init() {
@@ -580,21 +581,34 @@ const App = {
         });
 
         // ── Sugestão de categoria por aprendizado ──────────────────────────────
+        // Detecta quando o usuário escolhe a categoria manualmente
+        document.getElementById('modal-category')?.addEventListener('change', () => {
+            this._catUserPicked = true;
+            const badge = document.getElementById('cat-learned-badge');
+            if (badge) badge.classList.add('hidden'), badge.classList.remove('inline-flex');
+        });
+
         let _learnDebounce = null;
         document.getElementById('modal-description')?.addEventListener('input', e => {
             clearTimeout(_learnDebounce);
             _learnDebounce = setTimeout(() => {
-                const badge    = document.getElementById('cat-learned-badge');
-                const catSel   = document.getElementById('modal-category');
-                const text     = e.target.value.trim();
-                const suggested = text ? this._suggestLearnedCategory(text) : null;
+                // Não sobrescreve se o usuário já escolheu manualmente nesta sessão
+                if (this._catUserPicked) return;
 
-                if (suggested && catSel) {
-                    // Só aplica se o usuário ainda não escolheu manualmente (ou se a categoria atual é 'Outros')
-                    const current = catSel.value;
-                    if (current === 'Outros' || current === suggested) {
-                        catSel.value = suggested;
-                        if (badge) badge.classList.remove('hidden'), badge.classList.add('inline-flex');
+                const badge   = document.getElementById('cat-learned-badge');
+                const catSel  = document.getElementById('modal-category');
+                const text    = e.target.value.trim();
+                if (!text || !catSel) return;
+
+                // Tenta: 1) mapa aprendido, 2) keywords do NLP
+                const suggested = this._suggestLearnedCategory(text) || NLP.extractCategory(text);
+                const isLearned = !!this._suggestLearnedCategory(text);
+
+                if (suggested && suggested !== 'Outros') {
+                    catSel.value = suggested;
+                    if (badge) {
+                        badge.classList.toggle('hidden', !isLearned);
+                        badge.classList.toggle('inline-flex', isLearned);
                     }
                 } else {
                     if (badge) badge.classList.add('hidden'), badge.classList.remove('inline-flex');
@@ -807,6 +821,7 @@ const App = {
         this._modalFinancaId = data.financa_id || (this.editingId ? null : null);
         this._renderModalFinancaPicker();
         document.getElementById('modal-overlay').classList.remove('hidden');
+        this._catUserPicked = false; // reset: usuário ainda não escolheu categoria neste modal
         // Esconde badge de aprendizado ao abrir modal (evita vazamento)
         const _lb = document.getElementById('cat-learned-badge');
         if (_lb) _lb.classList.add('hidden'), _lb.classList.remove('inline-flex');
