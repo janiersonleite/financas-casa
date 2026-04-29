@@ -1402,8 +1402,17 @@ const App = {
         const viewMonth    = this.currentMonth || realToday;
         const isCurrentMonth = viewMonth === realToday;
         const isFutureMonth  = viewMonth > realToday;
-        const refDay = isCurrentMonth ? today.getDate() : (isFutureMonth ? 0 : 32);
-        // refDay=0 → mês futuro, todos "upcoming"; refDay=32 → mês passado, todos "overdue"
+        const isPastMonth    = viewMonth < realToday;
+
+        // Meses anteriores: não exibe lembretes
+        if (isPastMonth) {
+            wrap.querySelectorAll('.reminder-cards-wrap').forEach(el => el.remove());
+            if (emptyBtn) emptyBtn.classList.remove('hidden');
+            return;
+        }
+
+        const refDay = isCurrentMonth ? today.getDate() : 0;
+        // refDay=0 → mês futuro, todos "upcoming"
         const in7 = refDay + 7;
 
         const overdue  = active.filter(r => r.day < refDay);
