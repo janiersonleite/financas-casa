@@ -109,10 +109,34 @@ const App = {
     },
 
     renderFinancaSwitcher() {
+        const f = this.activeFinanca;
         const nameEl  = document.getElementById('financa-switcher-name');
         const emojiEl = document.getElementById('financa-switcher-emoji');
-        if (nameEl)  nameEl.textContent  = this.activeFinanca?.name  || 'Finanças';
-        if (emojiEl) emojiEl.textContent = this.activeFinanca?.emoji || '💰';
+        const typeEl  = document.getElementById('financa-switcher-type');
+        const header  = document.getElementById('home-header');
+
+        if (nameEl)  nameEl.textContent  = f?.name  || 'Finanças';
+        if (emojiEl) emojiEl.textContent = f?.emoji || '💰';
+
+        // Label do tipo
+        const typeLabels = {
+            individual:    '👤 Individual',
+            familiar:      '👨‍👩‍👧 Familiar',
+            compartilhada: '🤝 Compartilhada',
+        };
+        if (typeEl) typeEl.textContent = typeLabels[f?.type] || '👤 Individual';
+
+        // Cor do header por tipo de perfil
+        if (header) {
+            header.className = header.className
+                .replace(/from-\S+\s+to-\S+/, '');   // remove gradiente anterior
+            const grad = f?.type === 'familiar'
+                ? 'from-purple-600 to-purple-800'
+                : f?.type === 'compartilhada'
+                ? 'from-teal-600 to-teal-800'
+                : 'from-blue-600 to-blue-800';
+            header.classList.add(...grad.split(' '));
+        }
     },
 
     bindFinancaUI() {

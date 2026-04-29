@@ -131,7 +131,7 @@
 <div id="tab-home" class="tab-page pb-24 overflow-y-auto">
 
     <!-- Header / Balance -->
-    <div class="bg-gradient-to-br from-blue-600 to-blue-800 text-white px-4 pt-4 pb-6 rounded-b-3xl shadow-lg">
+    <div id="home-header" class="bg-gradient-to-br from-blue-600 to-blue-800 text-white px-4 pt-4 pb-6 rounded-b-3xl shadow-lg">
         <!-- User greeting -->
         <div id="user-greeting" class="flex items-center gap-2 mb-3">
             <div id="user-avatar" class="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-sm font-bold flex-shrink-0">?</div>
@@ -141,18 +141,23 @@
             </div>
             <span id="app-version-label" class="text-[10px] text-white/40 text-right leading-tight flex-shrink-0"></span>
         </div>
-        <!-- Finance Switcher -->
-        <div class="flex items-center justify-between mb-3">
-            <button id="financa-switcher"
-                class="flex items-center gap-2 bg-white/20 hover:bg-white/30 rounded-full px-3 py-1.5 transition-colors max-w-[70%]">
-                <span id="financa-switcher-emoji" class="text-base">💰</span>
-                <span id="financa-switcher-name" class="text-sm font-semibold truncate">Carregando...</span>
-                <span class="text-xs opacity-60 flex-shrink-0">▼</span>
-            </button>
-            <button id="financa-share-btn"
-                class="w-8 h-8 flex items-center justify-center rounded-full bg-white/20 hover:bg-white/30 text-base"
-                title="Compartilhar finança">👥</button>
-        </div>
+
+        <!-- Finance Switcher — card de destaque -->
+        <button id="financa-switcher"
+            class="w-full flex items-center gap-3 bg-white/15 hover:bg-white/25 active:bg-white/30 border border-white/25 rounded-2xl px-4 py-3 mb-3 transition-all text-left">
+            <span id="financa-switcher-emoji" class="text-3xl flex-shrink-0 leading-none">💰</span>
+            <div class="flex-1 min-w-0">
+                <p class="text-[10px] font-semibold text-white/60 uppercase tracking-widest leading-none mb-1">Perfil ativo</p>
+                <p id="financa-switcher-name" class="text-lg font-bold text-white truncate leading-tight">Carregando...</p>
+                <p id="financa-switcher-type" class="text-xs text-white/70 mt-0.5"></p>
+            </div>
+            <div class="flex flex-col items-center gap-1 flex-shrink-0">
+                <button id="financa-share-btn"
+                    class="w-7 h-7 flex items-center justify-center rounded-full bg-white/20 hover:bg-white/40 text-sm"
+                    title="Compartilhar finança">👥</button>
+                <span class="text-white/50 text-[10px]">trocar ▼</span>
+            </div>
+        </button>
         <!-- Month nav + logout -->
         <div class="flex items-center justify-between mb-4">
             <button data-month-prev class="w-8 h-8 flex items-center justify-center rounded-full bg-white/20 hover:bg-white/30 text-lg">‹</button>
@@ -1175,7 +1180,7 @@
 <script src="js/storage.js?v=20260424l"></script>
 <script src="js/nlp.js?v=20260429c"></script>
 <script src="js/ocr.js?v=20260424h"></script>
-<script src="js/app.js?v=20260429h"></script>
+<script src="js/app.js?v=20260429i"></script>
 
 <script>
 // ── Service Worker + PWA ──────────────────────────────────────────────────────
