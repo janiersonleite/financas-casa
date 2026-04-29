@@ -1,3 +1,6 @@
+// ─── Versão ───────────────────────────────────────────────────────────────────
+const APP_VERSION = '2026-04-29 13:00';
+
 // ─── State ───────────────────────────────────────────────────────────────────
 const App = {
     currentTab: 'home',
@@ -44,6 +47,8 @@ const App = {
         this.bindRemindersUI();
         this.bindHomeSearch();
         NLP.setLearnedMap(this._getLearnedMap());
+        const verEl = document.getElementById('app-version-label');
+        if (verEl) verEl.textContent = `v ${APP_VERSION}`;
         await this.loadFinancas();
         await this.loadTransactionTypes();
         await this.loadCategories();
