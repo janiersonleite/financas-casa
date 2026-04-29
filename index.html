@@ -657,30 +657,37 @@
 
         <div class="p-4 space-y-4 max-h-[80vh] overflow-y-auto">
 
-            <!-- Perfil financeiro de destino -->
+            <!-- 1. Tipo de lançamento -->
+            <div id="modal-types-container" class="flex gap-2 flex-wrap"></div>
+            <button id="manage-types-link" class="text-xs text-blue-400 hover:text-blue-500 text-right w-full -mt-2 transition-colors">+ Gerenciar tipos</button>
+            <input id="modal-type" type="hidden" value="saida">
+
+            <!-- 2. Perfil financeiro de destino -->
             <button id="modal-financa-picker" class="w-full flex items-center gap-2 bg-blue-50 border border-blue-100 rounded-xl px-3 py-2 text-left hover:bg-blue-100 transition-all">
                 <span id="modal-financa-emoji" class="text-lg">💰</span>
                 <div class="flex-1 min-w-0">
-                    <p class="text-xs text-blue-400 font-medium leading-none mb-0.5">Salvar em</p>
+                    <p class="text-xs text-blue-400 font-medium leading-none mb-0.5">Perfil financeiro</p>
                     <p id="modal-financa-name" class="text-sm font-semibold text-blue-700 truncate">Pessoal</p>
                 </div>
                 <span class="text-blue-300 text-xs">▼</span>
             </button>
 
-            <!-- Type toggle - renderizado dinamicamente pelo JS -->
-            <div id="modal-types-container" class="flex gap-2 flex-wrap"></div>
-            <button id="manage-types-link" class="text-xs text-blue-400 hover:text-blue-500 text-right w-full mt-1 transition-colors">+ Gerenciar tipos</button>
-            <input id="modal-type" type="hidden" value="saida">
-
-            <!-- Value -->
+            <!-- 3. Data -->
             <div>
-                <label class="block text-xs font-semibold text-gray-500 mb-1.5 uppercase">Valor (R$)</label>
-                <input id="modal-value" type="text" inputmode="numeric"
-                    class="w-full bg-white border-2 border-gray-200 rounded-xl px-4 py-3 text-lg font-bold text-gray-800 focus:outline-none focus:border-blue-400"
-                    placeholder="0,00">
+                <label class="block text-xs font-semibold text-gray-500 mb-1.5 uppercase">Data</label>
+                <input id="modal-date" type="date"
+                    class="w-full bg-white border-2 border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-800 focus:outline-none focus:border-blue-400">
             </div>
 
-            <!-- Category -->
+            <!-- 4. Descrição -->
+            <div>
+                <label class="block text-xs font-semibold text-gray-500 mb-1.5 uppercase">Descrição</label>
+                <input id="modal-description" type="text"
+                    class="w-full bg-white border-2 border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-800 focus:outline-none focus:border-blue-400"
+                    placeholder="Ex: Mercado, Uber, Salário...">
+            </div>
+
+            <!-- 5. Categoria -->
             <div>
                 <div class="flex items-center gap-2 mb-1.5">
                     <label class="text-xs font-semibold text-gray-500 uppercase">Categoria</label>
@@ -694,25 +701,18 @@
                 </select>
             </div>
 
-            <!-- Description -->
+            <!-- 6. Valor -->
             <div>
-                <label class="block text-xs font-semibold text-gray-500 mb-1.5 uppercase">Descrição</label>
-                <input id="modal-description" type="text"
-                    class="w-full bg-white border-2 border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-800 focus:outline-none focus:border-blue-400"
-                    placeholder="Ex: Mercado, Uber, Salário...">
-            </div>
-
-            <!-- Date -->
-            <div>
-                <label class="block text-xs font-semibold text-gray-500 mb-1.5 uppercase">Data</label>
-                <input id="modal-date" type="date"
-                    class="w-full bg-white border-2 border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-800 focus:outline-none focus:border-blue-400">
+                <label class="block text-xs font-semibold text-gray-500 mb-1.5 uppercase">Valor (R$)</label>
+                <input id="modal-value" type="text" inputmode="numeric"
+                    class="w-full bg-white border-2 border-gray-200 rounded-xl px-4 py-3 text-lg font-bold text-gray-800 focus:outline-none focus:border-blue-400"
+                    placeholder="0,00">
             </div>
 
             <!-- Notes (hidden, used for OCR context) -->
             <input id="modal-notes" type="hidden">
 
-            <!-- Parcelas (só em novo lançamento) -->
+            <!-- 7. Parcelas (só em novo lançamento) -->
             <div id="modal-installment-wrap">
                 <!-- Picker -->
                 <div id="modal-installment-picker-section">
@@ -1170,7 +1170,7 @@
 <script src="js/storage.js?v=20260424l"></script>
 <script src="js/nlp.js?v=20260429a"></script>
 <script src="js/ocr.js?v=20260424h"></script>
-<script src="js/app.js?v=20260429a"></script>
+<script src="js/app.js?v=20260429b"></script>
 
 <script>
 // ── Service Worker + PWA ──────────────────────────────────────────────────────
