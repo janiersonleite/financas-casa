@@ -682,7 +682,12 @@
 
             <!-- Category -->
             <div>
-                <label class="block text-xs font-semibold text-gray-500 mb-1.5 uppercase">Categoria</label>
+                <div class="flex items-center gap-2 mb-1.5">
+                    <label class="text-xs font-semibold text-gray-500 uppercase">Categoria</label>
+                    <span id="cat-learned-badge" class="hidden items-center gap-1 text-xs bg-amber-50 text-amber-600 border border-amber-200 rounded-full px-2 py-0.5">
+                        💡 Aprendido
+                    </span>
+                </div>
                 <select id="modal-category"
                     class="w-full bg-white border-2 border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-800 focus:outline-none focus:border-blue-400">
                     <!-- populated by App.renderCategorySelect() -->
@@ -1163,9 +1168,9 @@
 <script src="js/config.js?v=20260423j"></script>
 <script src="js/auth.js?v=20260424n"></script>
 <script src="js/storage.js?v=20260424l"></script>
-<script src="js/nlp.js?v=20260424n"></script>
+<script src="js/nlp.js?v=20260429a"></script>
 <script src="js/ocr.js?v=20260424h"></script>
-<script src="js/app.js?v=20260428n"></script>
+<script src="js/app.js?v=20260429a"></script>
 
 <script>
 // ── Service Worker + PWA ──────────────────────────────────────────────────────

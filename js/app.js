@@ -22,6 +22,7 @@ const App = {
     _financaSelectCallback: null, // callback ao confirmar seleção
     _installmentQty:    1,      // número de parcelas (1 = à vista)
     _homeSearch:        '',     // texto da pesquisa na home
+    _LEARN_KEY: 'financas_learned_cats',  // chave localStorage para aprendizado
 
     // ─── Init ─────────────────────────────────────────────────────────────────
     async init() {
@@ -41,6 +42,7 @@ const App = {
         this.bindTypesUI();
         this.bindRemindersUI();
         this.bindHomeSearch();
+        NLP.setLearnedMap(this._getLearnedMap());
         await this.loadFinancas();
         await this.loadTransactionTypes();
         await this.loadCategories();
@@ -576,6 +578,29 @@ const App = {
         document.getElementById('modal-date')?.addEventListener('change', () => {
             if ((this._installmentQty || 1) > 1) this._renderInstallmentPicker();
         });
+
+        // ── Sugestão de categoria por aprendizado ──────────────────────────────
+        let _learnDebounce = null;
+        document.getElementById('modal-description')?.addEventListener('input', e => {
+            clearTimeout(_learnDebounce);
+            _learnDebounce = setTimeout(() => {
+                const badge    = document.getElementById('cat-learned-badge');
+                const catSel   = document.getElementById('modal-category');
+                const text     = e.target.value.trim();
+                const suggested = text ? this._suggestLearnedCategory(text) : null;
+
+                if (suggested && catSel) {
+                    // Só aplica se o usuário ainda não escolheu manualmente (ou se a categoria atual é 'Outros')
+                    const current = catSel.value;
+                    if (current === 'Outros' || current === suggested) {
+                        catSel.value = suggested;
+                        if (badge) badge.classList.remove('hidden'), badge.classList.add('inline-flex');
+                    }
+                } else {
+                    if (badge) badge.classList.add('hidden'), badge.classList.remove('inline-flex');
+                }
+            }, 300);
+        });
     },
 
     // ─── Finança Select Modal ─────────────────────────────────────────────────
@@ -782,6 +807,9 @@ const App = {
         this._modalFinancaId = data.financa_id || (this.editingId ? null : null);
         this._renderModalFinancaPicker();
         document.getElementById('modal-overlay').classList.remove('hidden');
+        // Esconde badge de aprendizado ao abrir modal (evita vazamento)
+        const _lb = document.getElementById('cat-learned-badge');
+        if (_lb) _lb.classList.add('hidden'), _lb.classList.remove('inline-flex');
         document.getElementById('modal-title').textContent = this.editingId ? 'Editar Lançamento' : 'Novo Lançamento';
         document.getElementById('modal-value').value       = data.value ? this._toMaskedCurrency(data.value) : '';
         // Remove sufixo "(X/N)" ao editar parcela para o campo ficar limpo
@@ -908,6 +936,9 @@ const App = {
             } else {
                 result = await Storage.addTransaction(base);
             }
+
+            // Aprende associação descrição → categoria para sugestões futuras
+            this._learnCategory(baseDesc, base.category);
 
             // Marca lembrete como pago se o modal foi aberto via "Registrar"
             const paidReminderId = this._reminderSourceId;
@@ -1710,6 +1741,53 @@ const App = {
         input.addEventListener('keydown', e => {
             if (e.key === 'Escape') toggleBtn.click();
         });
+    },
+
+    // ─── Category Learning ────────────────────────────────────────────────────
+    _getLearnedMap() {
+        try { return JSON.parse(localStorage.getItem(this._LEARN_KEY) || '{}'); }
+        catch { return {}; }
+    },
+
+    _saveLearnedMap(map) {
+        try { localStorage.setItem(this._LEARN_KEY, JSON.stringify(map)); } catch {}
+    },
+
+    // Ensina uma associação descrição → categoria (chamado ao salvar transação)
+    _learnCategory(description, category) {
+        if (!description || !category || category === 'Outros') return;
+        const map = this._getLearnedMap();
+        const stopWords = new Set(['para','com','uma','umas','que','por','não','nao','foi','ser','tem','ter','das','dos','numa','num','pelo','pela','este','essa','isso']);
+        const norm = str => str.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+        const normDesc = norm(description);
+
+        // Armazena frase completa
+        map[normDesc] = category;
+
+        // Armazena palavras individuais significativas (só se ainda não aprendidas)
+        const words = normDesc.split(/\s+/).filter(w => w.length > 3 && !stopWords.has(w));
+        for (const w of words) {
+            if (!map[w]) map[w] = category;
+        }
+
+        this._saveLearnedMap(map);
+        NLP.setLearnedMap(map);
+    },
+
+    // Testa se o texto tem associação aprendida; retorna categoria ou null
+    _suggestLearnedCategory(text) {
+        if (!text || text.length < 2) return null;
+        const map = this._getLearnedMap();
+        if (!Object.keys(map).length) return null;
+        const norm = text.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+        // Ordena frases mais longas primeiro (mais específicas)
+        const entries = Object.entries(map).sort((a, b) => b[0].length - a[0].length);
+        for (const [phrase, cat] of entries) {
+            if (!phrase || phrase.length < 2) continue;
+            const safe = phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            if (new RegExp(`\\b${safe}`, 'i').test(norm)) return cat;
+        }
+        return null;
     },
 
     // ─── Render History ───────────────────────────────────────────────────────

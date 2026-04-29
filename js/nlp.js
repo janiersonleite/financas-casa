@@ -1,11 +1,30 @@
 const NLP = {
     dynamicCategories: null,
+    learnedMap: {},   // { "termo_normalizado": "NomeCategoria" }
 
     setCategoryMap(categoriesArray) {
         this.dynamicCategories = {};
         for (const cat of categoriesArray) {
             this.dynamicCategories[cat.name] = cat.keywords || [];
         }
+    },
+
+    setLearnedMap(map) {
+        this.learnedMap = map || {};
+    },
+
+    // Retorna categoria aprendida para o texto (ou null se não encontrar)
+    _checkLearned(normText) {
+        if (!this.learnedMap || !Object.keys(this.learnedMap).length) return null;
+        // Ordena por comprimento decrescente para preferir frases mais específicas
+        const entries = Object.entries(this.learnedMap)
+            .sort((a, b) => b[0].length - a[0].length);
+        for (const [phrase, cat] of entries) {
+            if (!phrase) continue;
+            const safePhrase = phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            if (new RegExp(`\\b${safePhrase}`, 'i').test(normText)) return cat;
+        }
+        return null;
     },
 
     categories: {
@@ -189,6 +208,12 @@ const NLP = {
     extractCategory(text) {
         const cats = this.dynamicCategories || this.categories;
         const norm = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+        // 1. Mapa aprendido tem prioridade m\u00e1xima
+        const learned = this._checkLearned(norm);
+        if (learned) return learned;
+
+        // 2. Regras est\u00e1ticas / keywords das categorias
         for (const [cat, keywords] of Object.entries(cats)) {
             if (cat === 'Outros') continue;
             for (const kw of keywords) {
