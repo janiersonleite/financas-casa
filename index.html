@@ -38,6 +38,8 @@
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 9999px; }
         .tab-page { min-height: calc(100vh - 120px); }
+        @keyframes bounce-once { 0%{transform:translateY(-12px);opacity:0} 60%{transform:translateY(4px)} 100%{transform:translateY(0);opacity:1} }
+        .animate-bounce-once { animation: bounce-once 0.4s ease forwards; }
         #modal-overlay { backdrop-filter: blur(4px); }
     </style>
 </head>
@@ -1173,7 +1175,7 @@
 <script src="js/storage.js?v=20260424l"></script>
 <script src="js/nlp.js?v=20260429c"></script>
 <script src="js/ocr.js?v=20260424h"></script>
-<script src="js/app.js?v=20260429g"></script>
+<script src="js/app.js?v=20260429h"></script>
 
 <script>
 // ── Service Worker + PWA ──────────────────────────────────────────────────────

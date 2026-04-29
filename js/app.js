@@ -59,6 +59,8 @@ const App = {
         if (navigator.onLine) this._warmOfflineCache();
         // Verifica se há comprovante compartilhado (PWA share target)
         if (window.__pendingShared) await this.checkSharedContent();
+        // Notificações de lembretes vencendo hoje
+        this.checkReminderNotifications();
     },
 
     // ─── Finances ─────────────────────────────────────────────────────────────
@@ -1205,6 +1207,108 @@ const App = {
     // ─── Reminders ───────────────────────────────────────────────────────────
     async loadReminders() {
         try { this.reminders = await Storage.getReminders(); } catch { this.reminders = []; }
+    },
+
+    // ─── Notificações de lembretes ────────────────────────────────────────────
+    async checkReminderNotifications() {
+        if (!('Notification' in window)) return;  // navegador não suporta
+
+        const today    = new Date();
+        const todayDay = today.getDate();
+        const todayKey = today.toISOString().slice(0, 10); // "2026-04-30"
+        const storKey  = 'notified_reminders_' + todayKey;
+
+        // Lembretes ativos que vencem hoje e ainda não foram pagos
+        const due = this.reminders.filter(r =>
+            r.active !== false &&
+            r.day === todayDay &&
+            !this.isReminderPaid(r.id)
+        );
+        if (!due.length) return;
+
+        // Pede permissão se ainda não concedida
+        let permission = Notification.permission;
+        if (permission === 'default') {
+            permission = await Notification.requestPermission();
+        }
+        if (permission !== 'granted') {
+            // Sem permissão: exibe um toast/banner in-app como fallback
+            this._showReminderBanner(due);
+            return;
+        }
+
+        // Quais lembretes já foram notificados hoje (evita repetir a cada refresh)
+        let notifiedToday = [];
+        try { notifiedToday = JSON.parse(localStorage.getItem(storKey) || '[]'); } catch {}
+
+        const toNotify = due.filter(r => !notifiedToday.includes(r.id));
+        if (!toNotify.length) return;
+
+        // Dispara uma notificação por lembrete
+        for (const r of toNotify) {
+            const body = r.amount > 0
+                ? `${r.emoji || '🔔'} Vence hoje (dia ${r.day}) — ${this.formatCurrency(r.amount)}`
+                : `${r.emoji || '🔔'} Vence hoje (dia ${r.day})`;
+
+            try {
+                const n = new Notification(`💰 ${r.name}`, {
+                    body,
+                    icon:  'icon.svg',
+                    badge: 'icon.svg',
+                    tag:   'reminder_' + r.id,
+                    requireInteraction: false,
+                });
+                // Clicar na notificação abre o app e foca no lembrete
+                n.onclick = () => { window.focus(); this.openRemindersModal(); n.close(); };
+            } catch (_) {}
+
+            notifiedToday.push(r.id);
+        }
+
+        // Salva lista para não repetir hoje
+        try { localStorage.setItem(storKey, JSON.stringify(notifiedToday)); } catch {}
+    },
+
+    // Banner in-app quando Notifications não está disponível/negado
+    _showReminderBanner(reminders) {
+        const existing = document.getElementById('reminder-banner');
+        if (existing) existing.remove();
+
+        const banner = document.createElement('div');
+        banner.id = 'reminder-banner';
+        banner.className = 'fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-md z-[200] px-3 pt-2';
+
+        const list = reminders.map(r => {
+            const val = r.amount > 0 ? ` — ${this.formatCurrency(r.amount)}` : '';
+            return `<div class="flex items-center gap-2">
+                <span>${r.emoji || '🔔'}</span>
+                <span class="font-semibold">${r.name}</span>
+                <span class="text-orange-600 text-xs">Vence hoje${val}</span>
+            </div>`;
+        }).join('');
+
+        banner.innerHTML = `
+        <div class="bg-orange-500 text-white rounded-2xl shadow-xl px-4 py-3 flex items-start gap-3 animate-bounce-once">
+            <span class="text-2xl flex-shrink-0">📅</span>
+            <div class="flex-1 min-w-0 space-y-0.5">
+                <p class="text-sm font-bold mb-1">Pagamentos vencem hoje!</p>
+                ${list}
+            </div>
+            <button id="reminder-banner-close" class="text-white/70 hover:text-white text-xl leading-none flex-shrink-0 mt-0.5">✕</button>
+        </div>`;
+
+        document.body.appendChild(banner);
+
+        document.getElementById('reminder-banner-close')?.addEventListener('click', () => banner.remove());
+        banner.addEventListener('click', e => {
+            if (!e.target.closest('#reminder-banner-close')) {
+                this.openRemindersModal();
+                banner.remove();
+            }
+        });
+
+        // Remove automaticamente após 8 segundos
+        setTimeout(() => banner?.remove(), 8000);
     },
 
     renderRemindersHome() {
