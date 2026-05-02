@@ -15,6 +15,22 @@
       "purpose": "any maskable"
     }
   ],
+  "shortcuts": [
+    {
+      "name": "Novo Lançamento",
+      "short_name": "Novo",
+      "description": "Abrir tela de novo lançamento",
+      "url": "/financas-casa/?action=new-transaction",
+      "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+    },
+    {
+      "name": "Início",
+      "short_name": "Início",
+      "description": "Ir para a tela inicial",
+      "url": "/financas-casa/",
+      "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+    }
+  ],
   "share_target": {
     "action": "/share-target",
     "method": "POST",

@@ -62,6 +62,8 @@ const App = {
         if (window.__pendingShared) await this.checkSharedContent();
         // Notificações de lembretes vencendo hoje
         this.checkReminderNotifications();
+        // Atalho de URL: ?action=new-transaction (shortcut do PWA)
+        this._handleUrlAction();
     },
 
     // ─── Finances ─────────────────────────────────────────────────────────────
@@ -3254,6 +3256,19 @@ const App = {
         XLSX.utils.book_append_sheet(wb, ws, 'Modelo');
         XLSX.writeFile(wb, 'modelo-financas.xlsx');
         this.showToast('✅ Modelo baixado!');
+    },
+
+    // ─── Handler de URL action ────────────────────────────────────────────────
+    _handleUrlAction() {
+        const params = new URLSearchParams(window.location.search);
+        const action = params.get('action');
+        if (action === 'new-transaction') {
+            // Limpa o parâmetro da URL sem recarregar
+            const clean = window.location.pathname;
+            window.history.replaceState({}, '', clean);
+            // Aguarda a UI estar pronta e abre o modal
+            setTimeout(() => this.openModal(), 400);
+        }
     },
 
     // ─── Atalho volume-down × 3 → novo lançamento ────────────────────────────
