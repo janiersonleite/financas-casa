@@ -52,6 +52,33 @@ self.addEventListener('fetch', event => {
     );
 });
 
+// ── Notificação persistente clicada ──────────────────────────────────────────
+self.addEventListener('notificationclick', event => {
+    event.notification.close();
+
+    const action = event.action || event.notification.data?.action || '';
+    const target = action === 'new-transaction' || event.notification.tag === 'quick-add'
+        ? '/financas-casa/?action=new-transaction'
+        : '/financas-casa/';
+
+    event.waitUntil(
+        self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+            .then(list => {
+                // App já aberto → manda mensagem e foca
+                for (const client of list) {
+                    if (client.url.includes('financas-casa')) {
+                        if (action === 'new-transaction' || event.notification.tag === 'quick-add') {
+                            client.postMessage({ action: 'new-transaction' });
+                        }
+                        return client.focus();
+                    }
+                }
+                // App fechado → abre na URL com parâmetro
+                return self.clients.openWindow(target);
+            })
+    );
+});
+
 // ── Share Target handler ──────────────────────────────────────────────────────
 async function handleShareTarget(request) {
     const formData = await request.formData();

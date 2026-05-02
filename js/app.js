@@ -64,6 +64,9 @@ const App = {
         this.checkReminderNotifications();
         // Atalho de URL: ?action=new-transaction (shortcut do PWA)
         this._handleUrlAction();
+        // Notificação persistente na barra + escuta mensagens do SW
+        this._setupQuickAddNotification();
+        this._bindSwMessages();
     },
 
     // ─── Finances ─────────────────────────────────────────────────────────────
@@ -3256,6 +3259,49 @@ const App = {
         XLSX.utils.book_append_sheet(wb, ws, 'Modelo');
         XLSX.writeFile(wb, 'modelo-financas.xlsx');
         this.showToast('✅ Modelo baixado!');
+    },
+
+    // ─── Notificação persistente "Novo Lançamento" ────────────────────────────
+    async _setupQuickAddNotification() {
+        if (!('serviceWorker' in navigator) || !('Notification' in window)) return;
+
+        // Pede permissão se ainda não concedida
+        let perm = Notification.permission;
+        if (perm === 'default') perm = await Notification.requestPermission();
+        if (perm !== 'granted') return;
+
+        try {
+            const reg = await navigator.serviceWorker.ready;
+            // Mostra (ou re-mostra) a notificação persistente sem som/vibração
+            await reg.showNotification('💰 Minhas Carteiras', {
+                body:             'Toque para adicionar um novo lançamento',
+                icon:             '/financas-casa/icon.svg',
+                badge:            '/financas-casa/icon.svg',
+                tag:              'quick-add',          // mesmo tag → substitui, não empilha
+                renotify:         false,                // sem som ao re-mostrar
+                silent:           true,
+                requireInteraction: false,
+                data:             { action: 'new-transaction' },
+                actions: [
+                    { action: 'new-transaction', title: '➕ Novo Lançamento' }
+                ],
+            });
+        } catch (_) {}
+    },
+
+    // ─── Escuta mensagens do Service Worker ───────────────────────────────────
+    _bindSwMessages() {
+        if (!('serviceWorker' in navigator)) return;
+        navigator.serviceWorker.addEventListener('message', event => {
+            if (event.data?.action === 'new-transaction') {
+                // Pequeno delay para a janela estar em foco
+                setTimeout(() => {
+                    if (document.getElementById('modal-overlay')?.classList.contains('hidden')) {
+                        this.openModal();
+                    }
+                }, 200);
+            }
+        });
     },
 
     // ─── Handler de URL action ────────────────────────────────────────────────
