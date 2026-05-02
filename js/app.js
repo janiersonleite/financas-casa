@@ -3270,21 +3270,41 @@ const App = {
         if (perm === 'default') perm = await Notification.requestPermission();
         if (perm !== 'granted') return;
 
+        // Mostra agora e re-mostra toda vez que o app voltar ao foco
+        await this._showQuickAddNotification();
+
+        document.addEventListener('visibilitychange', async () => {
+            if (document.visibilityState !== 'visible') return;
+            // Verifica se a notificação ainda existe; se não, recria
+            try {
+                const reg   = await navigator.serviceWorker.ready;
+                const notifs = await reg.getNotifications({ tag: 'quick-add' });
+                if (!notifs.length) await this._showQuickAddNotification();
+            } catch (_) {}
+        });
+
+        window.addEventListener('focus', async () => {
+            try {
+                const reg   = await navigator.serviceWorker.ready;
+                const notifs = await reg.getNotifications({ tag: 'quick-add' });
+                if (!notifs.length) await this._showQuickAddNotification();
+            } catch (_) {}
+        });
+    },
+
+    async _showQuickAddNotification() {
         try {
             const reg = await navigator.serviceWorker.ready;
-            // Mostra (ou re-mostra) a notificação persistente sem som/vibração
             await reg.showNotification('💰 Minhas Carteiras', {
-                body:             'Toque para adicionar um novo lançamento',
-                icon:             '/financas-casa/icon.svg',
-                badge:            '/financas-casa/icon.svg',
-                tag:              'quick-add',          // mesmo tag → substitui, não empilha
-                renotify:         false,                // sem som ao re-mostrar
-                silent:           true,
+                body:               'Toque para adicionar um novo lançamento',
+                icon:               '/financas-casa/icon.svg',
+                badge:              '/financas-casa/icon.svg',
+                tag:                'quick-add',
+                renotify:           false,
+                silent:             true,
                 requireInteraction: false,
-                data:             { action: 'new-transaction' },
-                actions: [
-                    { action: 'new-transaction', title: '➕ Novo Lançamento' }
-                ],
+                data:               { action: 'new-transaction' },
+                actions:            [{ action: 'new-transaction', title: '➕ Novo Lançamento' }],
             });
         } catch (_) {}
     },
