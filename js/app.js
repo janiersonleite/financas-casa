@@ -37,6 +37,7 @@ const App = {
         this.bindModal();
         this.bindOCR();
         this.bindVoice();
+        this.bindVolumeShortcut();
         this.bindMonthNav();
         this.bindFinancaUI();
         this.bindCategoryUI();
@@ -3253,6 +3254,58 @@ const App = {
         XLSX.utils.book_append_sheet(wb, ws, 'Modelo');
         XLSX.writeFile(wb, 'modelo-financas.xlsx');
         this.showToast('✅ Modelo baixado!');
+    },
+
+    // ─── Atalho volume-down × 3 → novo lançamento ────────────────────────────
+    bindVolumeShortcut() {
+        let count = 0;
+        let timer = null;
+
+        const showHint = (remaining) => {
+            let el = document.getElementById('volume-shortcut-hint');
+            if (!el) {
+                el = document.createElement('div');
+                el.id = 'volume-shortcut-hint';
+                el.style.cssText = [
+                    'position:fixed','bottom:90px','left:50%',
+                    'transform:translateX(-50%)',
+                    'background:rgba(0,0,0,0.75)','color:#fff',
+                    'font-size:13px','font-weight:600',
+                    'padding:8px 18px','border-radius:999px',
+                    'z-index:9999','pointer-events:none',
+                    'transition:opacity .3s',
+                ].join(';');
+                document.body.appendChild(el);
+            }
+            el.textContent = remaining > 0
+                ? `🔉 +${remaining} para novo lançamento`
+                : '✅ Abrindo lançamento...';
+            el.style.opacity = '1';
+            clearTimeout(el._hide);
+            el._hide = setTimeout(() => { el.style.opacity = '0'; }, 1200);
+        };
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key !== 'AudioVolumeDown' && e.key !== 'VolumeDown') return;
+
+            count++;
+            clearTimeout(timer);
+
+            if (count === 3) {
+                count = 0;
+                showHint(0);
+                setTimeout(() => {
+                    if (!document.getElementById('modal-overlay')?.classList.contains('hidden')) return;
+                    this.openModal();
+                }, 300);
+                return;
+            }
+
+            showHint(3 - count);
+
+            // Reset se o usuário demorar mais de 1,5s entre pressões
+            timer = setTimeout(() => { count = 0; }, 1500);
+        });
     },
 
     // ─── Month navigation ─────────────────────────────────────────────────────
