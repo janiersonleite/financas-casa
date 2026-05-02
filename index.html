@@ -661,8 +661,18 @@
         <div id="modal-header" class="p-4 bg-red-500 text-white rounded-t-2xl">
             <div class="flex items-center justify-between">
                 <h3 id="modal-title" class="font-bold text-lg">Novo Lançamento</h3>
-                <button id="modal-close" class="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center text-lg">✕</button>
+                <div class="flex items-center gap-2">
+                    <button id="modal-voice-btn"
+                        class="flex items-center gap-1.5 bg-white/20 hover:bg-white/30 rounded-full px-3 py-1.5 text-sm font-medium transition-all"
+                        title="Preencher por voz">
+                        <span class="text-base">🎤</span>
+                        <span>Voz</span>
+                    </button>
+                    <button id="modal-close" class="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center text-lg">✕</button>
+                </div>
             </div>
+            <!-- Feedback de voz -->
+            <div id="modal-voice-feedback" class="hidden mt-2 text-sm text-white/80 text-center italic"></div>
         </div>
 
         <div class="p-4 space-y-4 max-h-[80vh] overflow-y-auto">
@@ -1194,7 +1204,7 @@
 <script src="js/storage.js?v=20260424l"></script>
 <script src="js/nlp.js?v=20260429c"></script>
 <script src="js/ocr.js?v=20260424h"></script>
-<script src="js/app.js?v=20260502d"></script>
+<script src="js/app.js?v=20260502e"></script>
 
 <script>
 // ── Service Worker + PWA ──────────────────────────────────────────────────────

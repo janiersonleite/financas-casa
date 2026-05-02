@@ -553,6 +553,7 @@ const App = {
     bindModal() {
         document.getElementById('modal-close').addEventListener('click',  () => this.closeModal());
         document.getElementById('modal-cancel').addEventListener('click', () => this.closeModal());
+        document.getElementById('modal-voice-btn')?.addEventListener('click', () => this._startModalVoice());
         document.getElementById('modal-save').addEventListener('click',   () => this.saveModal());
         document.getElementById('modal-overlay').addEventListener('click', e => {
             if (e.target === e.currentTarget) this.closeModal();
@@ -1784,6 +1785,95 @@ const App = {
         } catch (e) {
             this.showToast('❌ Erro: ' + e.message, true);
         }
+    },
+
+    // ─── Voz no modal de lançamento ───────────────────────────────────────────
+    _startModalVoice() {
+        const btn      = document.getElementById('modal-voice-btn');
+        const feedback = document.getElementById('modal-voice-feedback');
+        const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+        if (!SpeechRec) {
+            this.showToast('⚠️ Voz não disponível neste navegador', true);
+            return;
+        }
+        if (btn._listening) return;
+
+        const rec = new SpeechRec();
+        rec.lang            = 'pt-BR';
+        rec.interimResults  = false;
+        rec.maxAlternatives = 1;
+
+        // Estado: gravando
+        btn._listening = true;
+        btn.innerHTML  = '<span class="text-base listening">🔴</span><span>Ouvindo...</span>';
+        btn.classList.add('bg-white/40');
+        if (feedback) { feedback.textContent = '🎙️ Fale o lançamento...'; feedback.classList.remove('hidden'); }
+
+        rec.onresult = (e) => {
+            const text = e.results[0][0].transcript.trim();
+            if (feedback) feedback.textContent = `"${text}"`;
+            this._fillModalFromVoice(text);
+        };
+
+        rec.onerror = (e) => {
+            const msgs = {
+                'not-allowed': 'Permissão de microfone negada.',
+                'no-speech':   'Nenhuma fala detectada. Tente novamente.',
+                'network':     'Sem internet. A voz precisa de conexão.',
+            };
+            const msg = msgs[e.error] || `Erro: ${e.error}`;
+            if (feedback) { feedback.textContent = `⚠️ ${msg}`; }
+            this.showToast(`⚠️ ${msg}`, true);
+        };
+
+        rec.onend = () => {
+            btn._listening = false;
+            btn.innerHTML  = '<span class="text-base">🎤</span><span>Voz</span>';
+            btn.classList.remove('bg-white/40');
+            setTimeout(() => { if (feedback) feedback.classList.add('hidden'); }, 3500);
+        };
+
+        rec.start();
+    },
+
+    _fillModalFromVoice(text) {
+        // Usa o mesmo NLP do quick-input para extrair todos os campos
+        const parsed = NLP.parse(text);
+
+        // Descrição
+        if (parsed.description) {
+            document.getElementById('modal-description').value = parsed.description;
+            // Dispara o listener de aprendizado de categoria
+            document.getElementById('modal-description').dispatchEvent(new Event('input'));
+        }
+
+        // Valor
+        if (parsed.value) {
+            document.getElementById('modal-value').value = this._toMaskedCurrency(parsed.value);
+        }
+
+        // Data
+        if (parsed.date) {
+            document.getElementById('modal-date').value = parsed.date;
+            this._updateInstallmentPreview?.();
+        }
+
+        // Categoria
+        if (parsed.category && parsed.category !== 'Outros') {
+            const sel = document.getElementById('modal-category');
+            if (sel && [...sel.options].some(o => o.value === parsed.category)) {
+                sel.value = parsed.category;
+                this._catUserPicked = false; // não bloqueia sugestões futuras
+            }
+        }
+
+        // Tipo
+        if (parsed.type) {
+            this.selectModalType(parsed.type);
+        }
+
+        this.showToast('✅ Campos preenchidos por voz!');
     },
 
     // ─── Voice Input ──────────────────────────────────────────────────────────
