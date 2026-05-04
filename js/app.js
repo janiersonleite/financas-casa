@@ -19,7 +19,8 @@ const App = {
     customTypesChart:   null,
     reminders:          [],
     editingReminderId:  null,
-    _reminderSourceId:  null,
+    _reminderSourceId:       null,
+    _reminderSuggestDismissed: false, // true quando o usuário dispensou a sugestão de vínculo
     _modalFinancaId:    null,   // finança escolhida para o lançamento atual (null = usa a ativa)
     _importFinancaId:   null,   // finança escolhida para o import atual
     _financaSelectCallback: null, // callback ao confirmar seleção
@@ -641,6 +642,31 @@ const App = {
             this._catUserPicked = true;
             const badge = document.getElementById('cat-learned-badge');
             if (badge) badge.classList.add('hidden'), badge.classList.remove('inline-flex');
+            // Verifica se há lembrete com a mesma categoria
+            this._checkReminderSuggestByCategory();
+        });
+
+        // ── Botões de sugestão de vínculo com lembrete ─────────────────────────
+        document.getElementById('modal-rs-yes')?.addEventListener('click', () => {
+            const suggest = document.getElementById('modal-reminder-suggest');
+            const rid = suggest?.dataset.reminderId;
+            if (!rid) return;
+            this._reminderSourceId = rid;
+            const r = this.reminders.find(x => x.id === rid);
+            // Atualiza o badge de lembrete vinculado
+            const reminderBadgeEl = document.getElementById('modal-reminder-badge');
+            if (reminderBadgeEl && r) {
+                reminderBadgeEl.innerHTML = `<span class="inline-flex items-center gap-1.5 text-xs bg-blue-50 text-blue-600 border border-blue-200 rounded-xl px-3 py-1.5 font-medium">
+                    ${r.emoji || '🔔'} Lembrete: <strong>${this._escHtml(r.name)}</strong> — todo dia ${r.day}
+                </span>`;
+                reminderBadgeEl.classList.remove('hidden');
+            }
+            suggest.style.display = 'none';
+        });
+
+        document.getElementById('modal-rs-no')?.addEventListener('click', () => {
+            this._reminderSuggestDismissed = true;
+            document.getElementById('modal-reminder-suggest').style.display = 'none';
         });
 
         let _learnDebounce = null;
@@ -901,7 +927,11 @@ const App = {
         this._modalFinancaId = data.financa_id || (this.editingId ? null : null);
         this._renderModalFinancaPicker();
         document.getElementById('modal-overlay').classList.remove('hidden');
-        this._catUserPicked = false; // reset: usuário ainda não escolheu categoria neste modal
+        this._catUserPicked = false;            // reset: usuário ainda não escolheu categoria neste modal
+        this._reminderSuggestDismissed = false; // reset: permite nova sugestão ao abrir modal
+        // Esconde banner de sugestão de lembrete
+        const rSuggest = document.getElementById('modal-reminder-suggest');
+        if (rSuggest) rSuggest.style.display = 'none';
         // Esconde badge de aprendizado ao abrir modal (evita vazamento)
         const _lb = document.getElementById('cat-learned-badge');
         if (_lb) _lb.classList.add('hidden'), _lb.classList.remove('inline-flex');
@@ -962,6 +992,42 @@ const App = {
         this.editingId = null;
         this._reminderSourceId = null;
         this._modalFinancaId   = null;
+    },
+
+    // Verifica se há lembrete com a categoria selecionada e exibe sugestão de vínculo
+    _checkReminderSuggestByCategory() {
+        const suggest = document.getElementById('modal-reminder-suggest');
+        if (!suggest) return;
+
+        // Não sugere se: já há lembrete vinculado, usuário dispensou, ou é edição
+        if (this._reminderSourceId || this._reminderSuggestDismissed || this.editingId) {
+            suggest.style.display = 'none';
+            return;
+        }
+
+        const selectedCat = document.getElementById('modal-category')?.value;
+        if (!selectedCat || selectedCat === 'Outros' || !selectedCat.trim()) {
+            suggest.style.display = 'none';
+            return;
+        }
+
+        // Busca lembrete com mesma categoria, não pago neste mês
+        const match = this.reminders.find(r =>
+            r.category && r.category === selectedCat && !this.isReminderPaid(r.id)
+        );
+
+        if (!match) {
+            suggest.style.display = 'none';
+            return;
+        }
+
+        // Exibe sugestão
+        const nameEl  = document.getElementById('modal-rs-name');
+        const emojiEl = document.getElementById('modal-rs-emoji');
+        if (nameEl)  nameEl.textContent  = match.name;
+        if (emojiEl) emojiEl.textContent = match.emoji || '🔔';
+        suggest.dataset.reminderId = match.id;
+        suggest.style.display = 'flex';
     },
 
     async saveModal() {
