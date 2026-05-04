@@ -1,5 +1,5 @@
 // ─── Versão ───────────────────────────────────────────────────────────────────
-const APP_VERSION = '2026-04-29 10:27';
+const APP_VERSION = '2026-04-29 11:00';
 
 // ─── State ───────────────────────────────────────────────────────────────────
 const App = {
@@ -25,6 +25,7 @@ const App = {
     _financaSelectCallback: null, // callback ao confirmar seleção
     _installmentQty:    1,      // número de parcelas (1 = à vista)
     _homeSearch:        '',     // texto da pesquisa na home
+    _historyMonths:     1,      // período selecionado na aba histórico (1 | 2 | 3 | 6 | 12)
     _LEARN_KEY: 'financas_learned_cats',  // chave localStorage para aprendizado
     _catUserPicked:     false,  // true quando usuário escolheu categoria manualmente no modal
 
@@ -47,6 +48,7 @@ const App = {
         this.bindTypesUI();
         this.bindRemindersUI();
         this.bindHomeSearch();
+        this.bindHistoryPills();
         NLP.setLearnedMap(this._getLearnedMap());
         const verEl = document.getElementById('app-version-label');
         if (verEl) verEl.textContent = `v ${APP_VERSION}`;
@@ -2195,17 +2197,106 @@ const App = {
     // ─── Render History ───────────────────────────────────────────────────────
     async renderHistory() {
         const search = document.getElementById('history-search')?.value?.toLowerCase() || '';
-        let list = await Storage.getTransactions({ month: this.currentMonth });
-        if (search) list = list.filter(t =>
-            t.description.toLowerCase().includes(search) ||
-            t.category.toLowerCase().includes(search)
-        );
-        this.renderTransactionList('history-transactions', list);
+        const n = this._historyMonths || 1;
+        const months = this._buildMonthRange(this.currentMonth, n);
+
+        // Busca todos os meses em paralelo
+        const results = await Promise.all(months.map(m => Storage.getTransactions({ month: m })));
+
+        const container = document.getElementById('history-transactions');
+        if (!container) return;
+
+        if (n === 1) {
+            // ── Modo mês único (comportamento original) ─────────────────────
+            let list = results[0];
+            if (search) list = list.filter(t =>
+                (t.description || '').toLowerCase().includes(search) ||
+                (t.category    || '').toLowerCase().includes(search)
+            );
+            this.renderTransactionList('history-transactions', list, search);
+        } else {
+            // ── Modo multi-mês: agrupa por mês com cabeçalho ─────────────────
+            container.innerHTML = '';
+            const MONTH_NAMES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
+                                 'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+            let anyResult = false;
+
+            for (let i = 0; i < months.length; i++) {
+                let list = results[i];
+                if (search) list = list.filter(t =>
+                    (t.description || '').toLowerCase().includes(search) ||
+                    (t.category    || '').toLowerCase().includes(search)
+                );
+                if (!list.length) continue;
+                anyResult = true;
+
+                const [y, m] = months[i].split('-').map(Number);
+
+                // Cabeçalho do mês
+                const header = document.createElement('div');
+                header.className = 'flex items-center gap-2 mt-5 mb-1 first:mt-0';
+                header.innerHTML = `
+                    <span class="text-xs font-bold text-blue-500 uppercase tracking-widest">${MONTH_NAMES[m - 1]} ${y}</span>
+                    <div class="flex-1 h-px bg-blue-100"></div>`;
+                container.appendChild(header);
+
+                // Usa um sub-div temporário para reutilizar renderTransactionList
+                const tempId = `_hist_grp_${i}`;
+                const temp   = document.createElement('div');
+                temp.id      = tempId;
+                container.appendChild(temp);
+                this.renderTransactionList(tempId, list, search);
+            }
+
+            if (!anyResult) {
+                container.innerHTML = `
+                    <div class="text-center text-gray-400 py-10">
+                        <div class="text-4xl mb-2">${search ? '🔍' : '📭'}</div>
+                        <p>${search ? 'Nenhum lançamento encontrado' : 'Nenhum lançamento no período'}</p>
+                        ${search ? '<p class="text-sm mt-1">Tente outro termo de busca</p>' : ''}
+                    </div>`;
+            }
+        }
+
+        // Vincula busca (uma só vez)
         const searchEl = document.getElementById('history-search');
         if (searchEl && !searchEl._bound) {
             searchEl._bound = true;
             searchEl.addEventListener('input', () => this.renderHistory());
         }
+
+        // Atualiza visual dos pills
+        this._updateHistoryPills();
+    },
+
+    // Gera array de N meses retroativos a partir de baseMonth (inclusive)
+    _buildMonthRange(baseMonth, n) {
+        const [cy, cm] = baseMonth.split('-').map(Number);
+        const months = [];
+        for (let i = 0; i < n; i++) {
+            let year = cy, month = cm - i;
+            while (month <= 0) { month += 12; year--; }
+            months.push(`${year}-${String(month).padStart(2, '0')}`);
+        }
+        return months;
+    },
+
+    // Atualiza destaque visual dos pills de período
+    _updateHistoryPills() {
+        document.querySelectorAll('.history-pill').forEach(pill => {
+            const active = parseInt(pill.dataset.months) === (this._historyMonths || 1);
+            pill.classList.toggle('pill-active', active);
+        });
+    },
+
+    // Vincula cliques nos pills de período do histórico
+    bindHistoryPills() {
+        document.getElementById('history-period-pills')?.addEventListener('click', async e => {
+            const pill = e.target.closest('.history-pill');
+            if (!pill) return;
+            this._historyMonths = parseInt(pill.dataset.months) || 1;
+            if (this.currentTab === 'history') await this.renderHistory();
+        });
     },
 
     renderTransactionList(containerId, transactions, highlight = '') {

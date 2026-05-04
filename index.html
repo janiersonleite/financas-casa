@@ -41,6 +41,9 @@
         @keyframes bounce-once { 0%{transform:translateY(-12px);opacity:0} 60%{transform:translateY(4px)} 100%{transform:translateY(0);opacity:1} }
         .animate-bounce-once { animation: bounce-once 0.4s ease forwards; }
         #modal-overlay { backdrop-filter: blur(4px); }
+        .history-pill { background: #f3f4f6; color: #6b7280; transition: background .15s, color .15s; }
+        .history-pill.pill-active { background: #3b82f6; color: #fff; }
+        #history-period-pills::-webkit-scrollbar { display: none; }
     </style>
 </head>
 <body class="bg-gray-50 max-w-md mx-auto min-h-screen relative">
@@ -265,11 +268,19 @@
 
 <!-- ═══════════════════════ TAB: HISTORY ════════════════════════ -->
 <div id="tab-history" class="tab-page hidden pb-24 overflow-y-auto">
-    <div class="bg-white px-4 pt-8 pb-4 border-b border-gray-100 sticky top-0 z-10">
-        <div class="flex items-center justify-between mb-3">
+    <div class="bg-white px-4 pt-8 pb-3 border-b border-gray-100 sticky top-0 z-10">
+        <div class="flex items-center justify-between mb-2">
             <button data-month-prev class="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100">‹</button>
             <span class="month-display text-sm font-semibold text-gray-700"></span>
             <button data-month-next class="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100">›</button>
+        </div>
+        <!-- Seletor de período (pills) -->
+        <div id="history-period-pills" class="flex gap-1.5 mb-2.5 overflow-x-auto pb-0.5" style="scrollbar-width:none">
+            <button class="history-pill px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap pill-active" data-months="1">1 mês</button>
+            <button class="history-pill px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap" data-months="2">2 meses</button>
+            <button class="history-pill px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap" data-months="3">3 meses</button>
+            <button class="history-pill px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap" data-months="6">6 meses</button>
+            <button class="history-pill px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap" data-months="12">12 meses</button>
         </div>
         <input id="history-search"
             type="text"
