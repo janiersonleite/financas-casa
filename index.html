@@ -44,6 +44,7 @@
         .history-pill { background: #f3f4f6; color: #6b7280; transition: background .15s, color .15s; }
         .history-pill.pill-active { background: #3b82f6; color: #fff; }
         #history-period-pills::-webkit-scrollbar { display: none; }
+        .hist-cat-chip { transition: background .15s, color .15s, border-color .15s; }
     </style>
 </head>
 <body class="bg-gray-50 max-w-md mx-auto min-h-screen relative">
@@ -282,10 +283,21 @@
             <button class="history-pill px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap" data-months="6">6 meses</button>
             <button class="history-pill px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap" data-months="12">12 meses</button>
         </div>
-        <input id="history-search"
-            type="text"
-            class="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-            placeholder="Buscar por descrição ou categoria...">
+        <!-- Busca + botão filtro categoria -->
+        <div class="flex gap-2 items-center">
+            <input id="history-search"
+                type="text"
+                class="flex-1 min-w-0 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                placeholder="Buscar por descrição ou categoria...">
+            <button id="history-cat-filter-btn"
+                class="flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-xl bg-gray-100 text-gray-600 text-base relative"
+                title="Filtrar por categoria">
+                🏷️
+                <span id="history-cat-badge" class="hidden absolute -top-1 -right-1 bg-blue-500 text-white text-xs font-bold leading-none rounded-full w-4 h-4 flex items-center justify-center"></span>
+            </button>
+        </div>
+        <!-- Chips de categoria (painel oculto por padrão) -->
+        <div id="history-cat-chips" class="hidden flex flex-wrap gap-1.5 mt-2 pb-0.5"></div>
     </div>
     <div class="px-4 pt-3">
         <div id="history-transactions"></div>

@@ -1,5 +1,5 @@
 // ─── Versão ───────────────────────────────────────────────────────────────────
-const APP_VERSION = '2026-04-29 11:00';
+const APP_VERSION = '2026-05-04 09:00';
 
 // ─── State ───────────────────────────────────────────────────────────────────
 const App = {
@@ -26,6 +26,7 @@ const App = {
     _installmentQty:    1,      // número de parcelas (1 = à vista)
     _homeSearch:        '',     // texto da pesquisa na home
     _historyMonths:     1,      // período selecionado na aba histórico (1 | 2 | 3 | 6 | 12)
+    _historyCategories: new Set(), // categorias selecionadas no filtro do histórico
     _LEARN_KEY: 'financas_learned_cats',  // chave localStorage para aprendizado
     _catUserPicked:     false,  // true quando usuário escolheu categoria manualmente no modal
 
@@ -49,6 +50,7 @@ const App = {
         this.bindRemindersUI();
         this.bindHomeSearch();
         this.bindHistoryPills();
+        this.bindHistoryCatFilter();
         NLP.setLearnedMap(this._getLearnedMap());
         const verEl = document.getElementById('app-version-label');
         if (verEl) verEl.textContent = `v ${APP_VERSION}`;
@@ -2197,22 +2199,23 @@ const App = {
     // ─── Render History ───────────────────────────────────────────────────────
     async renderHistory() {
         const search = document.getElementById('history-search')?.value?.toLowerCase() || '';
-        const n = this._historyMonths || 1;
+        const n      = this._historyMonths || 1;
         const months = this._buildMonthRange(this.currentMonth, n);
 
         // Busca todos os meses em paralelo
         const results = await Promise.all(months.map(m => Storage.getTransactions({ month: m })));
 
+        // Renderiza chips de categoria com base nos dados carregados
+        this._renderHistoryCatChips(results.flat());
+
         const container = document.getElementById('history-transactions');
         if (!container) return;
 
+        const hasCatFilter = this._historyCategories.size > 0;
+
         if (n === 1) {
-            // ── Modo mês único (comportamento original) ─────────────────────
-            let list = results[0];
-            if (search) list = list.filter(t =>
-                (t.description || '').toLowerCase().includes(search) ||
-                (t.category    || '').toLowerCase().includes(search)
-            );
+            // ── Modo mês único ───────────────────────────────────────────────
+            let list = this._applyHistoryFilters(results[0], search);
             this.renderTransactionList('history-transactions', list, search);
         } else {
             // ── Modo multi-mês: agrupa por mês com cabeçalho ─────────────────
@@ -2222,11 +2225,7 @@ const App = {
             let anyResult = false;
 
             for (let i = 0; i < months.length; i++) {
-                let list = results[i];
-                if (search) list = list.filter(t =>
-                    (t.description || '').toLowerCase().includes(search) ||
-                    (t.category    || '').toLowerCase().includes(search)
-                );
+                const list = this._applyHistoryFilters(results[i], search);
                 if (!list.length) continue;
                 anyResult = true;
 
@@ -2240,7 +2239,6 @@ const App = {
                     <div class="flex-1 h-px bg-blue-100"></div>`;
                 container.appendChild(header);
 
-                // Usa um sub-div temporário para reutilizar renderTransactionList
                 const tempId = `_hist_grp_${i}`;
                 const temp   = document.createElement('div');
                 temp.id      = tempId;
@@ -2249,11 +2247,12 @@ const App = {
             }
 
             if (!anyResult) {
+                const isEmpty = !search && !hasCatFilter;
                 container.innerHTML = `
                     <div class="text-center text-gray-400 py-10">
-                        <div class="text-4xl mb-2">${search ? '🔍' : '📭'}</div>
-                        <p>${search ? 'Nenhum lançamento encontrado' : 'Nenhum lançamento no período'}</p>
-                        ${search ? '<p class="text-sm mt-1">Tente outro termo de busca</p>' : ''}
+                        <div class="text-4xl mb-2">${isEmpty ? '📭' : '🔍'}</div>
+                        <p>${isEmpty ? 'Nenhum lançamento no período' : 'Nenhum resultado com esses filtros'}</p>
+                        ${!isEmpty ? '<p class="text-sm mt-1">Tente ajustar a busca ou as categorias</p>' : ''}
                     </div>`;
             }
         }
@@ -2265,8 +2264,67 @@ const App = {
             searchEl.addEventListener('input', () => this.renderHistory());
         }
 
-        // Atualiza visual dos pills
+        // Atualiza visual dos pills de período
         this._updateHistoryPills();
+    },
+
+    // Aplica filtros de texto e categoria a uma lista
+    _applyHistoryFilters(list, search) {
+        if (search) list = list.filter(t =>
+            (t.description || '').toLowerCase().includes(search) ||
+            (t.category    || '').toLowerCase().includes(search)
+        );
+        if (this._historyCategories.size > 0) {
+            list = list.filter(t => this._historyCategories.has(t.category || ''));
+        }
+        return list;
+    },
+
+    // Renderiza chips de categoria no painel de filtro
+    _renderHistoryCatChips(allTransactions) {
+        const panel = document.getElementById('history-cat-chips');
+        if (!panel) return;
+
+        // Categorias presentes nas transações carregadas, na ordem de this.categories
+        const presentNames = new Set(allTransactions.map(t => t.category || '').filter(Boolean));
+        const cats = this.categories.filter(c => presentNames.has(c.name));
+
+        // Adiciona categorias que estão nos dados mas não em this.categories (ex.: legados)
+        for (const name of presentNames) {
+            if (!cats.find(c => c.name === name)) cats.push({ name, emoji: '📦' });
+        }
+
+        if (!cats.length) {
+            panel.innerHTML = '<span class="text-xs text-gray-400 italic py-1 px-1">Sem categorias neste período</span>';
+            return;
+        }
+
+        const sel = this._historyCategories;
+        panel.innerHTML = cats.map(c => {
+            const active = sel.has(c.name);
+            return `<button class="hist-cat-chip flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap border transition-all ${active ? 'bg-blue-500 text-white border-blue-500' : 'bg-gray-50 text-gray-600 border-gray-200'}" data-hcat="${this._escHtml(c.name)}">
+                <span>${c.emoji || '📦'}</span><span>${this._escHtml(c.name)}</span>
+            </button>`;
+        }).join('');
+
+        // Botão "Limpar" quando há filtro ativo
+        if (sel.size > 0) {
+            panel.innerHTML += `<button id="history-cat-clear" class="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap bg-red-50 text-red-500 border border-red-200">✕ Limpar</button>`;
+        }
+
+        // Atualiza badge e cor do botão de filtro
+        const badge     = document.getElementById('history-cat-badge');
+        const filterBtn = document.getElementById('history-cat-filter-btn');
+        if (badge) {
+            badge.textContent = sel.size || '';
+            badge.classList.toggle('hidden', sel.size === 0);
+        }
+        if (filterBtn) {
+            filterBtn.classList.toggle('bg-blue-100', sel.size > 0);
+            filterBtn.classList.toggle('text-blue-600', sel.size > 0);
+            filterBtn.classList.toggle('bg-gray-100',  sel.size === 0);
+            filterBtn.classList.toggle('text-gray-600', sel.size === 0);
+        }
     },
 
     // Gera array de N meses retroativos a partir de baseMonth (inclusive)
@@ -2296,6 +2354,37 @@ const App = {
             if (!pill) return;
             this._historyMonths = parseInt(pill.dataset.months) || 1;
             if (this.currentTab === 'history') await this.renderHistory();
+        });
+    },
+
+    // Vincula botão de filtro e cliques nos chips de categoria
+    bindHistoryCatFilter() {
+        // Abre/fecha painel de chips
+        document.getElementById('history-cat-filter-btn')?.addEventListener('click', () => {
+            const panel = document.getElementById('history-cat-chips');
+            if (!panel) return;
+            panel.classList.toggle('hidden');
+        });
+
+        // Clique em chip — delegação no contêiner pai (painel re-renderiza, precisa de delegação no pai fixo)
+        document.getElementById('tab-history')?.addEventListener('click', async e => {
+            // Chip de categoria
+            const chip = e.target.closest('.hist-cat-chip');
+            if (chip) {
+                const cat = chip.dataset.hcat;
+                if (this._historyCategories.has(cat)) {
+                    this._historyCategories.delete(cat);
+                } else {
+                    this._historyCategories.add(cat);
+                }
+                await this.renderHistory();
+                return;
+            }
+            // Botão limpar
+            if (e.target.closest('#history-cat-clear')) {
+                this._historyCategories.clear();
+                await this.renderHistory();
+            }
         });
     },
 
