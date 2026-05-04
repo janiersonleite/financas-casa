@@ -2317,7 +2317,7 @@ const App = {
         const filterBtn = document.getElementById('history-cat-filter-btn');
         if (badge) {
             badge.textContent = sel.size || '';
-            badge.classList.toggle('hidden', sel.size === 0);
+            badge.style.display = sel.size > 0 ? 'flex' : 'none';
         }
         if (filterBtn) {
             filterBtn.classList.toggle('bg-blue-100', sel.size > 0);
@@ -2359,11 +2359,11 @@ const App = {
 
     // Vincula botão de filtro e cliques nos chips de categoria
     bindHistoryCatFilter() {
-        // Abre/fecha painel de chips
+        // Abre/fecha painel de chips (usa style.display para evitar conflito com classes Tailwind)
         document.getElementById('history-cat-filter-btn')?.addEventListener('click', () => {
             const panel = document.getElementById('history-cat-chips');
             if (!panel) return;
-            panel.classList.toggle('hidden');
+            panel.style.display = (panel.style.display === 'none' || !panel.style.display) ? 'flex' : 'none';
         });
 
         // Clique em chip — delegação no contêiner pai (painel re-renderiza, precisa de delegação no pai fixo)
