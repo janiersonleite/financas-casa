@@ -152,9 +152,11 @@ const Storage = {
         // Categorias (filtra pela finança ativa)
         const uid = this.userId();
         const _fid = (this.activeFinancaId && this.activeFinancaId !== 'null') ? this.activeFinancaId : null;
-        let catQ = this.db.from('categories').select('*').eq('user_id', uid);
+        let catQ = this.db.from('categories').select('*');
+        // Finança compartilhada: busca por financa_id (qualquer membro pode ver)
+        // Pessoal: filtra por user_id sem financa_id
         if (_fid) catQ = catQ.eq('financa_id', _fid);
-        else      catQ = catQ.is('financa_id', null);
+        else      catQ = catQ.eq('user_id', uid).is('financa_id', null);
         const { data: catData } = await catQ;
         if (catData) this._cacheCat(catData);
 
@@ -430,10 +432,11 @@ const Storage = {
             if (!this.isOnline) {
                 return this._applyOverrides(_getCached());
             }
-            const uid = this.userId();
-            let q = this.db.from('categories').select('*').eq('user_id', uid);
+            let q = this.db.from('categories').select('*');
+            // Finança compartilhada: busca por financa_id (qualquer membro pode ver)
+            // Pessoal: filtra por user_id sem financa_id
             if (fid) q = q.eq('financa_id', fid);
-            else     q = q.is('financa_id', null);
+            else     q = q.eq('user_id', this.userId()).is('financa_id', null);
             q = q.order('name', { ascending: true });
             const { data, error } = await q;
             if (error) throw error;
@@ -522,9 +525,11 @@ const Storage = {
         const fid = (this.activeFinancaId && this.activeFinancaId !== 'null') ? this.activeFinancaId : null;
         if (this.isCloud) {
             try {
-                let q = this.db.from('reminders').select('*').eq('user_id', this.userId()).eq('active', true);
+                let q = this.db.from('reminders').select('*').eq('active', true);
+                // Finança compartilhada: busca por financa_id (qualquer membro pode ver)
+                // Pessoal: filtra por user_id sem financa_id
                 if (fid) q = q.eq('financa_id', fid);
-                else     q = q.is('financa_id', null);
+                else     q = q.eq('user_id', this.userId()).is('financa_id', null);
                 q = q.order('day', { ascending: true });
                 const { data, error } = await q;
                 if (error) throw error;
