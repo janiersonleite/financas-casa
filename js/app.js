@@ -2528,7 +2528,7 @@ const App = {
                     <div class="flex flex-col items-end gap-0.5">
                         ${t.installment_group_id ? `<div class="text-xs text-gray-400 font-normal">Total ${this.formatCurrency(t.value * t.installment_total)}</div>` : ''}
                         <div class="font-bold ${color}">${sign}${this.formatCurrency(t.value)}</div>
-                        <button class="text-xs text-gray-300 hover:text-red-400 delete-btn" data-id="${t.id}">✕</button>
+                        <button class="text-xs text-gray-300 hover:text-red-400 delete-btn" data-id="${t.id}" data-reminder-id="${t.reminder_id || ''}">✕</button>
                     </div>
                 </div>`;
             }
@@ -2547,6 +2547,8 @@ const App = {
         container.querySelectorAll('.delete-btn').forEach(btn => {
             btn.addEventListener('click', async e => {
                 e.stopPropagation();
+                // reminder_id já está no atributo do botão — não depende de fetch
+                const btnReminderId = btn.dataset.reminderId || null;
                 try {
                     const all = await Storage.getTransactions();
                     const t   = all.find(x => x.id === btn.dataset.id);
@@ -2560,14 +2562,15 @@ const App = {
                                        : choice === 'future' ? futureTxns
                                        :                       [t];
                         for (const tx of toDelete) {
-                            // Desfaz pagamento do lembrete vinculado (se houver)
-                            if (tx.reminder_id) this._unmarkReminderPaid(tx.reminder_id);
+                            // Usa reminder_id do próprio objeto (parcelas do grupo)
+                            const rid = tx.reminder_id || (tx.id === btn.dataset.id ? btnReminderId : null);
+                            if (rid) this._unmarkReminderPaid(rid);
                             await Storage.deleteTransaction(tx.id);
                         }
                     } else {
                         if (!confirm('Remover este lançamento?')) return;
-                        // Desfaz pagamento do lembrete vinculado (se houver)
-                        if (t?.reminder_id) this._unmarkReminderPaid(t.reminder_id);
+                        // Usa reminder_id do atributo do botão (mais confiável que o fetch)
+                        if (btnReminderId) this._unmarkReminderPaid(btnReminderId);
                         await Storage.deleteTransaction(btn.dataset.id);
                     }
                     await this.renderCurrentTab();
