@@ -2482,6 +2482,8 @@ const App = {
                    </div>`;
             return;
         }
+        const todayStr = new Date().toISOString().split('T')[0];
+
         const grouped = {};
         for (const t of transactions) {
             const d = t.date || 'sem-data';
@@ -2490,7 +2492,12 @@ const App = {
         }
         let html = '';
         for (const [date, items] of Object.entries(grouped)) {
-            html += `<div class="text-xs font-semibold text-gray-400 uppercase mt-4 mb-1 px-1">${this.formatDateGroup(date)}</div>`;
+            const isFuture = date !== 'sem-data' && date > todayStr;
+            // Cabeçalho do grupo de data
+            html += isFuture
+                ? `<div class="text-xs font-semibold text-indigo-400 uppercase mt-4 mb-1 px-1">⏳ ${this.formatDateGroup(date)}</div>`
+                : `<div class="text-xs font-semibold text-gray-400 uppercase mt-4 mb-1 px-1">${this.formatDateGroup(date)}</div>`;
+
             for (const t of items) {
                 const icon  = this.getCategoryIcon(t.category);
                 const beh   = Storage.getBehavior(t.type);
@@ -2524,9 +2531,12 @@ const App = {
                 const typeBadge = typeName
                     ? `<span class="inline-flex items-center text-xs border rounded-full px-2 py-0.5 ${typeBadgeColor} font-medium">${this._escHtml(typeName)}</span>`
                     : '';
+                // Estilo do card: futuro = fundo índigo claro; passado/hoje = branco
+                const cardBg   = isFuture ? 'bg-indigo-50 border-indigo-100' : 'bg-white border-gray-100';
+                const iconBg   = isFuture ? 'bg-indigo-100' : 'bg-gray-100';
                 html += `
-                <div class="flex items-center gap-3 bg-white rounded-xl p-3 mb-2 shadow-sm border border-gray-100 transaction-item cursor-pointer" data-id="${t.id}">
-                    <div class="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-xl flex-shrink-0">${icon}</div>
+                <div class="flex items-center gap-3 ${cardBg} rounded-xl p-3 mb-2 shadow-sm border transaction-item cursor-pointer" data-id="${t.id}">
+                    <div class="w-10 h-10 rounded-full ${iconBg} flex items-center justify-center text-xl flex-shrink-0">${icon}</div>
                     <div class="flex-1 min-w-0">
                         <div class="font-medium text-gray-800 truncate">${catDisplay}</div>
                         <div class="text-xs text-gray-400 truncate">${descDisplay}</div>
