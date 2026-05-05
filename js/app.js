@@ -926,9 +926,32 @@ const App = {
     },
 
     openModal(data = {}) {
+        // ── Se novo lançamento e usuário tem >1 perfil, pergunta qual usar antes de abrir ──
+        if (!data.id && !data._financaChosen && this.financas.length > 1) {
+            // Salva o _reminderSourceId atual (pode estar setado por quickAddFromReminder)
+            const savedReminderId = this._reminderSourceId;
+            // Limpa temporariamente para não vazar caso o usuário cancele o picker
+            this._reminderSourceId = null;
+            this.openFinancaSelectModal(selectedId => {
+                // Restaura o vínculo com o lembrete antes de abrir o modal de verdade
+                this._reminderSourceId = savedReminderId;
+                this.openModal({ ...data, _financaChosen: true, _financaId: selectedId });
+            });
+            return;
+        }
+
         this.editingId = data.id || null;
-        // Inicializa seletor de finança: ao editar usa a finança da transação; ao criar usa a ativa
-        this._modalFinancaId = data.financa_id || (this.editingId ? null : null);
+        // Inicializa seletor de finança:
+        // • ao editar: usa a finança da transação
+        // • ao criar com seleção prévia (_financaId): usa a escolhida
+        // • ao criar sem seleção: usa a ativa (null = ativa)
+        if (data._financaId !== undefined) {
+            const activeId = this.activeFinanca?.id || null;
+            const sameAsActive = data._financaId === activeId || (!data._financaId && !activeId);
+            this._modalFinancaId = sameAsActive ? null : data._financaId;
+        } else {
+            this._modalFinancaId = data.financa_id || null;
+        }
         this._renderModalFinancaPicker();
         document.getElementById('modal-overlay').classList.remove('hidden');
         this._catUserPicked = false;            // reset: usuário ainda não escolheu categoria neste modal
@@ -1619,21 +1642,20 @@ const App = {
         const r = this.reminders.find(x => x.id === id);
         if (!r) return;
         this._reminderSourceId = id;   // rastreia qual lembrete gerou o modal
-        // Pré-preenche o modal de lançamento
+
         const today = new Date().toISOString().slice(0, 10);
         const day   = String(r.day).padStart(2, '0');
         const month = new Date().toISOString().slice(0, 7);
         const date  = `${month}-${day}`;
 
-        document.getElementById('modal-date').value        = date <= today ? date : today;
-        document.getElementById('modal-description').value = r.name;
-        document.getElementById('modal-value').value       = r.amount > 0 ? this._toMaskedCurrency(r.amount) : '';
-        if (r.category) {
-            const sel = document.getElementById('modal-category');
-            if (sel) { sel.value = r.category; if (!sel.value) sel.value = sel.options[0]?.value || ''; }
-        }
-        this.selectModalType(r.type || 'saida');
-        this.openModal();
+        // Passa todos os dados via objeto para que sobrevivam ao picker de perfil
+        this.openModal({
+            description: r.name,
+            value:       r.amount > 0 ? r.amount : undefined,
+            date:        date <= today ? date : today,
+            category:    r.category || undefined,
+            type:        r.type || 'saida',
+        });
     },
 
     bindRemindersUI() {
