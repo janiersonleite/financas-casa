@@ -691,6 +691,8 @@ const App = {
                         badge.classList.toggle('hidden', !isLearned);
                         badge.classList.toggle('inline-flex', isLearned);
                     }
+                    // Verifica sugestão de lembrete para a categoria auto-preenchida
+                    this._checkReminderSuggestByCategory();
                 } else {
                     if (badge) badge.classList.add('hidden'), badge.classList.remove('inline-flex');
                 }
@@ -929,9 +931,11 @@ const App = {
         document.getElementById('modal-overlay').classList.remove('hidden');
         this._catUserPicked = false;            // reset: usuário ainda não escolheu categoria neste modal
         this._reminderSuggestDismissed = false; // reset: permite nova sugestão ao abrir modal
-        // Ao editar, preserva o reminder_id existente em _reminderSourceId
-        // (isso também impede que nova sugestão apareça se já há lembrete vinculado)
-        this._reminderSourceId = data.reminder_id || null;
+        // Preserva _reminderSourceId se já definido antes (ex.: quickAddFromReminder)
+        // Caso contrário carrega o reminder_id da transação sendo editada (ou null para novo)
+        if (!this._reminderSourceId) {
+            this._reminderSourceId = data.reminder_id || null;
+        }
         // Esconde banner de sugestão de lembrete
         const rSuggest = document.getElementById('modal-reminder-suggest');
         if (rSuggest) rSuggest.style.display = 'none';
@@ -988,6 +992,8 @@ const App = {
             }
         }
         if (data.focusValue) setTimeout(() => document.getElementById('modal-value').focus(), 100);
+        // Verifica sugestão de lembrete para a categoria já preenchida ao abrir
+        setTimeout(() => this._checkReminderSuggestByCategory(), 50);
     },
 
     closeModal() {
