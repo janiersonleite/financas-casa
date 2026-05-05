@@ -28,6 +28,7 @@ const App = {
     _homeSearch:        '',     // texto da pesquisa na home
     _historyMonths:     1,      // período selecionado na aba histórico (1 | 2 | 3 | 6 | 12)
     _historyCategories: new Set(), // categorias selecionadas no filtro do histórico
+    _monthTransactions: [],    // transações do mês atual (fonte de verdade para isReminderPaid)
     _LEARN_KEY: 'financas_learned_cats',  // chave localStorage para aprendizado
     _catUserPicked:     false,  // true quando usuário escolheu categoria manualmente no modal
 
@@ -1585,26 +1586,31 @@ const App = {
     },
 
     // ── Reminder paid helpers ────────────────────────────────────────────────
-    // Cada mês começa zerado — pago em abril não afeta maio.
-    // Usa o mês visualizado (currentMonth) para que navegar para outro mês
-    // mostre o estado de pago correto daquele mês.
+    // Fonte primária: transações do Supabase (sobrevive a limpeza de cache).
+    // Fonte secundária: localStorage (compatibilidade e fallback enquanto
+    //   _monthTransactions ainda não foi carregado).
     _currentMonth() { return this.currentMonth || new Date().toISOString().slice(0, 7); },
     _paidKey(month) { return 'reminder_paid_' + month; },
     _getPaidReminders(month) {
         try { return JSON.parse(localStorage.getItem(this._paidKey(month)) || '[]'); } catch { return []; }
     },
     _markReminderPaid(id) {
+        // Escreve no localStorage só para o toast de mês; a verdade fica no Supabase.
         const month = this._currentMonth();
         const list  = this._getPaidReminders(month);
         if (!list.includes(id)) { list.push(id); localStorage.setItem(this._paidKey(month), JSON.stringify(list)); }
         return month;
     },
     _unmarkReminderPaid(id) {
+        // Remove do localStorage (a transação já foi deletada do Supabase pelo chamador).
         const month = this._currentMonth();
         const list  = this._getPaidReminders(month).filter(x => x !== id);
         localStorage.setItem(this._paidKey(month), JSON.stringify(list));
     },
     isReminderPaid(id) {
+        // 1. Verifica nas transações reais já carregadas (fonte principal — Supabase)
+        if (this._monthTransactions && this._monthTransactions.some(t => t.reminder_id === id)) return true;
+        // 2. Fallback: localStorage (enquanto as transações ainda não foram carregadas)
         return this._getPaidReminders(this._currentMonth()).includes(id);
     },
     _reminderPaidMonth(id) { return this._currentMonth(); },
@@ -2236,6 +2242,8 @@ const App = {
             Storage.getSummary(this.currentMonth),
             Storage.getTransactions({ month: this.currentMonth })
         ]);
+        // Cacheia para isReminderPaid derivar do Supabase (não depende de localStorage)
+        this._monthTransactions = allMonth;
         document.getElementById('balance').textContent       = this.formatCurrency(summary.balance);
         document.getElementById('total-income').textContent  = this.formatCurrency(summary.income);
         document.getElementById('total-expense').textContent = this.formatCurrency(summary.expense);
