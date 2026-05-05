@@ -1508,7 +1508,7 @@ const App = {
 
         const card = (r, style) => {
             const paid = this.isReminderPaid(r.id);
-            const amt  = r.amount > 0 ? `<span class="text-xs font-semibold ${paid ? 'text-green-500' : style.val}">${this.formatCurrency(r.amount)}</span>` : '';
+            const amt  = r.amount > 0 ? `<span class="text-xs font-semibold ${paid ? 'text-green-600' : style.val}">${this.formatCurrency(r.amount)}</span>` : '';
             if (paid) {
                 const refMonth = this._reminderPaidMonth(r.id);
                 const [ry, rm] = refMonth.split('-');
@@ -1518,13 +1518,14 @@ const App = {
                     <span class="text-2xl">${r.emoji || '🔔'}</span>
                     <div class="flex-1 min-w-0">
                         <div class="text-sm font-semibold text-gray-500 truncate line-through">${r.name}</div>
-                        <div class="text-xs text-green-500 font-medium">✅ Pago em ${monthName}</div>
+                        <div class="text-xs text-green-600 font-medium">✅ Pago em ${monthName}</div>
                     </div>
                     ${amt}
                     <button class="reminder-unpay-btn ml-1 text-xs text-gray-400 hover:text-red-400 flex-shrink-0 px-1" data-reminder-id="${r.id}" title="Desfazer">↩</button>
                 </div>`;
             }
-            return `<div class="flex items-center gap-3 bg-white rounded-xl px-3 py-2.5 shadow-sm border ${style.border}">
+            // Cartão de lembrete NÃO pago — fundo tintado para diferenciar dos lançamentos (bg branco)
+            return `<div class="flex items-center gap-3 rounded-xl px-3 py-2.5 border ${style.bg} ${style.border}">
                 <span class="text-2xl">${r.emoji || '🔔'}</span>
                 <div class="flex-1 min-w-0">
                     <div class="text-sm font-semibold text-gray-800 truncate">${r.name}</div>
@@ -1544,26 +1545,27 @@ const App = {
 
         if (dueToday.length) {
             html += `<div class="text-xs font-bold text-orange-600 mb-1 mt-1">📅 Vence hoje</div>`;
-            html += dueToday.map(r => card(r, { border:'border-orange-200 bg-orange-50', txt:'text-orange-600', val:'text-orange-600', btn:'bg-orange-500 text-white hover:bg-orange-600' })).join('');
+            html += dueToday.map(r => card(r, { bg:'bg-orange-50', border:'border-orange-300', txt:'text-orange-600', val:'text-orange-600', btn:'bg-orange-500 text-white hover:bg-orange-600' })).join('');
         }
         if (overdue.length) {
             html += `<div class="text-xs font-bold text-red-500 mb-1 mt-2">⚠️ Vencidos este mês</div>`;
-            html += overdue.map(r => card(r, { border:'border-red-200', txt:'text-red-400', val:'text-red-500', btn:'bg-red-500 text-white hover:bg-red-600' })).join('');
+            html += overdue.map(r => card(r, { bg:'bg-red-50', border:'border-red-200', txt:'text-red-500', val:'text-red-500', btn:'bg-red-500 text-white hover:bg-red-600' })).join('');
         }
         if (upcoming.length) {
             html += `<div class="text-xs font-bold text-blue-500 mb-1 mt-2">📆 Próximos 7 dias</div>`;
-            html += upcoming.map(r => card(r, { border:'border-blue-100', txt:'text-blue-400', val:'text-blue-600', btn:'bg-blue-500 text-white hover:bg-blue-600' })).join('');
+            html += upcoming.map(r => card(r, { bg:'bg-blue-50', border:'border-blue-200', txt:'text-blue-500', val:'text-blue-600', btn:'bg-blue-500 text-white hover:bg-blue-600' })).join('');
         }
         if (later.length) {
-            html += `<div class="text-xs font-bold text-gray-400 mb-1 mt-2">🗓️ Este mês</div>`;
-            html += later.map(r => card(r, { border:'border-gray-100', txt:'text-gray-400', val:'text-gray-500', btn:'bg-gray-200 text-gray-600 hover:bg-gray-300' })).join('');
+            html += `<div class="text-xs font-bold text-gray-500 mb-1 mt-2">🗓️ Este mês</div>`;
+            html += later.map(r => card(r, { bg:'bg-slate-100', border:'border-slate-200', txt:'text-slate-500', val:'text-slate-600', btn:'bg-slate-400 text-white hover:bg-slate-500' })).join('');
         }
 
         // Injeta os cards numa div separada para não sobrescrever o botão vazio
         wrap.querySelectorAll('.reminder-cards-wrap').forEach(el => el.remove());
         const cardsDiv = document.createElement('div');
-        cardsDiv.className = 'reminder-cards-wrap space-y-1.5';
-        cardsDiv.innerHTML = html;
+        cardsDiv.className = 'reminder-cards-wrap';
+        // Wrapper com fundo amarelado e borda pontilhada — sinaliza zona de "pagamentos futuros"
+        cardsDiv.innerHTML = `<div class="bg-amber-50 border border-amber-200 rounded-2xl px-3 pt-3 pb-2 space-y-1.5">${html}</div>`;
         wrap.appendChild(cardsDiv);
 
         cardsDiv.querySelector('#reminders-manage-btn')?.addEventListener('click', () => this.openRemindersModal());
