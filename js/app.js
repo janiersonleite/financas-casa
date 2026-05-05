@@ -2559,9 +2559,15 @@ const App = {
                         const toDelete = choice === 'all'    ? groupTxns
                                        : choice === 'future' ? futureTxns
                                        :                       [t];
-                        for (const tx of toDelete) await Storage.deleteTransaction(tx.id);
+                        for (const tx of toDelete) {
+                            // Desfaz pagamento do lembrete vinculado (se houver)
+                            if (tx.reminder_id) this._unmarkReminderPaid(tx.reminder_id);
+                            await Storage.deleteTransaction(tx.id);
+                        }
                     } else {
                         if (!confirm('Remover este lançamento?')) return;
+                        // Desfaz pagamento do lembrete vinculado (se houver)
+                        if (t?.reminder_id) this._unmarkReminderPaid(t.reminder_id);
                         await Storage.deleteTransaction(btn.dataset.id);
                     }
                     await this.renderCurrentTab();
