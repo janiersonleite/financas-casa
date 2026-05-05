@@ -929,6 +929,9 @@ const App = {
         document.getElementById('modal-overlay').classList.remove('hidden');
         this._catUserPicked = false;            // reset: usuário ainda não escolheu categoria neste modal
         this._reminderSuggestDismissed = false; // reset: permite nova sugestão ao abrir modal
+        // Ao editar, preserva o reminder_id existente em _reminderSourceId
+        // (isso também impede que nova sugestão apareça se já há lembrete vinculado)
+        this._reminderSourceId = data.reminder_id || null;
         // Esconde banner de sugestão de lembrete
         const rSuggest = document.getElementById('modal-reminder-suggest');
         if (rSuggest) rSuggest.style.display = 'none';
@@ -999,8 +1002,8 @@ const App = {
         const suggest = document.getElementById('modal-reminder-suggest');
         if (!suggest) return;
 
-        // Não sugere se: já há lembrete vinculado, usuário dispensou, ou é edição
-        if (this._reminderSourceId || this._reminderSuggestDismissed || this.editingId) {
+        // Não sugere se: já há lembrete vinculado ou usuário dispensou
+        if (this._reminderSourceId || this._reminderSuggestDismissed) {
             suggest.style.display = 'none';
             return;
         }
@@ -1044,7 +1047,7 @@ const App = {
             description: baseDesc,
             date:        document.getElementById('modal-date').value,
             notes:       document.getElementById('modal-notes').value,
-            ...(this._reminderSourceId && !this.editingId ? { reminder_id: this._reminderSourceId } : {}),
+            ...(this._reminderSourceId ? { reminder_id: this._reminderSourceId } : {}),
             ...(!this.editingId && this._modalFinancaId ? { _targetFinancaId: this._modalFinancaId } : {})
         };
 
