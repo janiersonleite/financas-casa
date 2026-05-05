@@ -52,6 +52,7 @@ const App = {
         this.bindHomeSearch();
         this.bindHistoryPills();
         this.bindHistoryCatFilter();
+        this.bindReminderNewCat();
         NLP.setLearnedMap(this._getLearnedMap());
         const verEl = document.getElementById('app-version-label');
         if (verEl) verEl.textContent = `v ${APP_VERSION}`;
@@ -1800,10 +1801,12 @@ const App = {
         document.getElementById('reminder-amount-input').value  = reminder?.amount > 0 ? reminder.amount : '';
         document.getElementById('reminder-emoji-input').value   = reminder?.emoji   || '🔔';
         document.getElementById('reminder-category-input').value = reminder?.category || '';
-        // Preenche o select de categoria com as categorias disponíveis
+        // Preenche o select de categoria com as categorias disponíveis + opção de criar
         const catSel = document.getElementById('reminder-category-input');
-        catSel.innerHTML = `<option value="">— Sem categoria —</option>` +
-            this.categories.map(c => `<option value="${c.name}" ${reminder?.category === c.name ? 'selected' : ''}>${c.emoji} ${c.name}</option>`).join('');
+        this._populateReminderCatSelect(catSel, reminder?.category || '');
+        // Garante que painel de nova categoria esteja fechado ao abrir o form
+        const ncPanel = document.getElementById('reminder-new-cat-panel');
+        if (ncPanel) ncPanel.style.display = 'none';
         // Tipo
         const typeSel = document.getElementById('reminder-type-input');
         const allTypes = [
@@ -1821,12 +1824,90 @@ const App = {
         this.editingReminderId = null;
     },
 
+    // Popula o select de categoria do form de lembrete (inclui opção "Nova categoria")
+    _populateReminderCatSelect(sel, selectedName = '') {
+        sel.innerHTML =
+            `<option value="">— Sem categoria —</option>` +
+            this.categories.map(c =>
+                `<option value="${this._escHtml(c.name)}" ${c.name === selectedName ? 'selected' : ''}>${c.emoji} ${this._escHtml(c.name)}</option>`
+            ).join('') +
+            `<option value="__new__">➕ Nova categoria…</option>`;
+    },
+
+    // Liga os eventos do painel de nova categoria no form de lembrete
+    bindReminderNewCat() {
+        const sel    = document.getElementById('reminder-category-input');
+        const panel  = document.getElementById('reminder-new-cat-panel');
+        const nameIn = document.getElementById('reminder-cat-name');
+        const emojiIn= document.getElementById('reminder-cat-emoji');
+        const saveBtn= document.getElementById('reminder-cat-save');
+        const cancelBtn = document.getElementById('reminder-cat-cancel');
+        if (!sel || !panel) return;
+
+        // Abre painel quando usuário escolhe "Nova categoria…"
+        sel.addEventListener('change', () => {
+            if (sel.value === '__new__') {
+                panel.style.display = 'block';
+                nameIn?.focus();
+            } else {
+                panel.style.display = 'none';
+            }
+        });
+
+        // Cancelar — fecha painel e volta para "Sem categoria"
+        cancelBtn?.addEventListener('click', () => {
+            panel.style.display = 'none';
+            sel.value = '';
+        });
+
+        // Salvar nova categoria
+        saveBtn?.addEventListener('click', async () => {
+            const name  = nameIn?.value.trim();
+            const emoji = emojiIn?.value.trim() || '📦';
+            if (!name) { nameIn?.focus(); return; }
+
+            saveBtn.disabled = true;
+            saveBtn.textContent = 'Criando…';
+            try {
+                // Verifica duplicata local
+                if (this.categories.find(c => c.name.toLowerCase() === name.toLowerCase())) {
+                    // Já existe — apenas seleciona
+                    this._populateReminderCatSelect(sel, name);
+                    panel.style.display = 'none';
+                    this.showToast('✅ Categoria selecionada!');
+                    return;
+                }
+                const cat = await Storage.createCategory(name, emoji, [], 'both');
+                this.categories.push(cat);
+                this.categories = this._sortCategories(this.categories);
+                NLP.setCategoryMap(this.categories);
+                this.renderCategorySelect();
+                this.renderQuickButtons();
+                // Atualiza o select do lembrete e seleciona a nova categoria
+                this._populateReminderCatSelect(sel, name);
+                panel.style.display = 'none';
+                nameIn.value  = '';
+                emojiIn.value = '';
+                this.showToast('✅ Categoria criada!');
+            } catch (e) {
+                this.showToast('❌ ' + (e.message || 'Erro ao criar categoria'), true);
+            } finally {
+                saveBtn.disabled = false;
+                saveBtn.textContent = 'Criar';
+            }
+        });
+
+        // Enter no campo de nome também salva
+        nameIn?.addEventListener('keydown', e => { if (e.key === 'Enter') saveBtn?.click(); });
+    },
+
     async saveReminderForm() {
         const name   = document.getElementById('reminder-name-input').value.trim();
         const day    = parseInt(document.getElementById('reminder-day-input').value);
         const amount = parseFloat(document.getElementById('reminder-amount-input').value) || 0;
         const emoji  = document.getElementById('reminder-emoji-input').value.trim() || '🔔';
-        const category = document.getElementById('reminder-category-input').value;
+        const catRaw   = document.getElementById('reminder-category-input').value;
+        const category = catRaw === '__new__' ? '' : catRaw; // ignora opção de nova categoria não finalizada
         const type   = document.getElementById('reminder-type-input').value || 'saida';
 
         if (!name) { document.getElementById('reminder-name-input').focus(); return; }
