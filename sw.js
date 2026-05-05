@@ -1,6 +1,6 @@
 // ─── Service Worker — Finanças Casa ──────────────────────────────────────────
 const SHARE_CACHE   = 'share-target-v1';
-const RUNTIME_CACHE = 'app-runtime-v1';
+const RUNTIME_CACHE = 'app-runtime-v1'; // substituído pelo CI a cada deploy
 
 self.addEventListener('install', e => {
     e.waitUntil(
