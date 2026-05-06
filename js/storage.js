@@ -559,6 +559,23 @@ const Storage = {
         return this._getLocalReminders().filter(r => fid ? r.financa_id === fid : !r.financa_id);
     },
 
+    // Busca lembretes de uma finança específica (independente da ativa)
+    async getRemindersForFinanca(fid) {
+        const safeFid = (fid && fid !== 'null') ? fid : null;
+        if (this.isCloud) {
+            try {
+                let q = this.db.from('reminders').select('*').eq('active', true);
+                if (safeFid) q = q.eq('financa_id', safeFid);
+                else         q = q.eq('user_id', this.userId()).is('financa_id', null);
+                q = q.order('day', { ascending: true });
+                const { data, error } = await q;
+                if (error) throw error;
+                return data ?? [];
+            } catch (_) { return []; }
+        }
+        return this._getLocalReminders().filter(r => safeFid ? r.financa_id === safeFid : !r.financa_id);
+    },
+
     async createReminder({ name, day, amount, category, type, emoji, financa_id }) {
         const fid = financa_id ?? ((this.activeFinancaId && this.activeFinancaId !== 'null') ? this.activeFinancaId : null);
         const localId = 'rem_' + Date.now().toString(36);

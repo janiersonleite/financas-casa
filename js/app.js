@@ -30,6 +30,7 @@ const App = {
     _historyCategories: new Set(), // categorias selecionadas no filtro do histórico
     _monthTransactions: [],    // transações do mês atual (fonte de verdade para isReminderPaid)
     _modalCategories:   null,  // categorias do perfil escolhido no modal (null = usa o ativo)
+    _modalReminders:    null,  // lembretes do perfil escolhido no modal (null = usa o ativo)
     _LEARN_KEY: 'financas_learned_cats',  // chave localStorage para aprendizado
     _catUserPicked:     false,  // true quando usuário escolheu categoria manualmente no modal
 
@@ -956,23 +957,29 @@ const App = {
         this._renderModalFinancaPicker();
         document.getElementById('modal-overlay').classList.remove('hidden');
 
-        // ── Carrega categorias do perfil escolhido (se diferente do ativo) ──────
+        // ── Carrega categorias e lembretes do perfil escolhido (se diferente do ativo) ──
         if (this._modalFinancaId && this._modalFinancaId !== (this.activeFinanca?.id || null)) {
             try {
-                const raw = await Storage.getCategoriesForFinanca(this._modalFinancaId);
+                const [rawCats, rawRem] = await Promise.all([
+                    Storage.getCategoriesForFinanca(this._modalFinancaId),
+                    Storage.getRemindersForFinanca(this._modalFinancaId),
+                ]);
                 const seen = new Set();
                 this._modalCategories = this._sortCategories(
-                    raw.filter(c => {
+                    rawCats.filter(c => {
                         const k = (c.name || '').trim().toLowerCase();
                         return seen.has(k) ? false : (seen.add(k), true);
                     })
                 );
+                this._modalReminders = rawRem;
             } catch (e) {
-                console.warn('openModal: getCategoriesForFinanca', e);
+                console.warn('openModal: load for finança', e);
                 this._modalCategories = null;
+                this._modalReminders  = null;
             }
         } else {
             this._modalCategories = null; // usa this.categories (perfil ativo)
+            this._modalReminders  = null; // usa this.reminders (perfil ativo)
         }
 
         this._catUserPicked = false;            // reset: usuário ainda não escolheu categoria neste modal
@@ -1048,6 +1055,7 @@ const App = {
         this._reminderSourceId = null;
         this._modalFinancaId   = null;
         this._modalCategories  = null; // limpa categorias temporárias do perfil escolhido
+        this._modalReminders   = null; // limpa lembretes temporários do perfil escolhido
     },
 
     // Verifica se há lembrete com a categoria selecionada e exibe sugestão de vínculo
@@ -1067,8 +1075,9 @@ const App = {
             return;
         }
 
-        // Busca lembrete com mesma categoria, não pago neste mês
-        const match = this.reminders.find(r =>
+        // Usa lembretes do perfil escolhido no modal (ou do perfil ativo)
+        const reminders = this._modalReminders ?? this.reminders;
+        const match = reminders.find(r =>
             r.category && r.category === selectedCat && !this.isReminderPaid(r.id)
         );
 
