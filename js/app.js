@@ -708,10 +708,8 @@ const App = {
     openFinancaSelectModal(callback) {
         this._financaSelectCallback = callback;
         const list = document.getElementById('financa-select-list');
-        const all  = [
-            { id: null, name: 'Pessoal', emoji: '💰', type: 'individual' },
-            ...this.financas
-        ];
+        // this.financas já inclui o perfil Pessoal — não adicionar entrada duplicada
+        const all  = this.financas.length ? this.financas : [{ id: null, name: 'Pessoal', emoji: '💰', type: 'individual' }];
         list.innerHTML = all.map(f => {
             const currentId = this._financaSelectCallback === callback
                 ? (this._modalFinancaId ?? (this.activeFinanca?.id || null))
