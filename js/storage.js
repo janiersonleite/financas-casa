@@ -13,9 +13,15 @@ const Storage = {
         { id: 'entrada', name: 'Entrada (Receita)', behavior: 'soma',    emoji: '💰', color: 'green', fixed: true },
     ],
 
+    // Chave localStorage separada por perfil (finança)
+    _customTypesKey() {
+        const fid = this.activeFinancaId && this.activeFinancaId !== 'null' ? this.activeFinancaId : null;
+        return fid ? `${this.CUSTOM_TYPES_KEY}_${fid}` : this.CUSTOM_TYPES_KEY;
+    },
+
     getCustomTypes() {
         try {
-            let list = JSON.parse(localStorage.getItem(this.CUSTOM_TYPES_KEY) || '[]');
+            let list = JSON.parse(localStorage.getItem(this._customTypesKey()) || '[]');
             // Migra IDs antigos que ultrapassam VARCHAR(10) do Supabase
             let dirty = false;
             list = list.map(t => {
@@ -29,7 +35,7 @@ const Storage = {
             return list;
         } catch { return []; }
     },
-    _saveCustomTypes(list) { localStorage.setItem(this.CUSTOM_TYPES_KEY, JSON.stringify(list)); },
+    _saveCustomTypes(list) { localStorage.setItem(this._customTypesKey(), JSON.stringify(list)); },
 
     async getTransactionTypes() {
         return [...this._fixedTypes, ...this.getCustomTypes()];
@@ -39,10 +45,13 @@ const Storage = {
         // ID curto (≤10 chars) para caber no VARCHAR(10) da coluna transactions.type
         // NÃO sobrescreve com UUID do Supabase — nosso ID curto é o canônico
         const t = { id: 'ct' + Date.now().toString(36).slice(-6), name, behavior, emoji, color };
+        const fid = this.activeFinancaId && this.activeFinancaId !== 'null' ? this.activeFinancaId : null;
         if (this.isCloud) {
             try {
+                const payload = { name, behavior, emoji, color, user_id: this.userId() };
+                if (fid) payload.financa_id = fid;
                 const { data } = await this.db.from('transaction_types')
-                    .insert({ name, behavior, emoji, color, user_id: this.userId() }).select().single();
+                    .insert(payload).select().single();
                 // Guarda o UUID do Supabase separado (para update/delete), mas mantém nosso ID curto
                 if (data?.id) t._supabaseId = data.id;
             } catch (_) {}
