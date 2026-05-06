@@ -60,7 +60,7 @@ const App = {
         const verEl = document.getElementById('app-version-label');
         if (verEl) verEl.textContent = `v ${APP_VERSION}`;
         await this.loadFinancas();
-        await this.loadTransactionTypes();
+        await Promise.all([this.loadTransactionTypes(), Storage.syncCustomTypesFromCloud()]);
         await this.loadCategories();
         await this.loadReminders();
         await this.renderHome();
@@ -263,7 +263,7 @@ const App = {
                 Storage.setActiveFinanca(f.id);
                 this.closeFinancaModal();
                 this.renderFinancaSwitcher();
-                await Promise.all([this.loadCategories(), this.loadReminders()]);
+                await Promise.all([this.loadCategories(), this.loadReminders(), Storage.syncCustomTypesFromCloud()]);
                 await this.renderCurrentTab();
                 if (navigator.onLine) this._warmOfflineCache();
                 if (this.currentTab !== 'home') await this.renderHome();
@@ -282,7 +282,7 @@ const App = {
                         this.activeFinanca = this.financas[0] || null;
                         Storage.setActiveFinanca(this.activeFinanca?.id || null);
                         this.renderFinancaSwitcher();
-                        await Promise.all([this.loadCategories(), this.loadReminders()]);
+                        await Promise.all([this.loadCategories(), this.loadReminders(), Storage.syncCustomTypesFromCloud()]);
                         await this.renderCurrentTab();
                     }
                     this.renderFinancaList();
@@ -332,7 +332,7 @@ const App = {
             Storage.setActiveFinanca(f.id);
             this.closeCreateFinancaModal();
             this.renderFinancaSwitcher();
-            await Promise.all([this.loadCategories(), this.loadReminders()]);
+            await Promise.all([this.loadCategories(), this.loadReminders(), Storage.syncCustomTypesFromCloud()]);
             await this.renderCurrentTab();
             this.showToast('✅ Carteira criada!');
         } catch (e) {
@@ -595,7 +595,7 @@ const App = {
                         this.activeFinanca = newF;
                         Storage.setActiveFinanca(newF?.id || null);
                         this.renderFinancaSwitcher();
-                        await Promise.all([this.loadCategories(), this.loadReminders()]);
+                        await Promise.all([this.loadCategories(), this.loadReminders(), Storage.syncCustomTypesFromCloud()]);
                         this._modalFinancaId = null; // null = usa o perfil ativo (já trocado)
                         this._renderModalFinancaPicker();
                     },

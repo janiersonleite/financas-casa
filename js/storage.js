@@ -41,6 +41,30 @@ const Storage = {
         return [...this._fixedTypes, ...this.getCustomTypes()];
     },
 
+    // Carrega tipos do Supabase e sincroniza com localStorage (chamado no init e troca de perfil)
+    async syncCustomTypesFromCloud() {
+        if (!this.isCloud || !this.isOnline) return;
+        try {
+            const fid = this.activeFinancaId && this.activeFinancaId !== 'null' ? this.activeFinancaId : null;
+            let q = this.db.from('transaction_types').select('*');
+            if (fid) q = q.eq('financa_id', fid);
+            else     q = q.eq('user_id', this.userId()).is('financa_id', null);
+            const { data, error } = await q;
+            if (error || !data) return;
+            // Converte registros do Supabase para o formato local (ID curto + _supabaseId)
+            const existing = this.getCustomTypes();
+            const merged = [...existing];
+            for (const row of data) {
+                // Usa o custom_id salvo, ou gera um baseado no UUID do Supabase
+                const localId = row.custom_id || ('ct' + (row.id || '').replace(/\D/g, '').slice(-6));
+                if (!merged.find(t => t._supabaseId === row.id || t.id === localId)) {
+                    merged.push({ id: localId, name: row.name, behavior: row.behavior, emoji: row.emoji, color: row.color, _supabaseId: row.id });
+                }
+            }
+            this._saveCustomTypes(merged);
+        } catch (_) {}
+    },
+
     async createTransactionType(name, behavior, emoji, color) {
         // ID curto (≤10 chars) para caber no VARCHAR(10) da coluna transactions.type
         // NÃO sobrescreve com UUID do Supabase — nosso ID curto é o canônico
@@ -48,7 +72,7 @@ const Storage = {
         const fid = this.activeFinancaId && this.activeFinancaId !== 'null' ? this.activeFinancaId : null;
         if (this.isCloud) {
             try {
-                const payload = { name, behavior, emoji, color, user_id: this.userId() };
+                const payload = { name, behavior, emoji, color, user_id: this.userId(), custom_id: t.id };
                 if (fid) payload.financa_id = fid;
                 const { data } = await this.db.from('transaction_types')
                     .insert(payload).select().single();
