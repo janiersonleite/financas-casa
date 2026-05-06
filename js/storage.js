@@ -449,6 +449,22 @@ const Storage = {
         return this._applyOverrides(all);
     },
 
+    // Busca categorias de uma finança específica (independente da ativa)
+    async getCategoriesForFinanca(fid) {
+        const safeFid = (fid && fid !== 'null') ? fid : null;
+        if (this.isCloud) {
+            let q = this.db.from('categories').select('*');
+            if (safeFid) q = q.eq('financa_id', safeFid);
+            else         q = q.eq('user_id', this.userId()).is('financa_id', null);
+            q = q.order('name', { ascending: true });
+            const { data, error } = await q;
+            if (error) throw error;
+            return data ?? [];
+        }
+        const d = this._localGet();
+        return (d.categories || []).filter(c => safeFid ? c.financa_id === safeFid : !c.financa_id);
+    },
+
     async createCategory(name, emoji, keywords, type) {
         const fid = (this.activeFinancaId && this.activeFinancaId !== 'null') ? this.activeFinancaId : null;
         if (this.isCloud) {
