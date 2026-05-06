@@ -671,7 +671,7 @@ const Storage = {
                 return tx;
             }
             const { _rawType, _offline, _constraintFallback, _targetFinancaId, ...tClean } = t;
-            const payload = { ...tClean, user_id: this.userId() };
+            const payload = { ...tClean, user_id: this.userId(), inserted_by_email: Auth?.user?.email ?? null };
             if (targetFid) payload.financa_id = targetFid;
             const { data, error } = await this.db
                 .from('transactions').insert(payload).select().single();
