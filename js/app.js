@@ -2943,10 +2943,7 @@ const App = {
 
         const people = Object.values(byPerson);
 
-        // Exibe para financas compartilhadas (sempre) ou quando há mais de um inseridor
-        const isShared = this.activeFinanca?.type === 'compartilhada' || this.activeFinanca?.type === 'familiar';
-        const hasMultiInserters = txns.some(t => t.inserted_by_email && t.inserted_by_email.toLowerCase() !== myEmail);
-        if (!isShared && people.length < 2 && !hasMultiInserters) { wrap.classList.add('hidden'); return; }
+        // Exibe para todos os perfis, desde que haja ao menos um lançamento
         if (!people.length) { wrap.classList.add('hidden'); return; }
         wrap.classList.remove('hidden');
 
