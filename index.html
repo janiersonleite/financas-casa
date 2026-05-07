@@ -418,6 +418,75 @@
             </button>
         </div>
 
+        <!-- Banner iOS: instalar via Safari (aparece só no iPhone/iPad não instalado) -->
+        <div id="ios-install-banner" class="hidden bg-gradient-to-br from-blue-600 to-indigo-700 text-white rounded-2xl p-4 shadow-lg">
+            <div class="flex items-start gap-3">
+                <span class="text-3xl flex-shrink-0">📱</span>
+                <div class="flex-1">
+                    <div class="font-bold text-sm">Instale no seu iPhone!</div>
+                    <div class="text-xs text-blue-100 mt-0.5">Acesse como app direto da tela inicial.</div>
+                </div>
+                <button id="ios-install-close" class="text-white/60 hover:text-white text-lg leading-none flex-shrink-0">✕</button>
+            </div>
+            <button id="ios-install-steps-btn"
+                class="mt-3 w-full bg-white text-blue-600 font-semibold text-sm rounded-xl py-2.5 hover:bg-blue-50 transition-colors">
+                Ver como instalar
+            </button>
+        </div>
+
+        <!-- Modal iOS: passo a passo de instalação -->
+        <div id="ios-install-modal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-end justify-center p-4">
+            <div class="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-lg font-bold text-gray-800">📲 Instalar no iPhone</h2>
+                    <button id="ios-modal-close" class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-gray-200">✕</button>
+                </div>
+                <p class="text-sm text-gray-500 mb-5">Siga os passos abaixo no Safari:</p>
+
+                <!-- Passo 1 -->
+                <div class="flex items-start gap-3 mb-4">
+                    <div class="w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center text-sm font-bold flex-shrink-0">1</div>
+                    <div>
+                        <p class="text-sm font-semibold text-gray-800">Toque no botão Compartilhar</p>
+                        <p class="text-xs text-gray-500 mt-0.5">O ícone de <strong>caixa com seta para cima</strong> ↑ na barra inferior do Safari</p>
+                        <div class="mt-2 bg-gray-50 rounded-xl p-2 text-center text-2xl">
+                            <span>⬜</span><span class="text-xs text-gray-400 block mt-0.5">barra inferior do Safari</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Passo 2 -->
+                <div class="flex items-start gap-3 mb-4">
+                    <div class="w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center text-sm font-bold flex-shrink-0">2</div>
+                    <div>
+                        <p class="text-sm font-semibold text-gray-800">Toque em "Adicionar à Tela de Início"</p>
+                        <p class="text-xs text-gray-500 mt-0.5">Role o menu para baixo e procure essa opção</p>
+                        <div class="mt-2 bg-gray-50 rounded-xl px-3 py-2 flex items-center gap-2">
+                            <span class="text-xl">➕</span>
+                            <span class="text-sm font-medium text-gray-700">Adicionar à Tela de Início</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Passo 3 -->
+                <div class="flex items-start gap-3 mb-5">
+                    <div class="w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center text-sm font-bold flex-shrink-0">3</div>
+                    <div>
+                        <p class="text-sm font-semibold text-gray-800">Toque em "Adicionar"</p>
+                        <p class="text-xs text-gray-500 mt-0.5">Confirme no canto superior direito — o app aparecerá na tela inicial</p>
+                    </div>
+                </div>
+
+                <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4">
+                    <p class="text-xs text-amber-700">⚠️ <strong>Use o Safari</strong> — outros navegadores (Chrome, Firefox) não permitem instalação no iPhone.</p>
+                </div>
+
+                <button id="ios-modal-done" class="w-full bg-blue-500 text-white font-semibold text-sm rounded-xl py-3 hover:bg-blue-600 transition-colors">
+                    Entendi!
+                </button>
+            </div>
+        </div>
+
         <!-- Como compartilhar (aparece só quando PWA instalado) -->
         <div id="pwa-share-tip" class="hidden bg-green-50 border border-green-200 rounded-2xl p-4">
             <div class="flex items-center gap-2 text-green-700 font-semibold text-sm mb-2">
@@ -1307,9 +1376,42 @@
     });
 
     // Detecta se já está instalado (standalone)
-    if (window.matchMedia('(display-mode: standalone)').matches || navigator.standalone) {
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+    if (isStandalone) {
         document.getElementById('pwa-share-tip')?.classList.remove('hidden');
     }
+
+    // ── iOS Install prompt ────────────────────────────────────────────────────
+    const isIos    = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    const isSafari = /safari/i.test(navigator.userAgent) && !/chrome|crios|fxios/i.test(navigator.userAgent);
+    const iosDismissed = localStorage.getItem('ios_install_dismissed');
+
+    if (isIos && isSafari && !isStandalone && !iosDismissed) {
+        document.getElementById('ios-install-banner')?.classList.remove('hidden');
+    }
+
+    // Fechar banner iOS
+    document.getElementById('ios-install-close')?.addEventListener('click', () => {
+        document.getElementById('ios-install-banner')?.classList.add('hidden');
+        localStorage.setItem('ios_install_dismissed', '1');
+    });
+
+    // Abrir modal com passo a passo
+    document.getElementById('ios-install-steps-btn')?.addEventListener('click', () => {
+        document.getElementById('ios-install-modal')?.classList.remove('hidden');
+    });
+
+    // Fechar modal iOS
+    const closeIosModal = () => document.getElementById('ios-install-modal')?.classList.add('hidden');
+    document.getElementById('ios-modal-close')?.addEventListener('click', closeIosModal);
+    document.getElementById('ios-modal-done')?.addEventListener('click', () => {
+        closeIosModal();
+        document.getElementById('ios-install-banner')?.classList.add('hidden');
+        localStorage.setItem('ios_install_dismissed', '1');
+    });
+    document.getElementById('ios-install-modal')?.addEventListener('click', e => {
+        if (e.target === document.getElementById('ios-install-modal')) closeIosModal();
+    });
 
     // ── Conteúdo compartilhado ────────────────────────────────────────────────
     const params = new URLSearchParams(location.search);
