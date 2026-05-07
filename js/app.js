@@ -517,8 +517,6 @@ const App = {
         document.querySelectorAll('[data-tab]').forEach(btn => {
             btn.addEventListener('click', () => this.switchTab(btn.dataset.tab));
         });
-        // Header action buttons
-        document.getElementById('header-add-btn')?.addEventListener('click', () => this.openModal({ focusValue: true }));
         // "Categorias — Ver tudo"
         document.getElementById('open-categories-btn')?.addEventListener('click', () => this.openCategoryModal());
         // "Lembretes — Ver tudo"
