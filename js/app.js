@@ -517,6 +517,12 @@ const App = {
         document.querySelectorAll('[data-tab]').forEach(btn => {
             btn.addEventListener('click', () => this.switchTab(btn.dataset.tab));
         });
+        // Header action buttons
+        document.getElementById('header-add-btn')?.addEventListener('click', () => this.openModal({ focusValue: true }));
+        // "Categorias — Ver tudo"
+        document.getElementById('open-categories-btn')?.addEventListener('click', () => this.openCategoryModal());
+        // "Lembretes — Ver tudo"
+        document.getElementById('reminders-manage-link')?.addEventListener('click', () => this.openRemindersModal());
     },
 
     async switchTab(tab) {
@@ -1605,69 +1611,88 @@ const App = {
         const upcoming = active.filter(r => r.day > refDay && r.day <= in7);
         const later    = active.filter(r => r.day > in7);
 
-        const card = (r, style) => {
+        // ── Deal-card builder (reference design style) ──────────────────────────
+        const daysInMonth = new Date(
+            Number(viewMonth.slice(0,4)),
+            Number(viewMonth.slice(5,7)),
+            0
+        ).getDate();
+
+        const card = (r, accent) => {
             const paid = this.isReminderPaid(r.id);
-            const amt  = r.amount > 0 ? `<span class="text-xs font-semibold ${paid ? 'text-green-600' : style.val}">${this.formatCurrency(r.amount)}</span>` : '';
+
+            // Progress: % do mês já decorrido até o dia do lembrete
+            const pct = Math.min(100, Math.round((r.day / daysInMonth) * 100));
+            const progFill = paid
+                ? 'background:linear-gradient(90deg,#4ade80,#22c55e)'
+                : accent.fill;
+
+            const amtTxt = r.amount > 0 ? this.formatCurrency(r.amount) : '—';
+            const dayTxt = `Dia ${r.day}${r.category ? ' · ' + r.category : ''}`;
+
             if (paid) {
                 const refMonth = this._reminderPaidMonth(r.id);
                 const [ry, rm] = refMonth.split('-');
-                const monthName = new Date(Number(ry), Number(rm) - 1, 1)
-                    .toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
-                return `<div class="flex items-center gap-3 bg-green-50 rounded-xl px-3 py-2.5 border border-green-200 opacity-80">
-                    <span class="text-2xl">${r.emoji || '🔔'}</span>
-                    <div class="flex-1 min-w-0">
-                        <div class="text-sm font-semibold text-gray-500 truncate line-through">${r.name}</div>
-                        <div class="text-xs text-green-600 font-medium">✅ Pago em ${monthName}</div>
+                const monthName = new Date(Number(ry), Number(rm)-1, 1)
+                    .toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' });
+                return `
+                <div class="deal-card opacity-75">
+                    <div class="flex items-center gap-3 mb-3">
+                        <div class="w-9 h-9 rounded-xl flex items-center justify-center text-xl flex-shrink-0" style="background:#f0fdf4">${r.emoji || '🔔'}</div>
+                        <div class="flex-1 min-w-0">
+                            <div class="text-sm font-semibold text-gray-400 truncate line-through">${r.name}</div>
+                            <div class="text-xs text-green-500 font-medium">✅ Pago · ${monthName}</div>
+                        </div>
+                        <button class="reminder-unpay-btn text-xs text-gray-300 hover:text-red-400 px-1 flex-shrink-0" data-reminder-id="${r.id}" title="Desfazer">↩</button>
                     </div>
-                    ${amt}
-                    <button class="reminder-unpay-btn ml-1 text-xs text-gray-400 hover:text-red-400 flex-shrink-0 px-1" data-reminder-id="${r.id}" title="Desfazer">↩</button>
+                    <div class="prog-bar"><div class="prog-fill" style="width:100%;${progFill}"></div></div>
+                    <div class="flex justify-between mt-2 text-xs text-gray-400">
+                        <span>${dayTxt}</span>
+                        <span class="font-semibold text-green-500">${amtTxt}</span>
+                    </div>
                 </div>`;
             }
-            // Cartão de lembrete NÃO pago — fundo tintado para diferenciar dos lançamentos (bg branco)
-            return `<div class="flex items-center gap-3 rounded-xl px-3 py-2.5 border ${style.bg} ${style.border}">
-                <span class="text-2xl">${r.emoji || '🔔'}</span>
-                <div class="flex-1 min-w-0">
-                    <div class="text-sm font-semibold text-gray-800 truncate">${r.name}</div>
-                    <div class="text-xs ${style.txt}">Dia ${r.day}${r.category ? ' · ' + r.category : ''}</div>
+
+            return `
+            <div class="deal-card">
+                <div class="flex items-center gap-3 mb-3">
+                    <div class="w-9 h-9 rounded-xl flex items-center justify-center text-xl flex-shrink-0" style="background:${accent.iconBg}">${r.emoji || '🔔'}</div>
+                    <div class="flex-1 min-w-0">
+                        <div class="text-sm font-bold text-gray-800 truncate">${r.name}</div>
+                        <div class="text-xs font-medium" style="color:${accent.label}">${accent.badge}</div>
+                    </div>
+                    <span class="text-base font-extrabold" style="color:${accent.amtColor}">${amtTxt}</span>
                 </div>
-                ${amt}
-                <button class="reminder-register-btn ml-1 text-xs font-semibold px-2.5 py-1.5 rounded-lg ${style.btn} transition-all flex-shrink-0" data-reminder-id="${r.id}">
-                    Registrar
-                </button>
+                <div class="prog-bar"><div class="prog-fill" style="width:${pct}%;${accent.fill}"></div></div>
+                <div class="flex justify-between items-center mt-2.5">
+                    <span class="text-xs text-gray-400">${dayTxt}</span>
+                    <button class="reminder-register-btn text-xs font-bold px-3 py-1.5 rounded-xl text-white transition-all flex-shrink-0"
+                        style="background:${accent.btn}" data-reminder-id="${r.id}">
+                        Registrar
+                    </button>
+                </div>
             </div>`;
         };
 
-        let html = `<div class="flex items-center justify-between mb-2">
-            <p class="text-xs font-semibold text-gray-400 uppercase">🔔 Lembretes</p>
-            <button id="reminders-manage-btn" class="text-xs text-emerald-600 font-medium">Gerenciar</button>
-        </div>`;
+        // Accent palettes por urgência
+        const A_OVERDUE  = { iconBg:'#fff1f2', label:'#ef4444', badge:'⚠️ Vencido',       amtColor:'#ef4444', fill:'background:linear-gradient(90deg,#f87171,#ef4444)', btn:'#ef4444' };
+        const A_TODAY    = { iconBg:'#fff7ed', label:'#f97316', badge:'📅 Vence hoje',     amtColor:'#f97316', fill:'background:linear-gradient(90deg,#fb923c,#f97316)', btn:'#f97316' };
+        const A_UPCOMING = { iconBg:'#f0fdf4', label:'#059669', badge:'📆 Próximos 7 dias', amtColor:'#059669', fill:'background:linear-gradient(90deg,#a3e635,#4ade80)', btn:'#059669' };
+        const A_LATER    = { iconBg:'#f8fafc', label:'#64748b', badge:'🗓️ Este mês',       amtColor:'#374151', fill:'background:linear-gradient(90deg,#94a3b8,#64748b)', btn:'#64748b' };
 
-        if (dueToday.length) {
-            html += `<div class="text-xs font-bold text-orange-600 mb-1 mt-1">📅 Vence hoje</div>`;
-            html += dueToday.map(r => card(r, { bg:'bg-orange-50', border:'border-orange-300', txt:'text-orange-600', val:'text-orange-600', btn:'bg-orange-500 text-white hover:bg-orange-600' })).join('');
-        }
-        if (overdue.length) {
-            html += `<div class="text-xs font-bold text-red-500 mb-1 mt-2">⚠️ Vencidos este mês</div>`;
-            html += overdue.map(r => card(r, { bg:'bg-red-50', border:'border-red-200', txt:'text-red-500', val:'text-red-500', btn:'bg-red-500 text-white hover:bg-red-600' })).join('');
-        }
-        if (upcoming.length) {
-            html += `<div class="text-xs font-bold text-emerald-600 mb-1 mt-2">📆 Próximos 7 dias</div>`;
-            html += upcoming.map(r => card(r, { bg:'bg-emerald-50', border:'border-emerald-200', txt:'text-emerald-600', val:'text-emerald-700', btn:'bg-emerald-600 text-white hover:bg-emerald-700' })).join('');
-        }
-        if (later.length) {
-            html += `<div class="text-xs font-bold text-gray-500 mb-1 mt-2">🗓️ Este mês</div>`;
-            html += later.map(r => card(r, { bg:'bg-slate-100', border:'border-slate-200', txt:'text-slate-500', val:'text-slate-600', btn:'bg-slate-400 text-white hover:bg-slate-500' })).join('');
-        }
+        let html = '';
+        html += overdue.map(r  => card(r, A_OVERDUE)).join('');
+        html += dueToday.map(r => card(r, A_TODAY)).join('');
+        html += upcoming.map(r => card(r, A_UPCOMING)).join('');
+        html += later.map(r    => card(r, A_LATER)).join('');
 
         // Injeta os cards numa div separada para não sobrescrever o botão vazio
         wrap.querySelectorAll('.reminder-cards-wrap').forEach(el => el.remove());
         const cardsDiv = document.createElement('div');
-        cardsDiv.className = 'reminder-cards-wrap';
-        // Wrapper com fundo amarelado e borda pontilhada — sinaliza zona de "pagamentos futuros"
-        cardsDiv.innerHTML = `<div class="bg-amber-50 border border-amber-200 rounded-2xl px-3 pt-3 pb-2 space-y-1.5">${html}</div>`;
+        cardsDiv.className = 'reminder-cards-wrap space-y-3';
+        cardsDiv.innerHTML = html;
         wrap.appendChild(cardsDiv);
 
-        cardsDiv.querySelector('#reminders-manage-btn')?.addEventListener('click', () => this.openRemindersModal());
         cardsDiv.querySelectorAll('.reminder-register-btn').forEach(btn => {
             btn.addEventListener('click', () => this.quickAddFromReminder(btn.dataset.reminderId));
         });
@@ -2337,11 +2362,19 @@ const App = {
         ]);
         // Cacheia para isReminderPaid derivar do Supabase (não depende de localStorage)
         this._monthTransactions = allMonth;
-        document.getElementById('balance').textContent       = this.formatCurrency(summary.balance);
+        // Balance com decimal em fonte menor (estilo fintech)
+        const balEl = document.getElementById('balance');
+        if (balEl) {
+            const formatted = this.formatCurrency(summary.balance);
+            // Separa parte inteira e decimal: "R$ 1.234,56" → ["R$ 1.234", "56"]
+            const commaIdx = formatted.lastIndexOf(',');
+            const intPart  = commaIdx >= 0 ? formatted.slice(0, commaIdx) : formatted;
+            const decPart  = commaIdx >= 0 ? formatted.slice(commaIdx)    : '';
+            balEl.innerHTML = `${intPart}<span class="balance-decimal">${decPart}</span>`;
+            balEl.className = `text-4xl font-extrabold tracking-tight leading-none ${summary.balance >= 0 ? 'text-white' : 'text-red-300'}`;
+        }
         document.getElementById('total-income').textContent  = this.formatCurrency(summary.income);
         document.getElementById('total-expense').textContent = this.formatCurrency(summary.expense);
-        document.getElementById('balance').className =
-            `text-4xl font-extrabold tracking-tight ${summary.balance >= 0 ? 'text-white' : 'text-red-300'}`;
         this.renderRemindersHome();
 
         const q = this._homeSearch.trim().toLowerCase();
@@ -4188,16 +4221,22 @@ const App = {
         grid.innerHTML = visible.map(c => {
             const qtype = c.type === 'entrada' ? 'entrada' : 'saida';
             const isIncome = c.type === 'entrada';
+            const iconBg = isIncome ? 'background:#ecfdf5' : 'background:#f0fdf4';
             return `<button data-quick-cat="${c.name}" data-quick-type="${qtype}" data-quick-label="${c.name}"
-                class="flex flex-col items-center gap-0.5 ${isIncome ? 'bg-green-50 border-green-100' : 'bg-white border-gray-100'} rounded-xl px-1 py-2 shadow-sm border hover:border-emerald-300 hover:shadow-md transition-all">
-                <span class="text-lg leading-none">${c.emoji}</span>
-                <span class="text-[11px] ${isIncome ? 'text-green-700' : 'text-gray-600'} truncate w-full text-center leading-tight">${c.name}</span>
+                class="cat-card flex flex-col items-center gap-1">
+                <div class="cat-card-icon" style="${iconBg}">
+                    <span class="text-xl leading-none">${c.emoji}</span>
+                </div>
+                <span class="text-[10px] text-gray-600 truncate w-full text-center leading-tight font-medium">${c.name}</span>
             </button>`;
         }).join('') + `
-        <button id="manage-cats-btn"
-            class="flex flex-col items-center gap-1 bg-gray-50 rounded-xl p-3 shadow-sm border border-gray-200 hover:border-emerald-300 hover:shadow-md transition-all">
-            <span class="text-2xl">⚙️</span>
-            <span class="text-xs text-gray-500">Editar</span>
+        <button id="manage-cats-btn" class="cat-card flex flex-col items-center gap-1">
+            <div class="cat-card-icon" style="background:#f9fafb">
+                <svg class="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"/>
+                </svg>
+            </div>
+            <span class="text-[10px] text-gray-500 font-medium">Mais</span>
         </button>`;
         grid.querySelectorAll('[data-quick-cat]').forEach(btn => {
             btn.addEventListener('click', () => {
