@@ -68,10 +68,17 @@ const Auth = {
         const display  = fullName || (email ? email.split('@')[0] : 'Usuário');
         const initial  = display.charAt(0).toUpperCase();
 
-        const nameEl   = document.getElementById('user-name');
-        const avatarEl = document.getElementById('user-avatar');
+        const nameEl     = document.getElementById('user-name');
+        const avatarEl   = document.getElementById('user-avatar');
+        const greetingEl = document.getElementById('home-greeting-text');
         if (nameEl)   nameEl.textContent   = display;
         if (avatarEl) avatarEl.textContent = initial;
+
+        if (greetingEl) {
+            const h = new Date().getHours();
+            const saudacao = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
+            greetingEl.textContent = `${saudacao} 👋`;
+        }
     },
 
     showAuthScreen() {

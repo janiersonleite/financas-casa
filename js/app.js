@@ -148,23 +148,17 @@ const App = {
             activeDot.className = 'text-[10px] font-bold uppercase tracking-widest leading-none mb-1 '
                 + (f?.type === 'familiar'      ? 'text-purple-500'
                  : f?.type === 'compartilhada' ? 'text-teal-500'
-                 :                               'text-blue-400');
+                 :                               'text-emerald-500');
         }
 
-        // Cor do header por tipo de perfil (remove classes anteriores com segurança)
+        // Cor do header por tipo de perfil
         if (header) {
-            const allGrads = [
-                'from-blue-600','to-blue-800',
-                'from-purple-600','to-purple-800',
-                'from-teal-600','to-teal-800',
-            ];
-            header.classList.remove(...allGrads);
             const grad = f?.type === 'familiar'
-                ? ['from-purple-600','to-purple-800']
+                ? 'linear-gradient(160deg,#3b0764 0%,#1e0433 100%)'
                 : f?.type === 'compartilhada'
-                ? ['from-teal-600','to-teal-800']
-                : ['from-blue-600','to-blue-800'];
-            header.classList.add(...grad);
+                ? 'linear-gradient(160deg,#0e4d4a 0%,#052120 100%)'
+                : 'linear-gradient(160deg,#0d3b2e 0%,#051f15 100%)';
+            header.style.background = grad;
         }
     },
 
@@ -191,10 +185,10 @@ const App = {
         document.querySelectorAll('.financa-emoji-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 document.querySelectorAll('.financa-emoji-btn').forEach(b => {
-                    b.classList.remove('border-blue-400', 'bg-blue-50');
+                    b.classList.remove('border-emerald-500', 'bg-emerald-50');
                     b.classList.add('border-gray-200', 'bg-gray-50');
                 });
-                btn.classList.add('border-blue-400', 'bg-blue-50');
+                btn.classList.add('border-emerald-500', 'bg-emerald-50');
                 btn.classList.remove('border-gray-200', 'bg-gray-50');
             });
         });
@@ -203,10 +197,10 @@ const App = {
         document.querySelectorAll('[data-ftype]').forEach(btn => {
             btn.addEventListener('click', () => {
                 document.querySelectorAll('[data-ftype]').forEach(b => {
-                    b.classList.remove('border-blue-400', 'bg-blue-50', 'text-blue-700');
+                    b.classList.remove('border-emerald-500', 'bg-emerald-50', 'text-emerald-800');
                     b.classList.add('border-gray-200', 'text-gray-600');
                 });
-                btn.classList.add('border-blue-400', 'bg-blue-50', 'text-blue-700');
+                btn.classList.add('border-emerald-500', 'bg-emerald-50', 'text-emerald-800');
                 btn.classList.remove('border-gray-200', 'text-gray-600');
                 document.getElementById('financa-type-input').value = btn.dataset.ftype;
             });
@@ -244,13 +238,13 @@ const App = {
             const isActive = f.id === this.activeFinanca?.id;
             const isOwner  = f.owner_id === Auth.user?.id || f.owner_id === 'local';
             return `
-            <div class="flex items-center gap-3 p-3 mb-2 rounded-xl border-2 cursor-pointer transition-all ${isActive ? 'border-blue-400 bg-blue-50' : 'border-gray-100 bg-white hover:border-gray-300'}" data-financa-select="${f.id}">
+            <div class="flex items-center gap-3 p-3 mb-2 rounded-xl border-2 cursor-pointer transition-all ${isActive ? 'border-emerald-500 bg-emerald-50' : 'border-gray-100 bg-white hover:border-gray-300'}" data-financa-select="${f.id}">
                 <span class="text-2xl">${f.emoji || '💰'}</span>
                 <div class="flex-1 min-w-0">
                     <div class="font-semibold text-gray-800 truncate">${f.name}</div>
                     <div class="text-xs text-gray-400">${f.type === 'compartilhada' ? '👥 Compartilhada' : '👤 Individual'}</div>
                 </div>
-                ${isActive ? '<span class="text-blue-500 text-lg">✓</span>' : ''}
+                ${isActive ? '<span class="text-emerald-600 text-lg">✓</span>' : ''}
                 ${isOwner ? `<button class="text-gray-300 hover:text-red-400 text-lg px-1 delete-financa-btn" data-financa-del="${f.id}" title="Excluir">🗑</button>` : ''}
             </div>`;
         }).join('');
@@ -300,17 +294,17 @@ const App = {
         document.getElementById('financa-type-input').value = 'individual';
         // Reset emoji to first
         document.querySelectorAll('.financa-emoji-btn').forEach((b, i) => {
-            b.classList.toggle('border-blue-400', i === 0);
-            b.classList.toggle('bg-blue-50',      i === 0);
+            b.classList.toggle('border-emerald-500', i === 0);
+            b.classList.toggle('bg-emerald-50',      i === 0);
             b.classList.toggle('border-gray-200',  i !== 0);
             b.classList.toggle('bg-gray-50',       i !== 0);
         });
         // Reset type
         document.querySelectorAll('[data-ftype]').forEach(b => {
             const sel = b.dataset.ftype === 'individual';
-            b.classList.toggle('border-blue-400', sel);
-            b.classList.toggle('bg-blue-50',      sel);
-            b.classList.toggle('text-blue-700',   sel);
+            b.classList.toggle('border-emerald-500', sel);
+            b.classList.toggle('bg-emerald-50',      sel);
+            b.classList.toggle('text-emerald-800',   sel);
             b.classList.toggle('border-gray-200', !sel);
             b.classList.toggle('text-gray-600',   !sel);
         });
@@ -325,7 +319,7 @@ const App = {
         const name  = document.getElementById('financa-name-input').value.trim();
         if (!name) { document.getElementById('financa-name-input').focus(); return; }
         const type  = document.getElementById('financa-type-input').value;
-        const emoji = document.querySelector('.financa-emoji-btn.border-blue-400')?.dataset.emoji || '💰';
+        const emoji = document.querySelector('.financa-emoji-btn.border-emerald-500')?.dataset.emoji || '💰';
         const btn   = document.getElementById('financa-create-save');
         btn.disabled = true; btn.textContent = 'Criando...';
         try {
@@ -386,7 +380,7 @@ const App = {
         const membersEl = document.getElementById('members-list');
         membersEl.innerHTML = members.length ? members.map(m => `
             <div class="flex items-center gap-3 py-2 border-b border-gray-100 last:border-0">
-                <div class="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-sm font-bold text-blue-600">
+                <div class="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-sm font-bold text-emerald-700">
                     ${(m.email || 'U').charAt(0).toUpperCase()}
                 </div>
                 <div class="flex-1 min-w-0">
@@ -395,7 +389,7 @@ const App = {
                 </div>
                 ${m.user_id !== Auth.user?.id
                     ? `<button class="text-gray-300 hover:text-red-400 text-lg remove-member-btn" data-member-id="${m.id}">✕</button>`
-                    : '<span class="text-xs text-blue-500 font-medium">Você</span>'}
+                    : '<span class="text-xs text-emerald-600 font-medium">Você</span>'}
             </div>
         `).join('') : '<p class="text-sm text-gray-400 py-2">Nenhum membro ainda</p>';
 
@@ -700,7 +694,7 @@ const App = {
             // Atualiza o badge de lembrete vinculado
             const reminderBadgeEl = document.getElementById('modal-reminder-badge');
             if (reminderBadgeEl && r) {
-                reminderBadgeEl.innerHTML = `<span class="inline-flex items-center gap-1.5 text-xs bg-blue-50 text-blue-600 border border-blue-200 rounded-xl px-3 py-1.5 font-medium">
+                reminderBadgeEl.innerHTML = `<span class="inline-flex items-center gap-1.5 text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl px-3 py-1.5 font-medium">
                     ${r.emoji || '🔔'} Lembrete: <strong>${this._escHtml(r.name)}</strong> — todo dia ${r.day}
                 </span>`;
                 reminderBadgeEl.classList.remove('hidden');
@@ -755,13 +749,13 @@ const App = {
                 ? (this._modalFinancaId ?? (this.activeFinanca?.id || null))
                 : (this._importFinancaId ?? (this.activeFinanca?.id || null));
             const isActive = (f.id === currentId) || (!f.id && !currentId);
-            return `<button class="financa-select-item w-full flex items-center gap-3 px-3 py-3 rounded-xl border-2 transition-all ${isActive ? 'border-blue-400 bg-blue-50' : 'border-gray-100 bg-gray-50 hover:border-blue-200'}" data-fid="${f.id || ''}">
+            return `<button class="financa-select-item w-full flex items-center gap-3 px-3 py-3 rounded-xl border-2 transition-all ${isActive ? 'border-emerald-500 bg-emerald-50' : 'border-gray-100 bg-gray-50 hover:border-emerald-200'}" data-fid="${f.id || ''}">
                 <span class="text-2xl">${f.emoji || '💰'}</span>
                 <div class="flex-1 text-left">
                     <p class="font-semibold text-gray-800 text-sm">${f.name}</p>
                     <p class="text-xs text-gray-400">${f.type === 'compartilhada' ? '👥 Compartilhada' : '👤 Individual'}</p>
                 </div>
-                ${isActive ? '<span class="text-blue-500 text-lg">✓</span>' : ''}
+                ${isActive ? '<span class="text-emerald-600 text-lg">✓</span>' : ''}
             </button>`;
         }).join('');
 
@@ -807,7 +801,7 @@ const App = {
             const configs = {
                 familiar:      { bg: 'linear-gradient(135deg,#9333ea,#6b21a8)', border: '#7c3aed', dot: 'text-purple-200' },
                 compartilhada: { bg: 'linear-gradient(135deg,#0d9488,#0f766e)', border: '#0d9488', dot: 'text-teal-200'   },
-                individual:    { bg: 'linear-gradient(135deg,#3b82f6,#1d4ed8)', border: '#2563eb', dot: 'text-blue-200'   },
+                individual:    { bg: 'linear-gradient(135deg,#059669,#065f46)', border: '#059669', dot: 'text-emerald-200'   },
             };
             const cfg = configs[type] || configs.individual;
             btn.style.background   = cfg.bg;
@@ -879,8 +873,8 @@ const App = {
             const bQty   = parseInt(btn.dataset.qty);
             const active = !customActive && bQty === qty;
             btn.className = active
-                ? 'installment-opt px-3 py-1.5 rounded-xl text-xs font-semibold border-2 border-blue-400 bg-blue-50 text-blue-600 transition-all'
-                : 'installment-opt px-3 py-1.5 rounded-xl text-xs font-semibold border-2 border-gray-200 text-gray-500 hover:border-blue-300 transition-all';
+                ? 'installment-opt px-3 py-1.5 rounded-xl text-xs font-semibold border-2 border-emerald-500 bg-emerald-50 text-emerald-700 transition-all'
+                : 'installment-opt px-3 py-1.5 rounded-xl text-xs font-semibold border-2 border-gray-200 text-gray-500 hover:border-emerald-300 transition-all';
         });
         const preview = document.getElementById('modal-installment-preview');
         if (!preview) return;
@@ -911,7 +905,7 @@ const App = {
                         <button id="_edit-single" class="w-full py-2.5 px-4 rounded-xl border-2 border-gray-200 text-gray-700 font-semibold text-sm text-left hover:bg-gray-50 transition-colors">
                             ✏️ Só esta parcela
                         </button>
-                        ${futureCount > 1 ? `<button id="_edit-future" class="w-full py-2.5 px-4 rounded-xl border-2 border-blue-200 text-blue-600 font-semibold text-sm text-left hover:bg-blue-50 transition-colors">
+                        ${futureCount > 1 ? `<button id="_edit-future" class="w-full py-2.5 px-4 rounded-xl border-2 border-emerald-200 text-emerald-700 font-semibold text-sm text-left hover:bg-emerald-50 transition-colors">
                             📅 Esta e as próximas (${futureCount})
                         </button>` : ''}
                         ${totalCount > 1 ? `<button id="_edit-all" class="w-full py-2.5 px-4 rounded-xl border-2 border-purple-200 text-purple-600 font-semibold text-sm text-left hover:bg-purple-50 transition-colors">
@@ -1081,7 +1075,7 @@ const App = {
         if (reminderBadgeEl) {
             const linked = data.reminder_id ? this.reminders.find(r => r.id === data.reminder_id) : null;
             if (linked) {
-                reminderBadgeEl.innerHTML = `<span class="inline-flex items-center gap-1.5 text-xs bg-blue-50 text-blue-600 border border-blue-200 rounded-xl px-3 py-1.5 font-medium">
+                reminderBadgeEl.innerHTML = `<span class="inline-flex items-center gap-1.5 text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl px-3 py-1.5 font-medium">
                     ${linked.emoji || '🔔'} Lembrete: <strong>${linked.name}</strong> — todo dia ${linked.day}
                 </span>`;
                 reminderBadgeEl.classList.remove('hidden');
@@ -1305,7 +1299,7 @@ const App = {
                 document.querySelectorAll('[data-behavior]').forEach(b => {
                     b.className = 'behavior-btn py-2.5 px-1 rounded-xl text-xs font-semibold border-2 border-gray-200 text-gray-600 transition-all';
                 });
-                btn.className = 'behavior-btn py-2.5 px-1 rounded-xl text-xs font-semibold border-2 border-blue-400 bg-blue-50 text-blue-700 transition-all';
+                btn.className = 'behavior-btn py-2.5 px-1 rounded-xl text-xs font-semibold border-2 border-emerald-500 bg-emerald-50 text-emerald-800 transition-all';
                 document.getElementById('type-behavior-input').value = btn.dataset.behavior;
             });
         });
@@ -1338,7 +1332,7 @@ const App = {
         grid.innerHTML = this._emojiPickerGroups.map(g =>
             `<div class="col-span-8 text-xs font-semibold text-gray-400 mt-2 mb-0.5 px-0.5">${g.label}</div>` +
             g.emojis.map(e =>
-                `<button type="button" data-emoji="${e}" class="text-2xl p-1 rounded-lg hover:bg-blue-50 transition-colors leading-none">${e}</button>`
+                `<button type="button" data-emoji="${e}" class="text-2xl p-1 rounded-lg hover:bg-emerald-50 transition-colors leading-none">${e}</button>`
             ).join('')
         ).join('');
         grid.addEventListener('click', e => {
@@ -1377,7 +1371,7 @@ const App = {
                     <div class="text-xs" style="color:${hex}">${behaviorLabel[t.behavior] || t.behavior}</div>
                 </div>
                 <div class="flex items-center gap-1 flex-shrink-0">
-                    <button class="type-edit-btn text-gray-400 hover:text-blue-500 px-2 text-lg" data-type-id="${t.id}">✏️</button>
+                    <button class="type-edit-btn text-gray-400 hover:text-emerald-600 px-2 text-lg" data-type-id="${t.id}">✏️</button>
                     <button class="type-del-btn text-gray-400 hover:text-red-500 px-1 text-lg"  data-type-id="${t.id}">🗑</button>
                 </div>
             </div>`;
@@ -1413,7 +1407,7 @@ const App = {
         document.getElementById('type-behavior-input').value  = behavior;
         document.querySelectorAll('[data-behavior]').forEach(btn => {
             const active = btn.dataset.behavior === behavior;
-            btn.className = `behavior-btn py-2.5 px-1 rounded-xl text-xs font-semibold border-2 transition-all ${active ? 'border-blue-400 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600'}`;
+            btn.className = `behavior-btn py-2.5 px-1 rounded-xl text-xs font-semibold border-2 transition-all ${active ? 'border-emerald-500 bg-emerald-50 text-emerald-800' : 'border-gray-200 text-gray-600'}`;
         });
         const color = type?.color || 'purple';
         document.getElementById('type-color-input').value = color;
@@ -1645,7 +1639,7 @@ const App = {
 
         let html = `<div class="flex items-center justify-between mb-2">
             <p class="text-xs font-semibold text-gray-400 uppercase">🔔 Lembretes</p>
-            <button id="reminders-manage-btn" class="text-xs text-blue-500 font-medium">Gerenciar</button>
+            <button id="reminders-manage-btn" class="text-xs text-emerald-600 font-medium">Gerenciar</button>
         </div>`;
 
         if (dueToday.length) {
@@ -1657,8 +1651,8 @@ const App = {
             html += overdue.map(r => card(r, { bg:'bg-red-50', border:'border-red-200', txt:'text-red-500', val:'text-red-500', btn:'bg-red-500 text-white hover:bg-red-600' })).join('');
         }
         if (upcoming.length) {
-            html += `<div class="text-xs font-bold text-blue-500 mb-1 mt-2">📆 Próximos 7 dias</div>`;
-            html += upcoming.map(r => card(r, { bg:'bg-blue-50', border:'border-blue-200', txt:'text-blue-500', val:'text-blue-600', btn:'bg-blue-500 text-white hover:bg-blue-600' })).join('');
+            html += `<div class="text-xs font-bold text-emerald-600 mb-1 mt-2">📆 Próximos 7 dias</div>`;
+            html += upcoming.map(r => card(r, { bg:'bg-emerald-50', border:'border-emerald-200', txt:'text-emerald-600', val:'text-emerald-700', btn:'bg-emerald-600 text-white hover:bg-emerald-700' })).join('');
         }
         if (later.length) {
             html += `<div class="text-xs font-bold text-gray-500 mb-1 mt-2">🗓️ Este mês</div>`;
@@ -1888,7 +1882,7 @@ const App = {
                     <div class="font-semibold text-gray-800 text-sm truncate">${r.name}</div>
                     <div class="text-xs text-gray-400">Todo dia ${r.day}${cat}${amt}</div>
                 </div>
-                <button class="reminder-edit-btn p-1.5 rounded-lg hover:bg-white text-gray-400 hover:text-blue-500" data-id="${r.id}" title="Editar">✏️</button>
+                <button class="reminder-edit-btn p-1.5 rounded-lg hover:bg-white text-gray-400 hover:text-emerald-600" data-id="${r.id}" title="Editar">✏️</button>
                 <button class="reminder-del-btn  p-1.5 rounded-lg hover:bg-white text-gray-400 hover:text-red-500"  data-id="${r.id}" title="Excluir">🗑️</button>
             </div>`;
         }).join('');
@@ -2223,11 +2217,11 @@ const App = {
         const processPaste = document.getElementById('ocr-process-paste');
 
         dropzone.addEventListener('click', () => fileInput.click());
-        dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('border-blue-400', 'bg-blue-50'); });
-        dropzone.addEventListener('dragleave', () => dropzone.classList.remove('border-blue-400', 'bg-blue-50'));
+        dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('border-emerald-500', 'bg-emerald-50'); });
+        dropzone.addEventListener('dragleave', () => dropzone.classList.remove('border-emerald-500', 'bg-emerald-50'));
         dropzone.addEventListener('drop', e => {
             e.preventDefault();
-            dropzone.classList.remove('border-blue-400', 'bg-blue-50');
+            dropzone.classList.remove('border-emerald-500', 'bg-emerald-50');
             if (e.dataTransfer.files[0]) this.runOCR(e.dataTransfer.files[0]);
         });
         fileInput.addEventListener('change', e => { if (e.target.files[0]) this.runOCR(e.target.files[0]); });
@@ -2347,7 +2341,7 @@ const App = {
         document.getElementById('total-income').textContent  = this.formatCurrency(summary.income);
         document.getElementById('total-expense').textContent = this.formatCurrency(summary.expense);
         document.getElementById('balance').className =
-            `text-3xl font-bold ${summary.balance >= 0 ? 'text-green-400' : 'text-red-400'}`;
+            `text-4xl font-extrabold tracking-tight ${summary.balance >= 0 ? 'text-white' : 'text-red-300'}`;
         this.renderRemindersHome();
 
         const q = this._homeSearch.trim().toLowerCase();
@@ -2386,11 +2380,11 @@ const App = {
                 bar.classList.add('hidden');
                 input.value = '';
                 this._homeSearch = '';
-                toggleBtn.classList.remove('text-blue-500', 'bg-blue-50');
+                toggleBtn.classList.remove('text-emerald-600', 'bg-emerald-50');
                 this.renderHome();
             } else {
                 bar.classList.remove('hidden');
-                toggleBtn.classList.add('text-blue-500', 'bg-blue-50');
+                toggleBtn.classList.add('text-emerald-600', 'bg-emerald-50');
                 setTimeout(() => input.focus(), 50);
             }
         });
@@ -2503,8 +2497,8 @@ const App = {
                 const header = document.createElement('div');
                 header.className = 'flex items-center gap-2 mt-5 mb-1 first:mt-0';
                 header.innerHTML = `
-                    <span class="text-xs font-bold text-blue-500 uppercase tracking-widest">${MONTH_NAMES[m - 1]} ${y}</span>
-                    <div class="flex-1 h-px bg-blue-100"></div>`;
+                    <span class="text-xs font-bold text-emerald-600 uppercase tracking-widest">${MONTH_NAMES[m - 1]} ${y}</span>
+                    <div class="flex-1 h-px bg-emerald-100"></div>`;
                 container.appendChild(header);
 
                 const tempId = `_hist_grp_${i}`;
@@ -2570,7 +2564,7 @@ const App = {
         const sel = this._historyCategories;
         panel.innerHTML = cats.map(c => {
             const active = sel.has(c.name);
-            return `<button class="hist-cat-chip flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap border transition-all ${active ? 'bg-blue-500 text-white border-blue-500' : 'bg-gray-50 text-gray-600 border-gray-200'}" data-hcat="${this._escHtml(c.name)}">
+            return `<button class="hist-cat-chip flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap border transition-all ${active ? 'bg-emerald-500 text-white border-emerald-600' : 'bg-gray-50 text-gray-600 border-gray-200'}" data-hcat="${this._escHtml(c.name)}">
                 <span>${c.emoji || '📦'}</span><span>${this._escHtml(c.name)}</span>
             </button>`;
         }).join('');
@@ -2588,8 +2582,8 @@ const App = {
             badge.style.display = sel.size > 0 ? 'flex' : 'none';
         }
         if (filterBtn) {
-            filterBtn.classList.toggle('bg-blue-100', sel.size > 0);
-            filterBtn.classList.toggle('text-blue-600', sel.size > 0);
+            filterBtn.classList.toggle('bg-emerald-100', sel.size > 0);
+            filterBtn.classList.toggle('text-emerald-700', sel.size > 0);
             filterBtn.classList.toggle('bg-gray-100',  sel.size === 0);
             filterBtn.classList.toggle('text-gray-600', sel.size === 0);
         }
@@ -2697,7 +2691,7 @@ const App = {
                 // Badge de lembrete vinculado
                 const linkedReminder = t.reminder_id ? this.reminders.find(r => r.id === t.reminder_id) : null;
                 const reminderBadge  = linkedReminder
-                    ? `<span class="inline-flex items-center gap-1 text-xs bg-blue-50 text-blue-500 border border-blue-100 rounded-full px-2 py-0.5 mt-0.5">
+                    ? `<span class="inline-flex items-center gap-1 text-xs bg-emerald-50 text-emerald-600 border border-emerald-100 rounded-full px-2 py-0.5 mt-0.5">
                            ${linkedReminder.emoji || '🔔'} ${linkedReminder.name}
                        </span>`
                     : '';
@@ -2916,12 +2910,12 @@ const App = {
 
             let panelHtml = '';
             for (const [date, items] of Object.entries(byDate)) {
-                panelHtml += `<div class="text-[10px] font-semibold text-blue-400 uppercase pt-2 pb-0.5 px-1">${this.formatDateGroup(date)}</div>`;
+                panelHtml += `<div class="text-[10px] font-semibold text-emerald-500 uppercase pt-2 pb-0.5 px-1">${this.formatDateGroup(date)}</div>`;
                 for (const t of items) {
                     const isIncome = Storage.getBehavior(t.type) === 'soma';
                     const badge    = this.getInserterBadge(t);
                     panelHtml += `
-                    <div class="flex items-center gap-2 bg-white rounded-lg px-2.5 py-1.5 mb-1 border border-blue-100">
+                    <div class="flex items-center gap-2 bg-white rounded-lg px-2.5 py-1.5 mb-1 border border-emerald-100">
                         <span class="text-base flex-shrink-0">${icon}</span>
                         <div class="flex-1 min-w-0">
                             <div class="text-xs font-medium text-gray-800 truncate">${t.description || cat}</div>
@@ -2956,7 +2950,7 @@ const App = {
                     </div>
                 </div>
                 ${pct ? `<div class="w-full bg-gray-100 rounded-full h-1.5 -mt-1 mb-2"><div class="${barColor} h-1.5 rounded-full" style="width:${pct}%"></div></div>` : ''}
-                <div class="cat-txn-panel hidden bg-blue-50 rounded-2xl px-3 pt-1 pb-3 mb-2">
+                <div class="cat-txn-panel hidden bg-emerald-50 rounded-2xl px-3 pt-1 pb-3 mb-2">
                     ${panelHtml}
                 </div>
             </div>`;
@@ -3001,7 +2995,7 @@ const App = {
         const totalExp = people.reduce((s, p) => s + p.expense, 0);
 
         const avatarPalettes = [
-            ['bg-blue-500',   'text-white'],
+            ['bg-emerald-500',   'text-white'],
             ['bg-purple-500', 'text-white'],
             ['bg-orange-500', 'text-white'],
             ['bg-teal-500',   'text-white'],
@@ -3016,14 +3010,14 @@ const App = {
             const seed  = p.email.charCodeAt(0) + (p.email.charCodeAt(1) || 0);
             const [bgCls, txtCls] = avatarPalettes[seed % avatarPalettes.length];
             const initials = label.slice(0, 2).toUpperCase();
-            const barColor = isMe ? 'bg-blue-500' : ['bg-purple-400','bg-orange-400','bg-teal-400','bg-pink-400','bg-indigo-400'][seed % 5];
+            const barColor = isMe ? 'bg-emerald-500' : ['bg-purple-400','bg-orange-400','bg-teal-400','bg-pink-400','bg-indigo-400'][seed % 5];
 
             return `
             <div class="flex items-center gap-3 py-2.5 border-b border-gray-100 last:border-0">
                 <div class="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold ${bgCls} ${txtCls}">${initials}</div>
                 <div class="flex-1 min-w-0">
                     <div class="flex justify-between items-center mb-1">
-                        <span class="text-sm font-medium text-gray-800 truncate">${label}${isMe ? ' <span class="text-xs text-blue-400 font-normal">(você)</span>' : ''}</span>
+                        <span class="text-sm font-medium text-gray-800 truncate">${label}${isMe ? ' <span class="text-xs text-emerald-500 font-normal">(você)</span>' : ''}</span>
                         <div class="flex items-center gap-2 flex-shrink-0 ml-2">
                             ${p.income  > 0 ? `<span class="text-xs font-semibold text-green-600">+${this.formatCurrency(p.income)}</span>`  : ''}
                             ${p.expense > 0 ? `<span class="text-xs font-bold text-red-600">-${this.formatCurrency(p.expense)}</span>` : ''}
@@ -3390,11 +3384,11 @@ const App = {
         const dropzone = document.getElementById('import-dropzone');
         const fileInput = document.getElementById('import-file');
         dropzone?.addEventListener('click', () => fileInput.click());
-        dropzone?.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('border-blue-400', 'bg-blue-50'); });
-        dropzone?.addEventListener('dragleave', () => dropzone.classList.remove('border-blue-400', 'bg-blue-50'));
+        dropzone?.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('border-emerald-500', 'bg-emerald-50'); });
+        dropzone?.addEventListener('dragleave', () => dropzone.classList.remove('border-emerald-500', 'bg-emerald-50'));
         dropzone?.addEventListener('drop', e => {
             e.preventDefault();
-            dropzone.classList.remove('border-blue-400', 'bg-blue-50');
+            dropzone.classList.remove('border-emerald-500', 'bg-emerald-50');
             if (e.dataTransfer.files[0]) this.handleImportFile(e.dataTransfer.files[0]);
         });
         fileInput?.addEventListener('change', e => { if (e.target.files[0]) this.handleImportFile(e.target.files[0]); });
@@ -3486,7 +3480,7 @@ const App = {
             return `
             <div class="flex items-center gap-2">
                 <span class="text-xs text-gray-600 w-24 flex-shrink-0">${label}</span>
-                <select id="import-map-${field}" class="flex-1 border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-blue-400">
+                <select id="import-map-${field}" class="flex-1 border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-emerald-500">
                     ${optHtml}
                 </select>
             </div>`;
@@ -4155,7 +4149,7 @@ const App = {
         grid.innerHTML = this._emojiPickerGroups.map(g =>
             `<div class="col-span-8 text-xs font-semibold text-gray-400 mt-1.5 mb-0.5 px-0.5">${g.label}</div>` +
             g.emojis.map(e =>
-                `<button type="button" data-emoji="${e}" class="text-xl p-0.5 rounded-lg hover:bg-blue-50 transition-colors leading-none">${e}</button>`
+                `<button type="button" data-emoji="${e}" class="text-xl p-0.5 rounded-lg hover:bg-emerald-50 transition-colors leading-none">${e}</button>`
             ).join('')
         ).join('');
         grid.addEventListener('click', e => {
@@ -4195,13 +4189,13 @@ const App = {
             const qtype = c.type === 'entrada' ? 'entrada' : 'saida';
             const isIncome = c.type === 'entrada';
             return `<button data-quick-cat="${c.name}" data-quick-type="${qtype}" data-quick-label="${c.name}"
-                class="flex flex-col items-center gap-0.5 ${isIncome ? 'bg-green-50 border-green-100' : 'bg-white border-gray-100'} rounded-xl px-1 py-2 shadow-sm border hover:border-blue-300 hover:shadow-md transition-all">
+                class="flex flex-col items-center gap-0.5 ${isIncome ? 'bg-green-50 border-green-100' : 'bg-white border-gray-100'} rounded-xl px-1 py-2 shadow-sm border hover:border-emerald-300 hover:shadow-md transition-all">
                 <span class="text-lg leading-none">${c.emoji}</span>
                 <span class="text-[11px] ${isIncome ? 'text-green-700' : 'text-gray-600'} truncate w-full text-center leading-tight">${c.name}</span>
             </button>`;
         }).join('') + `
         <button id="manage-cats-btn"
-            class="flex flex-col items-center gap-1 bg-gray-50 rounded-xl p-3 shadow-sm border border-gray-200 hover:border-blue-300 hover:shadow-md transition-all">
+            class="flex flex-col items-center gap-1 bg-gray-50 rounded-xl p-3 shadow-sm border border-gray-200 hover:border-emerald-300 hover:shadow-md transition-all">
             <span class="text-2xl">⚙️</span>
             <span class="text-xs text-gray-500">Editar</span>
         </button>`;
@@ -4290,7 +4284,7 @@ const App = {
         grid.innerHTML = this._emojiPickerGroups.map(g =>
             `<div class="col-span-8 text-xs font-semibold text-gray-400 mt-2 mb-0.5 px-0.5">${g.label}</div>` +
             g.emojis.map(e =>
-                `<button type="button" data-emoji="${e}" class="text-2xl p-1 rounded-lg hover:bg-blue-50 transition-colors leading-none">${e}</button>`
+                `<button type="button" data-emoji="${e}" class="text-2xl p-1 rounded-lg hover:bg-emerald-50 transition-colors leading-none">${e}</button>`
             ).join('')
         ).join('');
         grid.addEventListener('click', e => {
@@ -4397,7 +4391,7 @@ const App = {
                     </div>
                 </div>
                 <div class="flex items-center gap-0 flex-shrink-0">
-                    <button class="cat-edit-btn text-gray-400 hover:text-blue-500 px-2 text-lg" data-cat-id="${cat.id}" title="Editar">✏️</button>
+                    <button class="cat-edit-btn text-gray-400 hover:text-emerald-600 px-2 text-lg" data-cat-id="${cat.id}" title="Editar">✏️</button>
                     <button class="cat-del-btn text-gray-400 hover:text-red-500 px-1 text-lg"  data-cat-id="${cat.id}" title="Excluir">🗑</button>
                 </div>
             </div>`;
@@ -4512,7 +4506,7 @@ const App = {
             'bg-pink-100   text-pink-600',
             'bg-indigo-100 text-indigo-600',
         ];
-        const cls = isMe ? 'bg-blue-100 text-blue-600' : palettes[seed % palettes.length];
+        const cls = isMe ? 'bg-emerald-100 text-emerald-700' : palettes[seed % palettes.length];
         return `<span class="inline-block text-xs px-1.5 py-0.5 rounded-full ${cls} font-medium leading-tight">${name}</span>`;
     },
 
