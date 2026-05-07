@@ -537,7 +537,12 @@ const App = {
     bindQuickInput() {
         const input = document.getElementById('quick-input');
         const btn   = document.getElementById('quick-send');
-        btn.addEventListener('click', () => this.processQuickInput());
+        // Botão + abre o modal diretamente (sem campo de texto visível)
+        btn.addEventListener('click', () => {
+            const text = input.value.trim();
+            if (text) this.processQuickInput();
+            else this.openModal({ focusValue: true });
+        });
         input.addEventListener('keydown', e => { if (e.key === 'Enter') this.processQuickInput(); });
         document.querySelectorAll('[data-quick-cat]').forEach(btn => {
             btn.addEventListener('click', () => {
