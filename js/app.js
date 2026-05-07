@@ -3091,73 +3091,65 @@ const App = {
     showPersonTransactions(email, label, bgCls, txtCls) {
         const myEmail = (Auth.user?.email || '').toLowerCase();
         const txns = (this._personBreakdownTxns || [])
-            .filter(t => (t.inserted_by_email || myEmail).toLowerCase() === email.toLowerCase());
+            .filter(t => (t.inserted_by_email || myEmail).toLowerCase() === email.toLowerCase())
+            .slice().sort((a, b) => new Date(b.date) - new Date(a.date));
 
-        // Remove modal anterior se existir
-        document.getElementById('person-txn-modal')?.remove();
+        const modal = document.getElementById('person-detail-modal');
+        modal.classList.remove('hidden');
 
-        const initials = label.slice(0, 2).toUpperCase();
-        const totalIncome  = txns.filter(t => t.type === 'entrada').reduce((s, t) => s + Number(t.value), 0);
-        const totalExpense = txns.filter(t => t.type !== 'entrada').reduce((s, t) => s + Number(t.value), 0);
+        // Avatar
+        const avatarEl = document.getElementById('person-detail-avatar');
+        avatarEl.className = `w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 ${bgCls} ${txtCls}`;
+        avatarEl.textContent = label.slice(0, 2).toUpperCase();
 
-        const rows = txns
-            .slice()
-            .sort((a, b) => new Date(b.date) - new Date(a.date))
-            .map(t => {
-                const isIncome = t.type === 'entrada';
-                const dateStr  = t.date
-                    ? new Date(t.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
-                    : '—';
-                const emoji = t.emoji || (isIncome ? '💰' : '💸');
-                return `
-                <div class="flex items-center gap-3 py-2.5 border-b border-gray-100 last:border-0">
-                    <div class="w-8 h-8 rounded-xl bg-gray-50 flex items-center justify-center text-lg flex-shrink-0">${emoji}</div>
-                    <div class="flex-1 min-w-0">
-                        <div class="text-xs font-semibold text-gray-800 truncate">${t.description || t.category || '—'}</div>
-                        <div class="text-[10px] text-gray-400">${dateStr}${t.category ? ' · ' + t.category : ''}</div>
-                    </div>
-                    <span class="text-xs font-bold flex-shrink-0 ${isIncome ? 'text-emerald-600' : 'text-red-500'}">
-                        ${isIncome ? '+' : '-'}${this.formatCurrency(Number(t.value))}
-                    </span>
-                </div>`;
-            }).join('') || '<p class="text-xs text-gray-400 text-center py-4">Nenhum lançamento encontrado.</p>';
+        document.getElementById('person-detail-title').textContent = label;
+        document.getElementById('person-detail-month').textContent =
+            `${this.formatMonth(this.currentMonth)} · ${txns.length} lançamento${txns.length !== 1 ? 's' : ''}`;
 
-        const modal = document.createElement('div');
-        modal.id = 'person-txn-modal';
-        modal.className = 'fixed inset-0 z-50 flex items-end justify-center';
-        modal.innerHTML = `
-            <div class="absolute inset-0 bg-black/50" id="person-txn-overlay"></div>
-            <div class="relative bg-white w-full max-w-md rounded-t-3xl shadow-2xl flex flex-col" style="max-height:80vh">
-                <!-- Handle -->
-                <div class="flex justify-center pt-3 pb-1">
-                    <div class="w-10 h-1 bg-gray-200 rounded-full"></div>
+        // Totais
+        const totalIncome  = txns.filter(t => Storage.getBehavior(t.type) === 'soma').reduce((s, t) => s + Number(t.value), 0);
+        const totalExpense = txns.filter(t => Storage.getBehavior(t.type) === 'subtrai').reduce((s, t) => s + Number(t.value), 0);
+        document.getElementById('person-detail-totals').innerHTML = `
+            ${totalExpense > 0 ? `<span class="px-3 py-1 bg-red-50 text-red-600 rounded-full text-xs font-semibold">Saídas: ${this.formatCurrency(totalExpense)}</span>` : ''}
+            ${totalIncome  > 0 ? `<span class="px-3 py-1 bg-green-50 text-green-600 rounded-full text-xs font-semibold">Entradas: ${this.formatCurrency(totalIncome)}</span>` : ''}`;
+
+        // Lista
+        const listEl = document.getElementById('person-detail-list');
+        if (!txns.length) {
+            listEl.innerHTML = '<div class="text-center text-gray-400 py-8 text-sm">Nenhum lançamento</div>';
+            return;
+        }
+
+        listEl.innerHTML = txns.map(t => {
+            const beh   = Storage.getBehavior(t.type);
+            const sign  = beh === 'soma' ? '+' : beh === 'subtrai' ? '-' : '±';
+            const color = beh === 'soma' ? 'text-green-600' : beh === 'subtrai' ? 'text-red-600' : 'text-gray-500';
+            const badge = this.getInserterBadge(t);
+            return `
+            <div class="flex items-center gap-3 py-2.5 border-b border-gray-50 last:border-0 cursor-pointer hover:bg-gray-50 rounded-xl px-1 -mx-1 person-detail-item" data-id="${t.id}">
+                <div class="text-center flex-shrink-0 w-10">
+                    <div class="text-xs font-bold text-gray-600">${t.date.slice(8)}</div>
+                    <div class="text-xs text-gray-400">${this._monthAbbr(t.date)}</div>
                 </div>
-                <!-- Header -->
-                <div class="flex items-center gap-3 px-5 pt-2 pb-4 border-b border-gray-100">
-                    <div class="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 ${bgCls} ${txtCls}">${initials}</div>
-                    <div class="flex-1 min-w-0">
-                        <p class="text-sm font-bold text-gray-800">${label}</p>
-                        <p class="text-[10px] text-gray-400">${txns.length} lançamento${txns.length !== 1 ? 's' : ''}</p>
-                    </div>
-                    <div class="text-right flex-shrink-0">
-                        ${totalIncome  > 0 ? `<p class="text-xs font-semibold text-emerald-600">+${this.formatCurrency(totalIncome)}</p>` : ''}
-                        ${totalExpense > 0 ? `<p class="text-xs font-bold text-red-500">-${this.formatCurrency(totalExpense)}</p>` : ''}
-                    </div>
-                    <button id="person-txn-close" class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-gray-200 flex-shrink-0">✕</button>
+                <div class="flex-1 min-w-0">
+                    <div class="text-sm text-gray-700 truncate">${t.description}</div>
+                    <div class="text-xs text-gray-400 truncate">${t.category || ''}</div>
+                    ${badge ? `<div class="mt-0.5">${badge}</div>` : ''}
                 </div>
-                <!-- Lista -->
-                <div class="overflow-y-auto px-5 pb-6 pt-1">${rows}</div>
+                <div class="font-bold text-sm ${color} flex-shrink-0">${sign}${this.formatCurrency(t.value)}</div>
             </div>`;
+        }).join('');
 
-        document.body.appendChild(modal);
+        listEl.querySelectorAll('.person-detail-item').forEach(el => {
+            el.addEventListener('click', () => {
+                const t = txns.find(x => x.id === el.dataset.id);
+                if (t) { this.closePersonDetail(); this.openModal(t); }
+            });
+        });
+    },
 
-        const close = () => { modal.style.opacity = '0'; setTimeout(() => modal.remove(), 200); };
-        modal.style.transition = 'opacity .2s';
-        modal.style.opacity = '0';
-        requestAnimationFrame(() => { modal.style.opacity = '1'; });
-
-        modal.querySelector('#person-txn-close').addEventListener('click', close);
-        modal.querySelector('#person-txn-overlay').addEventListener('click', close);
+    closePersonDetail() {
+        document.getElementById('person-detail-modal').classList.add('hidden');
     },
 
     // ─── Custom Types Chart ───────────────────────────────────────────────────
