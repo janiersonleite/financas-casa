@@ -1639,17 +1639,17 @@ const App = {
                 const monthName = new Date(Number(ry), Number(rm)-1, 1)
                     .toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' });
                 return `
-                <div class="deal-card opacity-75">
-                    <div class="flex items-center gap-3 mb-3">
-                        <div class="w-9 h-9 rounded-xl flex items-center justify-center text-xl flex-shrink-0" style="background:#f0fdf4">${r.emoji || '🔔'}</div>
+                <div class="deal-card opacity-70" style="padding:10px 12px">
+                    <div class="flex items-center gap-2 mb-1.5">
+                        <div class="w-7 h-7 rounded-lg flex items-center justify-center text-base flex-shrink-0" style="background:#f0fdf4">${r.emoji || '🔔'}</div>
                         <div class="flex-1 min-w-0">
-                            <div class="text-sm font-semibold text-gray-400 truncate line-through">${r.name}</div>
-                            <div class="text-xs text-green-500 font-medium">✅ Pago · ${monthName}</div>
+                            <div class="text-xs font-semibold text-gray-400 truncate line-through">${r.name}</div>
+                            <div class="text-[10px] text-green-500 font-medium">✅ Pago · ${monthName}</div>
                         </div>
-                        <button class="reminder-unpay-btn text-xs text-gray-300 hover:text-red-400 px-1 flex-shrink-0" data-reminder-id="${r.id}" title="Desfazer">↩</button>
+                        <button class="reminder-unpay-btn text-[10px] text-gray-300 hover:text-red-400 px-1 flex-shrink-0" data-reminder-id="${r.id}" title="Desfazer">↩</button>
                     </div>
-                    <div class="prog-bar"><div class="prog-fill" style="width:100%;${progFill}"></div></div>
-                    <div class="flex justify-between mt-2 text-xs text-gray-400">
+                    <div class="prog-bar" style="height:4px"><div class="prog-fill" style="width:100%;${progFill}"></div></div>
+                    <div class="flex justify-between mt-1 text-[10px] text-gray-400">
                         <span>${dayTxt}</span>
                         <span class="font-semibold text-green-500">${amtTxt}</span>
                     </div>
@@ -1657,19 +1657,19 @@ const App = {
             }
 
             return `
-            <div class="deal-card">
-                <div class="flex items-center gap-3 mb-3">
-                    <div class="w-9 h-9 rounded-xl flex items-center justify-center text-xl flex-shrink-0" style="background:${accent.iconBg}">${r.emoji || '🔔'}</div>
+            <div class="deal-card" style="padding:10px 12px">
+                <div class="flex items-center gap-2 mb-1.5">
+                    <div class="w-7 h-7 rounded-lg flex items-center justify-center text-base flex-shrink-0" style="background:${accent.iconBg}">${r.emoji || '🔔'}</div>
                     <div class="flex-1 min-w-0">
-                        <div class="text-sm font-bold text-gray-800 truncate">${r.name}</div>
-                        <div class="text-xs font-medium" style="color:${accent.label}">${accent.badge}</div>
+                        <div class="text-xs font-bold text-gray-800 truncate">${r.name}</div>
+                        <div class="text-[10px] font-medium" style="color:${accent.label}">${accent.badge}</div>
                     </div>
-                    <span class="text-base font-extrabold" style="color:${accent.amtColor}">${amtTxt}</span>
+                    <span class="text-sm font-extrabold" style="color:${accent.amtColor}">${amtTxt}</span>
                 </div>
-                <div class="prog-bar"><div class="prog-fill" style="width:${pct}%;${accent.fill}"></div></div>
-                <div class="flex justify-between items-center mt-2.5">
-                    <span class="text-xs text-gray-400">${dayTxt}</span>
-                    <button class="reminder-register-btn text-xs font-bold px-3 py-1.5 rounded-xl text-white transition-all flex-shrink-0"
+                <div class="prog-bar" style="height:4px"><div class="prog-fill" style="width:${pct}%;${accent.fill}"></div></div>
+                <div class="flex justify-between items-center mt-1.5">
+                    <span class="text-[10px] text-gray-400">${dayTxt}</span>
+                    <button class="reminder-register-btn text-[10px] font-bold px-2.5 py-1 rounded-lg text-white transition-all flex-shrink-0"
                         style="background:${accent.btn}" data-reminder-id="${r.id}">
                         Registrar
                     </button>
