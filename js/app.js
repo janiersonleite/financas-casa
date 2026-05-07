@@ -2995,7 +2995,8 @@ const App = {
         const wrap = document.getElementById('custom-types-chart-wrap');
         if (!wrap) return;
 
-        const customs = Storage.getCustomTypes();
+        // Usa todos os tipos de todos os perfis para encontrar lançamentos com tipos customizados
+        const customs = Storage.getAllCustomTypesForChart();
         if (!customs.length) { wrap.classList.add('hidden'); return; }
 
         // Agrupa total por tipo customizado

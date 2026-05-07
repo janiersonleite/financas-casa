@@ -41,6 +41,41 @@ const Storage = {
         return [...this._fixedTypes, ...this.getCustomTypes()];
     },
 
+    // Busca um tipo pelo ID em TODOS os perfis do localStorage (fallback cross-perfil)
+    findCustomTypeById(id) {
+        // 1. Tenta no perfil ativo primeiro
+        const inActive = this.getCustomTypes().find(t => t.id === id);
+        if (inActive) return inActive;
+        // 2. Varre todas as chaves de tipos no localStorage
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (!key || !key.startsWith(this.CUSTOM_TYPES_KEY)) continue;
+            try {
+                const list = JSON.parse(localStorage.getItem(key) || '[]');
+                const found = list.find(t => t.id === id);
+                if (found) return found;
+            } catch (_) {}
+        }
+        return null;
+    },
+
+    // Retorna todos os tipos únicos de todos os perfis (para o gráfico do resumo)
+    getAllCustomTypesForChart() {
+        const seen = new Set();
+        const result = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (!key || !key.startsWith(this.CUSTOM_TYPES_KEY)) continue;
+            try {
+                const list = JSON.parse(localStorage.getItem(key) || '[]');
+                for (const t of list) {
+                    if (!seen.has(t.id)) { seen.add(t.id); result.push(t); }
+                }
+            } catch (_) {}
+        }
+        return result;
+    },
+
     // Carrega tipos do Supabase e sincroniza com localStorage (chamado no init e troca de perfil)
     async syncCustomTypesFromCloud() {
         if (!this.isCloud || !this.isOnline) return;
