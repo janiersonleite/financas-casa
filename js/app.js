@@ -3039,6 +3039,9 @@ const App = {
             ['bg-indigo-500', 'text-white'],
         ];
 
+        // Guarda txns para uso no drill-down
+        this._personBreakdownTxns = txns;
+
         const rows = people.map((p, i) => {
             const isMe  = p.email === myEmail;
             const label = isMe ? 'Você' : (p.email.split('@')[0] || p.email);
@@ -3049,7 +3052,8 @@ const App = {
             const barColor = isMe ? 'bg-emerald-500' : ['bg-purple-400','bg-orange-400','bg-teal-400','bg-pink-400','bg-indigo-400'][seed % 5];
 
             return `
-            <div class="flex items-center gap-3 py-2.5 border-b border-gray-100 last:border-0">
+            <div class="person-row flex items-center gap-3 py-2.5 border-b border-gray-100 last:border-0 cursor-pointer hover:bg-gray-50 rounded-xl px-1 -mx-1 transition-colors"
+                 data-person-email="${p.email}" data-person-label="${label}" data-person-bg="${bgCls}" data-person-txt="${txtCls}">
                 <div class="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold ${bgCls} ${txtCls}">${initials}</div>
                 <div class="flex-1 min-w-0">
                     <div class="flex justify-between items-center mb-1">
@@ -3062,10 +3066,98 @@ const App = {
                     </div>
                     ${pct > 0 ? `<div class="w-full bg-gray-100 rounded-full h-1.5"><div class="${barColor} h-1.5 rounded-full transition-all" style="width:${pct}%"></div></div>` : ''}
                 </div>
+                <svg class="w-4 h-4 text-gray-300 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
+                </svg>
             </div>`;
         });
 
         bd.innerHTML = rows.join('');
+
+        // Bind click → drill-down
+        bd.querySelectorAll('.person-row').forEach(row => {
+            row.addEventListener('click', () => {
+                this.showPersonTransactions(
+                    row.dataset.personEmail,
+                    row.dataset.personLabel,
+                    row.dataset.personBg,
+                    row.dataset.personTxt
+                );
+            });
+        });
+    },
+
+    // ─── Person Drill-down ────────────────────────────────────────────────────
+    showPersonTransactions(email, label, bgCls, txtCls) {
+        const myEmail = (Auth.user?.email || '').toLowerCase();
+        const txns = (this._personBreakdownTxns || [])
+            .filter(t => (t.inserted_by_email || myEmail).toLowerCase() === email.toLowerCase());
+
+        // Remove modal anterior se existir
+        document.getElementById('person-txn-modal')?.remove();
+
+        const initials = label.slice(0, 2).toUpperCase();
+        const totalIncome  = txns.filter(t => t.type === 'entrada').reduce((s, t) => s + Number(t.value), 0);
+        const totalExpense = txns.filter(t => t.type !== 'entrada').reduce((s, t) => s + Number(t.value), 0);
+
+        const rows = txns
+            .slice()
+            .sort((a, b) => new Date(b.date) - new Date(a.date))
+            .map(t => {
+                const isIncome = t.type === 'entrada';
+                const dateStr  = t.date
+                    ? new Date(t.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
+                    : '—';
+                const emoji = t.emoji || (isIncome ? '💰' : '💸');
+                return `
+                <div class="flex items-center gap-3 py-2.5 border-b border-gray-100 last:border-0">
+                    <div class="w-8 h-8 rounded-xl bg-gray-50 flex items-center justify-center text-lg flex-shrink-0">${emoji}</div>
+                    <div class="flex-1 min-w-0">
+                        <div class="text-xs font-semibold text-gray-800 truncate">${t.description || t.category || '—'}</div>
+                        <div class="text-[10px] text-gray-400">${dateStr}${t.category ? ' · ' + t.category : ''}</div>
+                    </div>
+                    <span class="text-xs font-bold flex-shrink-0 ${isIncome ? 'text-emerald-600' : 'text-red-500'}">
+                        ${isIncome ? '+' : '-'}${this.formatCurrency(Number(t.value))}
+                    </span>
+                </div>`;
+            }).join('') || '<p class="text-xs text-gray-400 text-center py-4">Nenhum lançamento encontrado.</p>';
+
+        const modal = document.createElement('div');
+        modal.id = 'person-txn-modal';
+        modal.className = 'fixed inset-0 z-50 flex items-end justify-center';
+        modal.innerHTML = `
+            <div class="absolute inset-0 bg-black/50" id="person-txn-overlay"></div>
+            <div class="relative bg-white w-full max-w-md rounded-t-3xl shadow-2xl flex flex-col" style="max-height:80vh">
+                <!-- Handle -->
+                <div class="flex justify-center pt-3 pb-1">
+                    <div class="w-10 h-1 bg-gray-200 rounded-full"></div>
+                </div>
+                <!-- Header -->
+                <div class="flex items-center gap-3 px-5 pt-2 pb-4 border-b border-gray-100">
+                    <div class="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 ${bgCls} ${txtCls}">${initials}</div>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-sm font-bold text-gray-800">${label}</p>
+                        <p class="text-[10px] text-gray-400">${txns.length} lançamento${txns.length !== 1 ? 's' : ''}</p>
+                    </div>
+                    <div class="text-right flex-shrink-0">
+                        ${totalIncome  > 0 ? `<p class="text-xs font-semibold text-emerald-600">+${this.formatCurrency(totalIncome)}</p>` : ''}
+                        ${totalExpense > 0 ? `<p class="text-xs font-bold text-red-500">-${this.formatCurrency(totalExpense)}</p>` : ''}
+                    </div>
+                    <button id="person-txn-close" class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-gray-200 flex-shrink-0">✕</button>
+                </div>
+                <!-- Lista -->
+                <div class="overflow-y-auto px-5 pb-6 pt-1">${rows}</div>
+            </div>`;
+
+        document.body.appendChild(modal);
+
+        const close = () => { modal.style.opacity = '0'; setTimeout(() => modal.remove(), 200); };
+        modal.style.transition = 'opacity .2s';
+        modal.style.opacity = '0';
+        requestAnimationFrame(() => { modal.style.opacity = '1'; });
+
+        modal.querySelector('#person-txn-close').addEventListener('click', close);
+        modal.querySelector('#person-txn-overlay').addEventListener('click', close);
     },
 
     // ─── Custom Types Chart ───────────────────────────────────────────────────
