@@ -640,6 +640,42 @@ const App = {
             if ((this._installmentQty || 1) > 1) this._renderInstallmentPicker();
         });
 
+        // ── Nova categoria inline no modal de lançamento ──────────────────────
+        document.getElementById('modal-new-cat-btn')?.addEventListener('click', () => {
+            const panel = document.getElementById('modal-new-cat-panel');
+            if (!panel) return;
+            panel.classList.toggle('hidden');
+            if (!panel.classList.contains('hidden')) {
+                document.getElementById('modal-cat-name-input')?.focus();
+                this._buildModalCatEmojiPicker();
+            }
+        });
+        document.getElementById('modal-cat-cancel-btn')?.addEventListener('click', () => {
+            document.getElementById('modal-new-cat-panel')?.classList.add('hidden');
+            document.getElementById('modal-cat-name-input').value = '';
+            document.getElementById('modal-cat-emoji-input').value = '📦';
+            document.getElementById('modal-cat-emoji-btn').textContent = '📦';
+        });
+        document.getElementById('modal-cat-emoji-btn')?.addEventListener('click', () => {
+            document.getElementById('modal-cat-emoji-picker')?.classList.toggle('hidden');
+        });
+        document.addEventListener('click', e => {
+            if (!e.target.closest('#modal-cat-emoji-btn') && !e.target.closest('#modal-cat-emoji-picker')) {
+                document.getElementById('modal-cat-emoji-picker')?.classList.add('hidden');
+            }
+        });
+        document.getElementById('modal-cat-save-btn')?.addEventListener('click', () => this._saveModalNewCategory());
+        document.getElementById('modal-cat-name-input')?.addEventListener('keydown', e => {
+            if (e.key === 'Enter') this._saveModalNewCategory();
+        });
+        document.getElementById('modal-cat-name-input')?.addEventListener('input', e => {
+            const sug = this._suggestEmoji(e.target.value);
+            if (sug) {
+                document.getElementById('modal-cat-emoji-input').value = sug;
+                document.getElementById('modal-cat-emoji-btn').textContent = sug;
+            }
+        });
+
         // ── Sugestão de categoria por aprendizado ──────────────────────────────
         // Detecta quando o usuário escolhe a categoria manualmente
         document.getElementById('modal-category')?.addEventListener('change', () => {
@@ -4060,6 +4096,63 @@ const App = {
         NLP.setCategoryMap(this.categories);
         this.renderCategorySelect();
         this.renderQuickButtons();
+    },
+
+    // ── Nova categoria inline no modal de lançamento ─────────────────────────
+    async _saveModalNewCategory() {
+        const name  = document.getElementById('modal-cat-name-input')?.value.trim();
+        const emoji = document.getElementById('modal-cat-emoji-input')?.value.trim() || '📦';
+        if (!name) { document.getElementById('modal-cat-name-input')?.focus(); return; }
+
+        const btn = document.getElementById('modal-cat-save-btn');
+        btn.disabled = true; btn.textContent = 'Criando...';
+        try {
+            const cat = await Storage.createCategory(name, emoji, [], 'saida');
+            // Atualiza lista local de categorias (ou _modalCategories se perfil diferente)
+            if (this._modalCategories) {
+                this._modalCategories.push(cat);
+                this._modalCategories = this._sortCategories(this._modalCategories);
+            } else {
+                this.categories.push(cat);
+                this.categories = this._sortCategories(this.categories);
+            }
+            NLP.setCategoryMap(this.categories);
+            this.renderCategorySelect(name); // seleciona a nova categoria
+            // Fecha e limpa painel
+            document.getElementById('modal-new-cat-panel').classList.add('hidden');
+            document.getElementById('modal-cat-name-input').value  = '';
+            document.getElementById('modal-cat-emoji-input').value = '📦';
+            document.getElementById('modal-cat-emoji-btn').textContent = '📦';
+            this.showToast(`✅ Categoria "${name}" criada!`);
+        } catch (e) {
+            const msg = e.message || '';
+            if (msg.includes('duplicate') || msg.includes('unique') || msg.includes('already exists')) {
+                this.showToast('⚠️ Já existe uma categoria com esse nome.', true);
+            } else {
+                this.showToast('❌ Erro: ' + msg, true);
+            }
+        } finally {
+            btn.disabled = false; btn.textContent = 'Criar';
+        }
+    },
+
+    _buildModalCatEmojiPicker() {
+        const grid = document.getElementById('modal-cat-emoji-grid');
+        if (!grid || grid.dataset.built) return;
+        grid.dataset.built = '1';
+        grid.innerHTML = this._emojiPickerGroups.map(g =>
+            `<div class="col-span-8 text-xs font-semibold text-gray-400 mt-1.5 mb-0.5 px-0.5">${g.label}</div>` +
+            g.emojis.map(e =>
+                `<button type="button" data-emoji="${e}" class="text-xl p-0.5 rounded-lg hover:bg-blue-50 transition-colors leading-none">${e}</button>`
+            ).join('')
+        ).join('');
+        grid.addEventListener('click', e => {
+            const btn = e.target.closest('[data-emoji]');
+            if (!btn) return;
+            document.getElementById('modal-cat-emoji-input').value    = btn.dataset.emoji;
+            document.getElementById('modal-cat-emoji-btn').textContent = btn.dataset.emoji;
+            document.getElementById('modal-cat-emoji-picker').classList.add('hidden');
+        });
     },
 
     renderCategorySelect(selectedVal) {
