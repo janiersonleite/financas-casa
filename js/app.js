@@ -1437,6 +1437,7 @@ const App = {
             this.transactionTypes = await Storage.getTransactionTypes();
             this.closeTypeForm();
             this.renderTypesList();
+            this.renderModalTypeBtns(); // atualiza botões no modal de lançamento
             this.showToast(this.editingTypeId ? '✅ Tipo atualizado!' : '✅ Tipo criado!');
         } catch (e) {
             this.showToast('❌ Erro: ' + e.message, true);

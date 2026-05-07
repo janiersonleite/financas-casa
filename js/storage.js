@@ -13,29 +13,35 @@ const Storage = {
         { id: 'entrada', name: 'Entrada (Receita)', behavior: 'soma',    emoji: '💰', color: 'green', fixed: true },
     ],
 
-    // Chave localStorage separada por perfil (finança)
-    _customTypesKey() {
-        const fid = this.activeFinancaId && this.activeFinancaId !== 'null' ? this.activeFinancaId : null;
-        return fid ? `${this.CUSTOM_TYPES_KEY}_${fid}` : this.CUSTOM_TYPES_KEY;
-    },
-
     getCustomTypes() {
+        const fid = this.activeFinancaId && this.activeFinancaId !== 'null' ? this.activeFinancaId : null;
         try {
-            let list = JSON.parse(localStorage.getItem(this._customTypesKey()) || '[]');
-            // Migra IDs antigos que ultrapassam VARCHAR(10) do Supabase
+            let all = JSON.parse(localStorage.getItem(this.CUSTOM_TYPES_KEY) || '[]');
+            // Migra IDs antigos que ultrapassam VARCHAR(10)
             let dirty = false;
-            list = list.map(t => {
+            all = all.map(t => {
                 if (t.id && t.id.length > 10) {
                     dirty = true;
                     return { ...t, id: 'ct' + t.id.replace(/\D/g, '').slice(-6) };
                 }
                 return t;
             });
-            if (dirty) this._saveCustomTypes(list);
-            return list;
+            if (dirty) localStorage.setItem(this.CUSTOM_TYPES_KEY, JSON.stringify(all));
+            // Filtra pelo perfil ativo (financa_id null = pessoal)
+            return all.filter(t => (t.financa_id || null) === fid);
         } catch { return []; }
     },
-    _saveCustomTypes(list) { localStorage.setItem(this._customTypesKey(), JSON.stringify(list)); },
+
+    _saveCustomTypes(list) {
+        // Preserva tipos de outros perfis, substitui apenas os do perfil ativo
+        const fid = this.activeFinancaId && this.activeFinancaId !== 'null' ? this.activeFinancaId : null;
+        try {
+            const all     = JSON.parse(localStorage.getItem(this.CUSTOM_TYPES_KEY) || '[]');
+            const others  = all.filter(t => (t.financa_id || null) !== fid);
+            const updated = [...others, ...list.map(t => ({ ...t, financa_id: fid }))];
+            localStorage.setItem(this.CUSTOM_TYPES_KEY, JSON.stringify(updated));
+        } catch {}
+    },
 
     async getTransactionTypes() {
         return [...this._fixedTypes, ...this.getCustomTypes()];
@@ -86,14 +92,13 @@ const Storage = {
             else     q = q.eq('user_id', this.userId()).is('financa_id', null);
             const { data, error } = await q;
             if (error || !data) return;
-            // Converte registros do Supabase para o formato local (ID curto + _supabaseId)
+            // Mescla com tipos locais do perfil ativo, sem duplicar
             const existing = this.getCustomTypes();
-            const merged = [...existing];
+            const merged   = [...existing];
             for (const row of data) {
-                // Usa o custom_id salvo, ou gera um baseado no UUID do Supabase
                 const localId = row.custom_id || ('ct' + (row.id || '').replace(/\D/g, '').slice(-6));
                 if (!merged.find(t => t._supabaseId === row.id || t.id === localId)) {
-                    merged.push({ id: localId, name: row.name, behavior: row.behavior, emoji: row.emoji, color: row.color, _supabaseId: row.id });
+                    merged.push({ id: localId, name: row.name, behavior: row.behavior, emoji: row.emoji, color: row.color, financa_id: fid || null, _supabaseId: row.id });
                 }
             }
             this._saveCustomTypes(merged);
@@ -103,8 +108,8 @@ const Storage = {
     async createTransactionType(name, behavior, emoji, color) {
         // ID curto (≤10 chars) para caber no VARCHAR(10) da coluna transactions.type
         // NÃO sobrescreve com UUID do Supabase — nosso ID curto é o canônico
-        const t = { id: 'ct' + Date.now().toString(36).slice(-6), name, behavior, emoji, color };
         const fid = this.activeFinancaId && this.activeFinancaId !== 'null' ? this.activeFinancaId : null;
+        const t = { id: 'ct' + Date.now().toString(36).slice(-6), name, behavior, emoji, color, financa_id: fid };
         if (this.isCloud) {
             try {
                 const payload = { name, behavior, emoji, color, user_id: this.userId(), custom_id: t.id };
