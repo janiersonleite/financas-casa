@@ -60,7 +60,8 @@ const App = {
         const verEl = document.getElementById('app-version-label');
         if (verEl) verEl.textContent = `v ${APP_VERSION}`;
         await this.loadFinancas();
-        await Promise.all([this.loadTransactionTypes(), Storage.syncCustomTypesFromCloud()]);
+        await Storage.syncCustomTypesFromCloud(); // sincroniza primeiro para ter os tipos no localStorage
+        await this.loadTransactionTypes();         // depois carrega já com os tipos sincronizados
         await this.loadCategories();
         await this.loadReminders();
         await this.renderHome();
@@ -263,7 +264,8 @@ const App = {
                 Storage.setActiveFinanca(f.id);
                 this.closeFinancaModal();
                 this.renderFinancaSwitcher();
-                await Promise.all([this.loadCategories(), this.loadReminders(), Storage.syncCustomTypesFromCloud()]);
+                await Storage.syncCustomTypesFromCloud();
+                await Promise.all([this.loadCategories(), this.loadReminders(), this.loadTransactionTypes()]);
                 await this.renderCurrentTab();
                 if (navigator.onLine) this._warmOfflineCache();
                 if (this.currentTab !== 'home') await this.renderHome();
@@ -282,7 +284,8 @@ const App = {
                         this.activeFinanca = this.financas[0] || null;
                         Storage.setActiveFinanca(this.activeFinanca?.id || null);
                         this.renderFinancaSwitcher();
-                        await Promise.all([this.loadCategories(), this.loadReminders(), Storage.syncCustomTypesFromCloud()]);
+                        await Storage.syncCustomTypesFromCloud();
+                await Promise.all([this.loadCategories(), this.loadReminders(), this.loadTransactionTypes()]);
                         await this.renderCurrentTab();
                     }
                     this.renderFinancaList();
@@ -595,7 +598,8 @@ const App = {
                         this.activeFinanca = newF;
                         Storage.setActiveFinanca(newF?.id || null);
                         this.renderFinancaSwitcher();
-                        await Promise.all([this.loadCategories(), this.loadReminders(), Storage.syncCustomTypesFromCloud()]);
+                        await Storage.syncCustomTypesFromCloud();
+                await Promise.all([this.loadCategories(), this.loadReminders(), this.loadTransactionTypes()]);
                         this._modalFinancaId = null; // null = usa o perfil ativo (já trocado)
                         this._renderModalFinancaPicker();
                     },
@@ -991,7 +995,7 @@ const App = {
         this._renderModalFinancaPicker();
         document.getElementById('modal-overlay').classList.remove('hidden');
 
-        // ── Carrega categorias e lembretes do perfil escolhido (se diferente do ativo) ──
+        // ── Carrega categorias, lembretes e tipos do perfil escolhido (se diferente do ativo) ──
         if (this._modalFinancaId && this._modalFinancaId !== (this.activeFinanca?.id || null)) {
             try {
                 const [rawCats, rawRem] = await Promise.all([
@@ -1006,6 +1010,11 @@ const App = {
                     })
                 );
                 this._modalReminders = rawRem;
+                // Tipos do perfil escolhido
+                const prevFid = Storage.activeFinancaId;
+                Storage.activeFinancaId = this._modalFinancaId;
+                this.transactionTypes = await Storage.getTransactionTypes();
+                Storage.activeFinancaId = prevFid;
             } catch (e) {
                 console.warn('openModal: load for finança', e);
                 this._modalCategories = null;
@@ -1014,6 +1023,8 @@ const App = {
         } else {
             this._modalCategories = null; // usa this.categories (perfil ativo)
             this._modalReminders  = null; // usa this.reminders (perfil ativo)
+            // Garante tipos do perfil ativo atualizados
+            this.transactionTypes = await Storage.getTransactionTypes();
         }
 
         this._catUserPicked = false;            // reset: usuário ainda não escolheu categoria neste modal
