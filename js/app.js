@@ -3031,125 +3031,109 @@ const App = {
         const totalExp = people.reduce((s, p) => s + p.expense, 0);
 
         const avatarPalettes = [
-            ['bg-emerald-500',   'text-white'],
-            ['bg-purple-500', 'text-white'],
-            ['bg-orange-500', 'text-white'],
-            ['bg-teal-500',   'text-white'],
-            ['bg-pink-500',   'text-white'],
-            ['bg-indigo-500', 'text-white'],
+            ['bg-emerald-500', 'text-white'],
+            ['bg-purple-500',  'text-white'],
+            ['bg-orange-500',  'text-white'],
+            ['bg-teal-500',    'text-white'],
+            ['bg-pink-500',    'text-white'],
+            ['bg-indigo-500',  'text-white'],
         ];
 
-        // Guarda txns para uso no drill-down
-        this._personBreakdownTxns = txns;
+        // Group txns by person for panel
+        const txnsByPerson = {};
+        for (const t of txns) {
+            const key = (t.inserted_by_email || myEmail).toLowerCase();
+            if (!txnsByPerson[key]) txnsByPerson[key] = [];
+            txnsByPerson[key].push(t);
+        }
 
-        const rows = people.map((p, i) => {
-            const isMe  = p.email === myEmail;
-            const label = isMe ? 'Você' : (p.email.split('@')[0] || p.email);
-            const pct   = totalExp > 0 ? ((p.expense / totalExp) * 100).toFixed(1) : 0;
-            const seed  = p.email.charCodeAt(0) + (p.email.charCodeAt(1) || 0);
+        let html = '';
+        for (const p of people) {
+            const isMe     = p.email === myEmail;
+            const label    = isMe ? 'Você' : (p.email.split('@')[0] || p.email);
+            const pct      = totalExp > 0 ? ((p.expense / totalExp) * 100).toFixed(1) : 0;
+            const seed     = p.email.charCodeAt(0) + (p.email.charCodeAt(1) || 0);
             const [bgCls, txtCls] = avatarPalettes[seed % avatarPalettes.length];
             const initials = label.slice(0, 2).toUpperCase();
             const barColor = isMe ? 'bg-emerald-500' : ['bg-purple-400','bg-orange-400','bg-teal-400','bg-pink-400','bg-indigo-400'][seed % 5];
 
-            return `
-            <div class="person-row flex items-center gap-3 py-2.5 border-b border-gray-100 last:border-0 cursor-pointer hover:bg-gray-50 rounded-xl px-1 -mx-1 transition-colors"
-                 data-person-email="${p.email}" data-person-label="${label}" data-person-bg="${bgCls}" data-person-txt="${txtCls}">
-                <div class="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold ${bgCls} ${txtCls}">${initials}</div>
-                <div class="flex-1 min-w-0">
-                    <div class="flex justify-between items-center mb-1">
-                        <span class="text-sm font-medium text-gray-800 truncate">${label}${isMe ? ' <span class="text-xs text-emerald-500 font-normal">(você)</span>' : ''}</span>
-                        <div class="flex items-center gap-2 flex-shrink-0 ml-2">
-                            ${p.income  > 0 ? `<span class="text-xs font-semibold text-green-600">+${this.formatCurrency(p.income)}</span>`  : ''}
-                            ${p.expense > 0 ? `<span class="text-xs font-bold text-red-600">-${this.formatCurrency(p.expense)}</span>` : ''}
-                            ${pct > 0 ? `<span class="text-xs text-gray-400">${pct}%</span>` : ''}
+            // Monta painel inline de transações
+            const personTxns = (txnsByPerson[p.email] || []).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+            const byDate = {};
+            for (const t of personTxns) { const d = t.date || ''; if (!byDate[d]) byDate[d] = []; byDate[d].push(t); }
+
+            let panelHtml = '';
+            for (const [date, items] of Object.entries(byDate)) {
+                panelHtml += `<div class="text-[10px] font-semibold text-emerald-500 uppercase pt-2 pb-0.5 px-1">${this.formatDateGroup(date)}</div>`;
+                for (const t of items) {
+                    const beh      = Storage.getBehavior(t.type);
+                    const isIncome = beh === 'soma';
+                    const sign     = isIncome ? '+' : beh === 'subtrai' ? '-' : '±';
+                    const color    = isIncome ? 'text-green-600' : beh === 'subtrai' ? 'text-red-600' : 'text-gray-500';
+                    const badge    = this.getInserterBadge(t);
+                    const catIcon  = this.getCategoryIcon(t.category);
+                    panelHtml += `
+                    <div class="person-panel-item flex items-center gap-2 bg-white rounded-lg px-2.5 py-1.5 mb-1 border border-emerald-100 cursor-pointer hover:bg-emerald-50 transition-colors" data-id="${t.id}">
+                        <span class="text-base flex-shrink-0">${catIcon}</span>
+                        <div class="flex-1 min-w-0">
+                            <div class="text-xs font-medium text-gray-800 truncate">${t.description || t.category || '—'}</div>
+                            <div class="text-[10px] text-gray-400 truncate">${t.category || ''}${t.date ? ' · ' + t.date.slice(8) + '/' + this._monthAbbr(t.date) : ''}</div>
+                            ${badge ? `<div class="mt-0.5">${badge}</div>` : ''}
+                        </div>
+                        <div class="text-xs font-bold flex-shrink-0 ${color}">${sign}${this.formatCurrency(t.value)}</div>
+                    </div>`;
+                }
+            }
+            if (!panelHtml) panelHtml = '<p class="text-xs text-gray-400 py-2 text-center">Sem lançamentos</p>';
+
+            html += `
+            <div class="border-b border-gray-100 last:border-0">
+                <div class="flex justify-between items-center py-3 cursor-pointer select-none person-breakdown-row">
+                    <div class="flex items-center gap-2">
+                        <div class="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold ${bgCls} ${txtCls}">${initials}</div>
+                        <div>
+                            <div class="text-sm font-semibold text-gray-800">${label}${isMe ? ' <span class="text-xs text-emerald-500 font-normal">(você)</span>' : ''}</div>
+                            <div class="text-xs text-gray-400">${personTxns.length} lançamento${personTxns.length !== 1 ? 's' : ''}${pct > 0 ? ` · ${pct}%` : ''}</div>
                         </div>
                     </div>
-                    ${pct > 0 ? `<div class="w-full bg-gray-100 rounded-full h-1.5"><div class="${barColor} h-1.5 rounded-full transition-all" style="width:${pct}%"></div></div>` : ''}
+                    <div class="flex items-center gap-3">
+                        <div class="text-right">
+                            ${p.expense > 0 ? `<div class="text-sm font-bold text-red-600">-${this.formatCurrency(p.expense)}</div>` : ''}
+                            ${p.income  > 0 ? `<div class="text-sm font-bold text-green-600">+${this.formatCurrency(p.income)}</div>`  : ''}
+                        </div>
+                        <div class="person-chevron w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 text-xs transition-transform duration-200 flex-shrink-0">▼</div>
+                    </div>
                 </div>
-                <svg class="w-4 h-4 text-gray-300 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
-                </svg>
+                ${pct > 0 ? `<div class="w-full bg-gray-100 rounded-full h-1.5 -mt-1 mb-2"><div class="${barColor} h-1.5 rounded-full" style="width:${pct}%"></div></div>` : ''}
+                <div class="person-txn-panel hidden bg-emerald-50 rounded-2xl px-3 pt-1 pb-3 mb-2" data-person-email="${p.email}">
+                    ${panelHtml}
+                </div>
             </div>`;
-        });
-
-        bd.innerHTML = rows.join('');
-
-        // Bind click → drill-down
-        bd.querySelectorAll('.person-row').forEach(row => {
-            row.addEventListener('click', () => {
-                this.showPersonTransactions(
-                    row.dataset.personEmail,
-                    row.dataset.personLabel,
-                    row.dataset.personBg,
-                    row.dataset.personTxt
-                );
-            });
-        });
-    },
-
-    // ─── Person Drill-down ────────────────────────────────────────────────────
-    showPersonTransactions(email, label, bgCls, txtCls) {
-        const myEmail = (Auth.user?.email || '').toLowerCase();
-        const txns = (this._personBreakdownTxns || [])
-            .filter(t => (t.inserted_by_email || myEmail).toLowerCase() === email.toLowerCase())
-            .slice().sort((a, b) => new Date(b.date) - new Date(a.date));
-
-        const modal = document.getElementById('person-detail-modal');
-        modal.classList.remove('hidden');
-
-        // Avatar
-        const avatarEl = document.getElementById('person-detail-avatar');
-        avatarEl.className = `w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 ${bgCls} ${txtCls}`;
-        avatarEl.textContent = label.slice(0, 2).toUpperCase();
-
-        document.getElementById('person-detail-title').textContent = label;
-        document.getElementById('person-detail-month').textContent =
-            `${this.formatMonth(this.currentMonth)} · ${txns.length} lançamento${txns.length !== 1 ? 's' : ''}`;
-
-        // Totais
-        const totalIncome  = txns.filter(t => Storage.getBehavior(t.type) === 'soma').reduce((s, t) => s + Number(t.value), 0);
-        const totalExpense = txns.filter(t => Storage.getBehavior(t.type) === 'subtrai').reduce((s, t) => s + Number(t.value), 0);
-        document.getElementById('person-detail-totals').innerHTML = `
-            ${totalExpense > 0 ? `<span class="px-3 py-1 bg-red-50 text-red-600 rounded-full text-xs font-semibold">Saídas: ${this.formatCurrency(totalExpense)}</span>` : ''}
-            ${totalIncome  > 0 ? `<span class="px-3 py-1 bg-green-50 text-green-600 rounded-full text-xs font-semibold">Entradas: ${this.formatCurrency(totalIncome)}</span>` : ''}`;
-
-        // Lista
-        const listEl = document.getElementById('person-detail-list');
-        if (!txns.length) {
-            listEl.innerHTML = '<div class="text-center text-gray-400 py-8 text-sm">Nenhum lançamento</div>';
-            return;
         }
 
-        listEl.innerHTML = txns.map(t => {
-            const beh   = Storage.getBehavior(t.type);
-            const sign  = beh === 'soma' ? '+' : beh === 'subtrai' ? '-' : '±';
-            const color = beh === 'soma' ? 'text-green-600' : beh === 'subtrai' ? 'text-red-600' : 'text-gray-500';
-            const badge = this.getInserterBadge(t);
-            return `
-            <div class="flex items-center gap-3 py-2.5 border-b border-gray-50 last:border-0 cursor-pointer hover:bg-gray-50 rounded-xl px-1 -mx-1 person-detail-item" data-id="${t.id}">
-                <div class="text-center flex-shrink-0 w-10">
-                    <div class="text-xs font-bold text-gray-600">${t.date.slice(8)}</div>
-                    <div class="text-xs text-gray-400">${this._monthAbbr(t.date)}</div>
-                </div>
-                <div class="flex-1 min-w-0">
-                    <div class="text-sm text-gray-700 truncate">${t.description}</div>
-                    <div class="text-xs text-gray-400 truncate">${t.category || ''}</div>
-                    ${badge ? `<div class="mt-0.5">${badge}</div>` : ''}
-                </div>
-                <div class="font-bold text-sm ${color} flex-shrink-0">${sign}${this.formatCurrency(t.value)}</div>
-            </div>`;
-        }).join('');
+        bd.innerHTML = html || '<div class="text-gray-400 text-center py-4">Sem dados</div>';
 
-        listEl.querySelectorAll('.person-detail-item').forEach(el => {
+        // Accordion toggle
+        bd.querySelectorAll('.person-breakdown-row').forEach(el => {
             el.addEventListener('click', () => {
-                const t = txns.find(x => x.id === el.dataset.id);
-                if (t) { this.closePersonDetail(); this.openModal(t); }
+                const panel   = el.parentElement.querySelector('.person-txn-panel');
+                const chevron = el.querySelector('.person-chevron');
+                const open    = !panel.classList.contains('hidden');
+                panel.classList.toggle('hidden', open);
+                chevron.style.transform = open ? '' : 'rotate(180deg)';
             });
         });
-    },
 
-    closePersonDetail() {
-        document.getElementById('person-detail-modal').classList.add('hidden');
+        // Clique em item do painel → abre modal de edição
+        bd.querySelectorAll('.person-panel-item').forEach(el => {
+            el.addEventListener('click', e => {
+                e.stopPropagation();
+                const email   = el.closest('.person-txn-panel').dataset.personEmail;
+                const allTxns = txnsByPerson[email] || [];
+                const t = allTxns.find(x => x.id === el.dataset.id);
+                if (t) this.openModal(t);
+            });
+        });
     },
 
     // ─── Custom Types Chart ───────────────────────────────────────────────────
