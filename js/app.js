@@ -56,7 +56,7 @@ const App = {
         this.bindHistoryPills();
         this.bindHistoryCatFilter();
         this.bindReminderNewCat();
-        NLP.setLearnedMap(this._getLearnedMap());
+        this._initLearnedMap();
         const verEl = document.getElementById('app-version-label');
         if (verEl) verEl.textContent = `v ${APP_VERSION}`;
         await this.loadFinancas();
@@ -689,7 +689,10 @@ const App = {
             this._catUserPicked = true;
             const badge = document.getElementById('cat-learned-badge');
             if (badge) badge.classList.add('hidden'), badge.classList.remove('inline-flex');
-            // Verifica se há lembrete com a mesma categoria
+            // Correção manual: aprende imediatamente com peso 2 (sobrepõe sugestão errada mais rápido)
+            const desc = document.getElementById('modal-description')?.value?.trim();
+            const cat  = document.getElementById('modal-category')?.value;
+            if (desc && cat && cat !== 'Outros') this._learnCategory(desc, cat, 2);
             this._checkReminderSuggestByCategory();
         });
 
@@ -723,22 +726,34 @@ const App = {
                 // Não sobrescreve se o usuário já escolheu manualmente nesta sessão
                 if (this._catUserPicked) return;
 
-                const badge   = document.getElementById('cat-learned-badge');
-                const catSel  = document.getElementById('modal-category');
-                const text    = e.target.value.trim();
+                const badge  = document.getElementById('cat-learned-badge');
+                const catSel = document.getElementById('modal-category');
+                const text   = e.target.value.trim();
                 if (!text || !catSel) return;
 
-                // Tenta: 1) mapa aprendido, 2) keywords do NLP
-                const suggested = this._suggestLearnedCategory(text) || NLP.extractCategory(text);
-                const isLearned = !!this._suggestLearnedCategory(text);
+                // 1) Mapa aprendido (retorna { cat, confidence } ou null)
+                const learnedResult = this._suggestLearnedCategory(text);
+                // 2) Fallback: keywords estáticos do NLP
+                const nlpCat = NLP.extractCategory(text);
+
+                const suggested  = learnedResult?.cat || nlpCat;
+                const isLearned  = !!learnedResult;
+                const confidence = learnedResult?.confidence || 0;
 
                 if (suggested && suggested !== 'Outros') {
                     catSel.value = suggested;
                     if (badge) {
-                        badge.classList.toggle('hidden', !isLearned);
-                        badge.classList.toggle('inline-flex', isLearned);
+                        if (isLearned) {
+                            badge.classList.remove('hidden');
+                            badge.classList.add('inline-flex');
+                            // Mostra indicador de confiança: alto ≥70%, médio ≥40%, baixo <40%
+                            const level = confidence >= 70 ? '🧠' : confidence >= 40 ? '💡' : '❓';
+                            badge.textContent = `${level} Aprendido ${confidence}%`;
+                        } else {
+                            badge.classList.add('hidden');
+                            badge.classList.remove('inline-flex');
+                        }
                     }
-                    // Verifica sugestão de lembrete para a categoria auto-preenchida
                     this._checkReminderSuggestByCategory();
                 } else {
                     if (badge) badge.classList.add('hidden'), badge.classList.remove('inline-flex');
@@ -2365,6 +2380,8 @@ const App = {
         ]);
         // Cacheia para isReminderPaid derivar do Supabase (não depende de localStorage)
         this._monthTransactions = allMonth;
+        // Aprendizado retroativo: processa histórico existente uma única vez
+        this._retroLearn(allMonth);
         // Balance com decimal em fonte menor (estilo fintech)
         const balEl = document.getElementById('balance');
         if (balEl) {
@@ -2448,6 +2465,9 @@ const App = {
     },
 
     // ─── Category Learning ────────────────────────────────────────────────────
+    // Estrutura do mapa: { "frase": { "Categoria": contagem, ... }, ... }
+    // A categoria com maior contagem vence → robusto contra erros acidentais.
+
     _getLearnedMap() {
         try { return JSON.parse(localStorage.getItem(this._LEARN_KEY) || '{}'); }
         catch { return {}; }
@@ -2457,41 +2477,121 @@ const App = {
         try { localStorage.setItem(this._LEARN_KEY, JSON.stringify(map)); } catch {}
     },
 
-    // Ensina uma associação descrição → categoria (chamado ao salvar transação)
-    _learnCategory(description, category) {
-        if (!description || !category || category === 'Outros') return;
-        const map = this._getLearnedMap();
-        const stopWords = new Set(['para','com','uma','umas','que','por','não','nao','foi','ser','tem','ter','das','dos','numa','num','pelo','pela','este','essa','isso']);
-        const norm = str => str.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
-        const normDesc = norm(description);
+    // Extrai tokens aprendíveis: frase completa + bigramas + palavras individuais
+    _extractTokens(normDesc) {
+        const stopWords = new Set([
+            'para','com','uma','umas','que','por','não','nao','foi','ser','tem',
+            'ter','das','dos','numa','num','pelo','pela','este','essa','isso',
+            'meu','minha','meus','minhas','seu','sua','seus','suas','mais','muito'
+        ]);
+        const words = normDesc.split(/\s+/).filter(w => w.length > 2 && !stopWords.has(w));
+        const tokens = new Set();
 
-        // Armazena frase completa
-        map[normDesc] = category;
+        // Frase completa (até 5 palavras — evita frases genéricas demais)
+        if (words.length >= 1 && words.length <= 5) tokens.add(normDesc);
 
-        // Armazena palavras individuais significativas (só se ainda não aprendidas)
-        const words = normDesc.split(/\s+/).filter(w => w.length > 3 && !stopWords.has(w));
+        // Bigramas (pares de palavras consecutivas)
+        for (let i = 0; i < words.length - 1; i++) {
+            if (words[i].length > 2 && words[i+1].length > 2)
+                tokens.add(`${words[i]} ${words[i+1]}`);
+        }
+
+        // Palavras individuais com comprimento > 3
         for (const w of words) {
-            if (!map[w]) map[w] = category;
+            if (w.length > 3) tokens.add(w);
+        }
+
+        return [...tokens];
+    },
+
+    // Incrementa contagem de (token → categoria) no mapa com peso opcional
+    _learnCategory(description, category, weight = 1) {
+        if (!description || !category || category === 'Outros') return;
+        const map  = this._getLearnedMap();
+        const norm = str => str.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+        const tokens = this._extractTokens(norm(description));
+
+        for (const token of tokens) {
+            if (!map[token]) map[token] = {};
+            map[token][category] = (map[token][category] || 0) + weight;
         }
 
         this._saveLearnedMap(map);
-        NLP.setLearnedMap(map);
+        NLP.setLearnedMap(this._resolveLearnedMap(map));
     },
 
-    // Testa se o texto tem associação aprendida; retorna categoria ou null
+    // Converte mapa de frequências → mapa simples { token: categoriaVencedora }
+    // usado pelo NLP (que espera o formato simples)
+    _resolveLearnedMap(map) {
+        const resolved = {};
+        for (const [token, counts] of Object.entries(map)) {
+            if (!counts || typeof counts !== 'object') {
+                // Compatibilidade com mapa antigo (valor era string direto)
+                if (typeof counts === 'string') resolved[token] = counts;
+                continue;
+            }
+            const best = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+            if (best) resolved[token] = best[0];
+        }
+        return resolved;
+    },
+
+    // Inicializa NLP com mapa resolvido (chamado no init)
+    _initLearnedMap() {
+        NLP.setLearnedMap(this._resolveLearnedMap(this._getLearnedMap()));
+    },
+
+    // Aprende com todos os lançamentos já existentes (executa uma vez por sessão)
+    async _retroLearn(txns) {
+        const key = 'financas_retro_learned_v2';
+        if (localStorage.getItem(key)) return; // já executou
+        if (!txns || !txns.length) return;
+        const map = this._getLearnedMap();
+        const norm = str => str.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+
+        for (const t of txns) {
+            if (!t.description || !t.category || t.category === 'Outros') continue;
+            const tokens = this._extractTokens(norm(t.description));
+            for (const token of tokens) {
+                if (!map[token]) map[token] = {};
+                map[token][t.category] = (map[token][t.category] || 0) + 1;
+            }
+        }
+        this._saveLearnedMap(map);
+        NLP.setLearnedMap(this._resolveLearnedMap(map));
+        localStorage.setItem(key, '1');
+    },
+
+    // Testa se o texto tem associação aprendida; retorna { cat, confidence } ou null
     _suggestLearnedCategory(text) {
         if (!text || text.length < 2) return null;
         const map = this._getLearnedMap();
         if (!Object.keys(map).length) return null;
         const norm = text.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-        // Ordena frases mais longas primeiro (mais específicas)
-        const entries = Object.entries(map).sort((a, b) => b[0].length - a[0].length);
-        for (const [phrase, cat] of entries) {
-            if (!phrase || phrase.length < 2) continue;
-            const safe = phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            if (new RegExp(`\\b${safe}`, 'i').test(norm)) return cat;
+
+        // Testa tokens do texto contra o mapa, preferindo frases mais longas
+        const candidates = {};
+        const tokens = this._extractTokens(norm);
+
+        for (const token of tokens) {
+            const counts = map[token];
+            if (!counts) continue;
+            // Compatibilidade com formato antigo
+            if (typeof counts === 'string') {
+                candidates[counts] = (candidates[counts] || 0) + token.split(' ').length;
+                continue;
+            }
+            for (const [cat, count] of Object.entries(counts)) {
+                // Peso: contagem × comprimento do token (frases longas = mais específicas)
+                candidates[cat] = (candidates[cat] || 0) + count * token.split(' ').length;
+            }
         }
-        return null;
+
+        if (!Object.keys(candidates).length) return null;
+        const best = Object.entries(candidates).sort((a, b) => b[1] - a[1])[0];
+        const total = Object.values(candidates).reduce((s, v) => s + v, 0);
+        const confidence = Math.round((best[1] / total) * 100);
+        return { cat: best[0], confidence };
     },
 
     // ─── Render History ───────────────────────────────────────────────────────
