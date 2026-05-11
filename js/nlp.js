@@ -178,24 +178,91 @@ const NLP = {
         return desc || text.trim();
     },
 
-    extractValue(text) {
-        const patterns = [
-            /r\$\s*(\d+(?:[.,]\d{1,2})?)/i,
-            /(\d+(?:[.,]\d{1,2})?)\s*reais/i,
-            /(\d+(?:[.,]\d{1,2})?)\s*conto/i,
-            /(\d+(?:[.,]\d{1,2})?)\s*real/i,
-            /(\d+(?:[.,]\d{2}))/,
-            /(\d+)/
-        ];
+    // ─── Converte string numérica BR para float ───────────────────────────────
+    // Suporta: "1.500,50" → 1500.50 | "1500,50" → 1500.50 | "50,30" → 50.30
+    //          "1.500" → 1500 | "50.30" → 50.30 | "1500" → 1500
+    _parseBRNumber(raw) {
+        if (!raw) return NaN;
+        const s = raw.trim();
 
-        for (const pattern of patterns) {
-            const match = text.match(pattern);
-            if (match) {
-                const raw = match[1].replace(',', '.');
-                const val = parseFloat(raw);
-                if (!isNaN(val) && val > 0) return val;
-            }
+        // Formato BR completo: milhar com ponto + decimal com vírgula  ex: 1.500,50
+        if (/^\d{1,3}(\.\d{3})+(,\d{1,2})?$/.test(s)) {
+            return parseFloat(s.replace(/\./g, '').replace(',', '.'));
         }
+
+        // Apenas vírgula decimal (sem ponto de milhar)  ex: 50,30 | 1500,50
+        if (/^\d+(,\d{1,2})$/.test(s)) {
+            return parseFloat(s.replace(',', '.'));
+        }
+
+        // Ponto ambíguo: 3 dígitos após ponto → milhar  ex: 1.500 → 1500
+        if (/^\d+\.\d{3}$/.test(s)) {
+            return parseFloat(s.replace('.', ''));
+        }
+
+        // Ponto com 1–2 dígitos → decimal  ex: 50.30 | 50.5
+        if (/^\d+\.\d{1,2}$/.test(s)) {
+            return parseFloat(s);
+        }
+
+        // Número inteiro sem separador
+        return parseFloat(s.replace(',', '.'));
+    },
+
+    extractValue(text) {
+        const t = text.toLowerCase().trim();
+
+        // ── 1. Padrão "X reais e Y centavos" (escrito por extenso) ──────────────
+        const rCents = t.match(/(\d+)\s*(?:reais?|real|contos?)\s+e\s+(\d{1,2})\s*centavos?/);
+        if (rCents) {
+            const reais = parseInt(rCents[1], 10);
+            const cents = parseInt(rCents[2], 10);
+            const val = reais + cents / 100;
+            if (val > 0) return val;
+        }
+
+        // ── 2. Apenas centavos  ex: "50 centavos" ────────────────────────────────
+        const onlyCents = t.match(/(\d{1,2})\s*centavos?/);
+        if (onlyCents && !t.match(/\d+\s*(?:reais?|real|contos?)/)) {
+            const val = parseInt(onlyCents[1], 10) / 100;
+            if (val > 0) return val;
+        }
+
+        // ── 3. R$ com número BR  ex: R$ 1.500,50 | R$ 50,30 | R$ 2.500 ─────────
+        const rBRL = t.match(/r\$\s*([\d.,]+)/i);
+        if (rBRL) {
+            const val = this._parseBRNumber(rBRL[1]);
+            if (!isNaN(val) && val > 0) return val;
+        }
+
+        // ── 4. Número seguido de "reais" / "real" / "conto" ──────────────────────
+        const rWord = t.match(/([\d.,]+)\s*(?:reais?|real|contos?)/);
+        if (rWord) {
+            const val = this._parseBRNumber(rWord[1]);
+            if (!isNaN(val) && val > 0) return val;
+        }
+
+        // ── 5. Número com vírgula decimal  ex: "gastei 50,30 no mercado" ─────────
+        const rComma = t.match(/\b(\d+,\d{1,2})\b/);
+        if (rComma) {
+            const val = this._parseBRNumber(rComma[1]);
+            if (!isNaN(val) && val > 0) return val;
+        }
+
+        // ── 6. Número com ponto  ex: "1.500,00" já coberto; "50.30" ──────────────
+        const rDot = t.match(/\b(\d+\.\d+)\b/);
+        if (rDot) {
+            const val = this._parseBRNumber(rDot[1]);
+            if (!isNaN(val) && val > 0) return val;
+        }
+
+        // ── 7. Número inteiro simples ─────────────────────────────────────────────
+        const rInt = t.match(/\b(\d+)\b/);
+        if (rInt) {
+            const val = parseFloat(rInt[1]);
+            if (!isNaN(val) && val > 0) return val;
+        }
+
         return null;
     },
 
