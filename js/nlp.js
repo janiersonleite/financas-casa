@@ -67,6 +67,16 @@ const NLP = {
         // "hoje"
         if (/\bhoje\b/.test(text)) return fmt(today);
 
+        // "amanhã" / "amanha"
+        if (/\bamanha\b/.test(text.normalize('NFD').replace(/[̀-ͯ]/g, ''))) {
+            const d = new Date(today); d.setDate(d.getDate() + 1); return fmt(d);
+        }
+
+        // "depois de amanhã" / "depois de amanha"
+        if (/depois\s+de\s+amanha/.test(text.normalize('NFD').replace(/[̀-ͯ]/g, ''))) {
+            const d = new Date(today); d.setDate(d.getDate() + 2); return fmt(d);
+        }
+
         // "ontem"
         if (/\bontem\b/.test(text)) {
             const d = new Date(today); d.setDate(d.getDate() - 1); return fmt(d);
@@ -80,6 +90,11 @@ const NLP = {
         // "semana passada" → 7 dias atrás
         if (/semana\s+passada/.test(text)) {
             const d = new Date(today); d.setDate(d.getDate() - 7); return fmt(d);
+        }
+
+        // "próxima semana" / "semana que vem" → 7 dias à frente
+        if (/pr[oó]xima\s+semana|semana\s+que\s+vem/.test(text)) {
+            const d = new Date(today); d.setDate(d.getDate() + 7); return fmt(d);
         }
 
         // dia da semana: "segunda", "terça", etc. → último ocorrido
@@ -147,7 +162,7 @@ const NLP = {
 
         // 5. Remove referências de data completas antes de remover números
         desc = desc.replace(/\b(no\s+dia|dia)\s+\d{1,2}(\s+de\s+\w+)?(\s+de\s+\d{4})?\b/gi, '');
-        desc = desc.replace(/\b(hoje|ontem|anteontem|semana\s+passada)\b/gi, '');
+        desc = desc.replace(/\b(hoje|ontem|anteontem|amanh[aã]|depois\s+de\s+amanh[aã]|semana\s+passada|pr[oó]xima\s+semana|semana\s+que\s+vem)\b/gi, '');
         desc = desc.replace(/\b\d{1,2}[\/\-]\d{1,2}([\/\-]\d{2,4})?\b/g, '');
         const weekdays = /\b(segunda|terça|terca|quarta|quinta|sexta|sábado|sabado|domingo)(\s*-?\s*feira)?\b/gi;
         desc = desc.replace(weekdays, '');
