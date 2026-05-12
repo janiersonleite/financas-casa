@@ -2376,7 +2376,8 @@ const App = {
     async renderHome() {
         const [summary, allMonth] = await Promise.all([
             Storage.getSummary(this.currentMonth),
-            Storage.getTransactions({ month: this.currentMonth })
+            Storage.getTransactions({ month: this.currentMonth }),
+            this.loadReminders()   // sempre atualiza lembretes ao renderizar home
         ]);
         // Cacheia para isReminderPaid derivar do Supabase (não depende de localStorage)
         this._monthTransactions = allMonth;
