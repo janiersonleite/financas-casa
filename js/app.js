@@ -1621,13 +1621,19 @@ const App = {
         }
 
         const refDay = isCurrentMonth ? today.getDate() : 0;
-        // refDay=0 → mês futuro, todos "upcoming"
         const in7 = refDay + 7;
 
-        const overdue  = active.filter(r => r.day < refDay);
-        const dueToday = active.filter(r => r.day === refDay);
-        const upcoming = active.filter(r => r.day > refDay && r.day <= in7);
-        const later    = active.filter(r => r.day > in7);
+        // ── Separa pagos / não pagos e ordena por dia ──────────────────────────
+        const unpaid = active.filter(r => !this.isReminderPaid(r.id)).sort((a, b) => a.day - b.day);
+        const paid   = active.filter(r =>  this.isReminderPaid(r.id)).sort((a, b) => a.day - b.day);
+
+        // ── Accent por urgência (só aplica a não pagos) ────────────────────────
+        const accentFor = r => {
+            if (r.day < refDay)           return { iconBg:'#fff1f2', label:'#ef4444', badge:'⚠️ Vencido',        amtColor:'#ef4444', fill:'background:linear-gradient(90deg,#f87171,#ef4444)', btn:'#ef4444' };
+            if (r.day === refDay)         return { iconBg:'#fff7ed', label:'#f97316', badge:'📅 Vence hoje',      amtColor:'#f97316', fill:'background:linear-gradient(90deg,#fb923c,#f97316)', btn:'#f97316' };
+            if (r.day <= in7)             return { iconBg:'#f0fdf4', label:'#059669', badge:'📆 Próximos 7 dias', amtColor:'#059669', fill:'background:linear-gradient(90deg,#a3e635,#4ade80)', btn:'#059669' };
+            /* later */                   return { iconBg:'#f8fafc', label:'#64748b', badge:'🗓️ Este mês',        amtColor:'#374151', fill:'background:linear-gradient(90deg,#94a3b8,#64748b)', btn:'#64748b' };
+        };
 
         // ── Deal-card builder (reference design style) ──────────────────────────
         const daysInMonth = new Date(
@@ -1637,18 +1643,18 @@ const App = {
         ).getDate();
 
         const card = (r, accent) => {
-            const paid = this.isReminderPaid(r.id);
+            const isPaid = this.isReminderPaid(r.id);
 
             // Progress: % do mês já decorrido até o dia do lembrete
             const pct = Math.min(100, Math.round((r.day / daysInMonth) * 100));
-            const progFill = paid
+            const progFill = isPaid
                 ? 'background:linear-gradient(90deg,#4ade80,#22c55e)'
                 : accent.fill;
 
             const amtTxt = r.amount > 0 ? this.formatCurrency(r.amount) : '—';
             const dayTxt = `Dia ${r.day}${r.category ? ' · ' + r.category : ''}`;
 
-            if (paid) {
+            if (isPaid) {
                 const refMonth = this._reminderPaidMonth(r.id);
                 const [ry, rm] = refMonth.split('-');
                 const monthName = new Date(Number(ry), Number(rm)-1, 1)
@@ -1692,17 +1698,10 @@ const App = {
             </div>`;
         };
 
-        // Accent palettes por urgência
-        const A_OVERDUE  = { iconBg:'#fff1f2', label:'#ef4444', badge:'⚠️ Vencido',       amtColor:'#ef4444', fill:'background:linear-gradient(90deg,#f87171,#ef4444)', btn:'#ef4444' };
-        const A_TODAY    = { iconBg:'#fff7ed', label:'#f97316', badge:'📅 Vence hoje',     amtColor:'#f97316', fill:'background:linear-gradient(90deg,#fb923c,#f97316)', btn:'#f97316' };
-        const A_UPCOMING = { iconBg:'#f0fdf4', label:'#059669', badge:'📆 Próximos 7 dias', amtColor:'#059669', fill:'background:linear-gradient(90deg,#a3e635,#4ade80)', btn:'#059669' };
-        const A_LATER    = { iconBg:'#f8fafc', label:'#64748b', badge:'🗓️ Este mês',       amtColor:'#374151', fill:'background:linear-gradient(90deg,#94a3b8,#64748b)', btn:'#64748b' };
-
+        // Não pagos primeiro (ordem por dia), pagos ao final (ordem por dia)
         let html = '';
-        html += overdue.map(r  => card(r, A_OVERDUE)).join('');
-        html += dueToday.map(r => card(r, A_TODAY)).join('');
-        html += upcoming.map(r => card(r, A_UPCOMING)).join('');
-        html += later.map(r    => card(r, A_LATER)).join('');
+        html += unpaid.map(r => card(r, accentFor(r))).join('');
+        html += paid.map(r   => card(r, accentFor(r))).join('');
 
         // Injeta os cards numa div separada para não sobrescrever o botão vazio
         wrap.querySelectorAll('.reminder-cards-wrap').forEach(el => el.remove());
