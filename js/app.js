@@ -2380,6 +2380,10 @@ const App = {
         ]);
         // Cacheia para isReminderPaid derivar do Supabase (não depende de localStorage)
         this._monthTransactions = allMonth;
+        // Garante categorias renderizadas mesmo se loadCategories ocorreu antes do DOM estar pronto
+        if (document.getElementById('quick-cats-grid')?.children.length === 0) {
+            this.renderQuickButtons();
+        }
         // Aprendizado retroativo: processa histórico existente uma única vez
         this._retroLearn(allMonth);
         // Balance com decimal em fonte menor (estilo fintech)
