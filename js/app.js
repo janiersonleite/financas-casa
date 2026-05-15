@@ -1230,8 +1230,29 @@ const App = {
             this._learnCategory(baseDesc, base.category);
 
             // Marca lembrete como pago se o modal foi aberto via "Registrar"
-            const paidReminderId = this._reminderSourceId;
+            const paidReminderId   = this._reminderSourceId;
+            // Captura carteira-alvo ANTES de closeModal() limpá-la
+            const savedToFinancaId = !this.editingId ? this._modalFinancaId : null;
+
             this.closeModal();
+
+            // ── Troca carteira ativa se o lançamento foi para outra ──────────────
+            const activeId = this.activeFinanca?.id || null;
+            if (savedToFinancaId && savedToFinancaId !== activeId) {
+                const newF = this.financas.find(f => f.id === savedToFinancaId);
+                if (newF) {
+                    this.activeFinanca = newF;
+                    Storage.setActiveFinanca(newF.id);
+                    this.renderFinancaSwitcher();
+                    await Storage.syncCustomTypesFromCloud();
+                    await Promise.all([
+                        this.loadCategories(),
+                        this.loadReminders(),
+                        this.loadTransactionTypes()
+                    ]);
+                }
+            }
+
             await this.renderCurrentTab();
 
             if (paidReminderId) {
