@@ -162,7 +162,9 @@ const NLP = {
 
         // 5. Remove referências de data completas antes de remover números
         desc = desc.replace(/\b(no\s+dia|dia)\s+\d{1,2}(\s+de\s+\w+)?(\s+de\s+\d{4})?\b/gi, '');
-        desc = desc.replace(/\b(hoje|ontem|anteontem|amanh[aã]|depois\s+de\s+amanh[aã]|semana\s+passada|pr[oó]xima\s+semana|semana\s+que\s+vem)\b/gi, '');
+        // \b não funciona com acentos (ã, ó…), por isso os termos acentuados ficam separados
+        desc = desc.replace(/\b(hoje|ontem|anteontem|amanha|depois\s+de\s+amanha|semana\s+passada|proxima\s+semana|semana\s+que\s+vem)\b/gi, '');
+        desc = desc.replace(/amanhã/gi, '').replace(/depois\s+de\s+amanhã/gi, '').replace(/próxima\s+semana/gi, '');
         desc = desc.replace(/\b\d{1,2}[\/\-]\d{1,2}([\/\-]\d{2,4})?\b/g, '');
         const weekdays = /\b(segunda|terça|terca|quarta|quinta|sexta|sábado|sabado|domingo)(\s*-?\s*feira)?\b/gi;
         desc = desc.replace(weekdays, '');
