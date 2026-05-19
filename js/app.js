@@ -1681,12 +1681,12 @@ const App = {
                 const monthName = new Date(Number(ry), Number(rm)-1, 1)
                     .toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' });
                 return `
-                <div class="deal-card opacity-70" style="padding:10px 12px">
+                <div class="deal-card reminder-paid-card cursor-pointer hover:shadow-md transition-shadow opacity-70" style="padding:10px 12px" data-reminder-id="${r.id}">
                     <div class="flex items-center gap-2 mb-1.5">
                         <div class="w-7 h-7 rounded-lg flex items-center justify-center text-base flex-shrink-0" style="background:#f0fdf4">${r.emoji || '🔔'}</div>
                         <div class="flex-1 min-w-0">
                             <div class="text-xs font-semibold text-gray-400 truncate line-through">${r.name}</div>
-                            <div class="text-[10px] text-green-500 font-medium">✅ Pago · ${monthName}</div>
+                            <div class="text-[10px] text-green-500 font-medium">✅ Pago · ${monthName} · <span class="underline">ver lançamento</span></div>
                         </div>
                         <button class="reminder-unpay-btn text-[10px] text-gray-300 hover:text-red-400 px-1 flex-shrink-0" data-reminder-id="${r.id}" title="Desfazer">↩</button>
                     </div>
@@ -1699,7 +1699,7 @@ const App = {
             }
 
             return `
-            <div class="deal-card" style="padding:10px 12px">
+            <div class="deal-card reminder-unpaid-card cursor-pointer hover:shadow-md transition-shadow" style="padding:10px 12px" data-reminder-id="${r.id}">
                 <div class="flex items-center gap-2 mb-1.5">
                     <div class="w-7 h-7 rounded-lg flex items-center justify-center text-base flex-shrink-0" style="background:${accent.iconBg}">${r.emoji || '🔔'}</div>
                     <div class="flex-1 min-w-0">
@@ -1731,13 +1731,42 @@ const App = {
         cardsDiv.innerHTML = html;
         wrap.appendChild(cardsDiv);
 
+        // Clique no botão Registrar → abre fluxo de cadastro
         cardsDiv.querySelectorAll('.reminder-register-btn').forEach(btn => {
-            btn.addEventListener('click', () => this.quickAddFromReminder(btn.dataset.reminderId));
+            btn.addEventListener('click', e => {
+                e.stopPropagation();
+                this.quickAddFromReminder(btn.dataset.reminderId);
+            });
         });
+
+        // Clique no botão ↩ → desfaz pagamento
         cardsDiv.querySelectorAll('.reminder-unpay-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
+            btn.addEventListener('click', e => {
+                e.stopPropagation();
                 this._unmarkReminderPaid(btn.dataset.reminderId);
                 this.renderRemindersHome();
+            });
+        });
+
+        // Clique no card PAGO → abre o lançamento vinculado
+        cardsDiv.querySelectorAll('.reminder-paid-card').forEach(card => {
+            card.addEventListener('click', e => {
+                if (e.target.closest('.reminder-unpay-btn')) return;
+                const remId = card.dataset.reminderId;
+                const txn = (this._monthTransactions || []).find(t => t.reminder_id === remId);
+                if (txn) {
+                    this.openModal(txn);
+                } else {
+                    this.showToast('ℹ️ Lançamento não encontrado neste mês');
+                }
+            });
+        });
+
+        // Clique no card NÃO PAGO (fora do botão) → inicia registro
+        cardsDiv.querySelectorAll('.reminder-unpaid-card').forEach(card => {
+            card.addEventListener('click', e => {
+                if (e.target.closest('.reminder-register-btn')) return;
+                this.quickAddFromReminder(card.dataset.reminderId);
             });
         });
     },
