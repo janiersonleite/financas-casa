@@ -1013,6 +1013,31 @@
     </div>
 </div>
 
+<!-- ═══════════════════════ REMINDER TXN MODAL ═══════════════════ -->
+<div id="reminder-txn-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-end justify-center" onclick="if(event.target===this)App.closeReminderTxnModal()">
+    <div class="bg-white w-full max-w-md rounded-t-3xl shadow-xl overflow-hidden" style="max-height:85vh">
+        <!-- Handle -->
+        <div class="flex justify-center pt-3 pb-1 flex-shrink-0">
+            <div class="w-10 h-1 bg-gray-200 rounded-full"></div>
+        </div>
+        <!-- Header -->
+        <div class="px-4 pb-3 pt-1 border-b border-gray-100 flex-shrink-0">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2 min-w-0">
+                    <span id="reminder-txn-emoji" class="text-2xl flex-shrink-0"></span>
+                    <div class="min-w-0">
+                        <h3 id="reminder-txn-title" class="font-bold text-base text-gray-800 truncate"></h3>
+                        <p id="reminder-txn-sub" class="text-xs text-gray-400"></p>
+                    </div>
+                </div>
+                <button onclick="App.closeReminderTxnModal()" class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-gray-200 flex-shrink-0 ml-2">✕</button>
+            </div>
+        </div>
+        <!-- Conteúdo da transação -->
+        <div id="reminder-txn-body" class="overflow-y-auto px-4 py-3" style="max-height:calc(85vh - 110px)"></div>
+    </div>
+</div>
+
 <!-- ═══════════════════════ PERSON DETAIL MODAL ══════════════════ -->
 <div id="person-detail-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-end justify-center" onclick="if(event.target===this)App.closePersonDetail()">
     <div class="bg-white w-full max-w-md rounded-t-3xl shadow-xl overflow-hidden" style="max-height:85vh">

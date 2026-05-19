@@ -1748,17 +1748,14 @@ const App = {
             });
         });
 
-        // Clique no card PAGO → abre o lançamento vinculado
+        // Clique no card PAGO → mostra detalhe do lançamento
         cardsDiv.querySelectorAll('.reminder-paid-card').forEach(card => {
             card.addEventListener('click', e => {
                 if (e.target.closest('.reminder-unpay-btn')) return;
                 const remId = card.dataset.reminderId;
+                const rem = this.reminders.find(r => r.id === remId);
                 const txn = (this._monthTransactions || []).find(t => t.reminder_id === remId);
-                if (txn) {
-                    this.openModal(txn);
-                } else {
-                    this.showToast('ℹ️ Lançamento não encontrado neste mês');
-                }
+                this.openReminderTxnModal(rem, txn);
             });
         });
 
@@ -1769,6 +1766,97 @@ const App = {
                 this.quickAddFromReminder(card.dataset.reminderId);
             });
         });
+    },
+
+    // ── Reminder Transaction Detail Modal ───────────────────────────────────
+    openReminderTxnModal(rem, txn) {
+        const modal = document.getElementById('reminder-txn-modal');
+        if (!modal) return;
+        modal.classList.remove('hidden');
+
+        document.getElementById('reminder-txn-emoji').textContent  = rem?.emoji || '🔔';
+        document.getElementById('reminder-txn-title').textContent  = rem?.name  || 'Lembrete';
+
+        const body = document.getElementById('reminder-txn-body');
+
+        if (!txn) {
+            document.getElementById('reminder-txn-sub').textContent = 'Lançamento não encontrado neste mês';
+            body.innerHTML = `
+            <div class="flex flex-col items-center justify-center py-10 text-gray-400 gap-2">
+                <span class="text-3xl">🔍</span>
+                <p class="text-sm">Nenhum lançamento vinculado encontrado.</p>
+                <p class="text-xs text-gray-300">O registro pode ter sido feito em outro mês.</p>
+            </div>`;
+            return;
+        }
+
+        // Sub-título: data do lançamento
+        const dateLabel = txn.date
+            ? new Date(txn.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })
+            : '';
+        document.getElementById('reminder-txn-sub').textContent = dateLabel;
+
+        // Detalhe estilo resumo
+        const beh      = Storage.getBehavior(txn.type);
+        const isIncome = beh === 'soma';
+        const sign     = isIncome ? '+' : beh === 'subtrai' ? '-' : '±';
+        const color    = isIncome ? 'text-emerald-600' : beh === 'subtrai' ? 'text-red-600' : 'text-gray-500';
+        const catIcon  = this.getCategoryIcon(txn.category);
+        const badge    = this.getInserterBadge(txn);
+
+        body.innerHTML = `
+        <div class="bg-gray-50 rounded-2xl p-4 space-y-3">
+            <!-- Ícone + descrição -->
+            <div class="flex items-center gap-3">
+                <div class="w-11 h-11 rounded-2xl bg-white flex items-center justify-center text-2xl shadow-sm flex-shrink-0">${catIcon}</div>
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm font-bold text-gray-800 truncate">${txn.description || txn.category || '—'}</p>
+                    <p class="text-xs text-gray-400">${txn.category || ''}${badge ? ' · ' : ''}${badge ? badge.replace(/<[^>]*>/g,'') : ''}</p>
+                </div>
+                <span class="text-lg font-extrabold flex-shrink-0 ${color}">${sign}${this.formatCurrency(txn.value)}</span>
+            </div>
+
+            <!-- Linha divisória -->
+            <div class="border-t border-gray-200"></div>
+
+            <!-- Detalhes em grid -->
+            <div class="grid grid-cols-2 gap-3 text-xs">
+                <div>
+                    <p class="text-gray-400 mb-0.5">Data</p>
+                    <p class="font-semibold text-gray-700">${dateLabel || '—'}</p>
+                </div>
+                <div>
+                    <p class="text-gray-400 mb-0.5">Tipo</p>
+                    <p class="font-semibold text-gray-700">${txn.type || '—'}</p>
+                </div>
+                <div>
+                    <p class="text-gray-400 mb-0.5">Categoria</p>
+                    <p class="font-semibold text-gray-700">${txn.category || '—'}</p>
+                </div>
+                <div>
+                    <p class="text-gray-400 mb-0.5">Valor</p>
+                    <p class="font-bold ${color}">${sign}${this.formatCurrency(txn.value)}</p>
+                </div>
+                ${txn.notes ? `<div class="col-span-2"><p class="text-gray-400 mb-0.5">Observação</p><p class="font-semibold text-gray-700">${txn.notes}</p></div>` : ''}
+            </div>
+        </div>
+
+        <!-- Botão editar -->
+        <button id="reminder-txn-edit-btn" class="mt-4 w-full flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-emerald-200 text-emerald-700 text-sm font-semibold hover:bg-emerald-50 transition-colors">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.172-8.172z"/>
+            </svg>
+            Editar lançamento
+        </button>`;
+
+        document.getElementById('reminder-txn-edit-btn')?.addEventListener('click', () => {
+            this.closeReminderTxnModal();
+            this.openModal(txn);
+        });
+    },
+
+    closeReminderTxnModal() {
+        document.getElementById('reminder-txn-modal')?.classList.add('hidden');
     },
 
     // ── Reminder paid helpers ────────────────────────────────────────────────
