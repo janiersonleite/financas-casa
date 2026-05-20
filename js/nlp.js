@@ -137,6 +137,10 @@ const NLP = {
     extractDescription(text) {
         let desc = text.toLowerCase();
 
+        // 0. Normaliza separador decimal falado por voz ANTES de remover números
+        //    ex: "plano calde 118 vírgula 40" → "plano calde 118,40"
+        desc = this._normalizeVoiceNumber(desc);
+
         // 1. Remove saudações e introduções
         desc = desc.replace(/^(oi|olá|ola|ei|hey|bom dia|boa tarde|boa noite)[,!\s]*/i, '');
 
@@ -226,8 +230,20 @@ const NLP = {
         return parseFloat(s.replace(',', '.'));
     },
 
+    // Normaliza saída do reconhecimento de voz antes de parsear o valor.
+    // O speech-to-text do iOS/Android escreve o separador decimal por extenso:
+    //   "118 vírgula 40"  → "118,40"
+    //   "1500 vírgula 50" → "1500,50"
+    //   "50 ponto 30"     → "50,30" (alguns engines usam "ponto" para decimal)
+    _normalizeVoiceNumber(text) {
+        return text
+            .replace(/(\d+)\s+v[ií]rgula\s+(\d{1,2})/gi,  '$1,$2')
+            .replace(/(\d+)\s+ponto\s+(\d{1,2})(?!\d)/gi, '$1,$2');
+    },
+
     extractValue(text) {
-        const t = text.toLowerCase().trim();
+        // Normaliza números falados por extenso antes de qualquer padrão
+        const t = this._normalizeVoiceNumber(text.toLowerCase().trim());
 
         // ── 1. Padrão "X reais e Y centavos" (escrito por extenso) ──────────────
         const rCents = t.match(/(\d+)\s*(?:reais?|real|contos?)\s+e\s+(\d{1,2})\s*centavos?/);

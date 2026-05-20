@@ -2331,7 +2331,11 @@ const App = {
 
         rec.onresult = (e) => {
             const text = e.results[0][0].transcript.trim();
-            if (feedback) feedback.textContent = `"${text}"`;
+            // Mostra o texto reconhecido em destaque para o usuário verificar
+            if (feedback) {
+                feedback.innerHTML = `<span class="text-white/60 text-[10px]">Reconhecido:</span> <span class="font-semibold">"${this._escHtml(text)}"</span>`;
+                feedback.classList.remove('hidden');
+            }
             this._fillModalFromVoice(text);
         };
 
@@ -2350,7 +2354,8 @@ const App = {
             btn._listening = false;
             btn.innerHTML  = '<span class="text-base">🎤</span><span>Voz</span>';
             btn.classList.remove('bg-white/40');
-            setTimeout(() => { if (feedback) feedback.classList.add('hidden'); }, 3500);
+            // Mantém o texto reconhecido visível por mais tempo para o usuário conferir
+            setTimeout(() => { if (feedback) feedback.classList.add('hidden'); }, 6000);
         };
 
         rec.start();
@@ -2412,6 +2417,8 @@ const App = {
             const transcript = e.results[0][0].transcript;
             document.getElementById('quick-input').value = transcript;
             this.stopListening();
+            // Mostra brevemente o texto reconhecido para o usuário conferir
+            this.showToast(`🎤 "${transcript}"`, false, 3000);
             this.processQuickInput();
         };
         this.recognition.onerror = e => {
@@ -4992,12 +4999,13 @@ const App = {
         el.focus();
     },
 
-    showToast(msg, error = false) {
+    showToast(msg, error = false, duration = 2500) {
         const toast = document.getElementById('toast');
         toast.textContent = msg;
         toast.className = `fixed bottom-24 left-1/2 -translate-x-1/2 px-4 py-2 rounded-full text-white text-sm font-medium shadow-lg z-50 transition-all ${error ? 'bg-red-500' : 'bg-green-500'}`;
         toast.classList.remove('hidden', 'opacity-0');
-        setTimeout(() => { toast.classList.add('opacity-0'); setTimeout(() => toast.classList.add('hidden'), 300); }, 2500);
+        clearTimeout(toast._toastTimer);
+        toast._toastTimer = setTimeout(() => { toast.classList.add('opacity-0'); setTimeout(() => toast.classList.add('hidden'), 300); }, duration);
     }
 };
 
