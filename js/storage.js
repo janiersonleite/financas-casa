@@ -242,6 +242,17 @@ const Storage = {
     },
 
     // ── Sync pending ops ──────────────────────────────────────────────────────
+    // Campos internos que NÃO devem ir para o Supabase
+    _INTERNAL_FIELDS: ['_offline', '_rawType', '_constraintFallback', '_targetFinancaId'],
+
+    _cleanPayload(args) {
+        const p = { ...args };
+        for (const f of this._INTERNAL_FIELDS) delete p[f];
+        // IDs temporários nunca devem ser enviados como id real
+        if (typeof p.id === 'string' && p.id.startsWith('temp_')) delete p.id;
+        return p;
+    },
+
     async syncPendingOps() {
         if (!this.isCloud || !this.isOnline) return { synced: 0, failed: 0 };
         const queue = this._getQueue();
@@ -253,10 +264,14 @@ const Storage = {
         for (const item of queue) {
             try {
                 if (item.op === 'addTransaction') {
-                    const payload = { ...item.args, user_id: this.userId() };
-                    delete payload._offline;
+                    const payload = this._cleanPayload({
+                        ...item.args,
+                        user_id:           this.userId(),
+                        inserted_by_email: Auth?.user?.email ?? null,
+                    });
                     const { data, error } = await this.db.from('transactions').insert(payload).select().single();
                     if (error) throw error;
+                    // Substitui o tempId no cache pelo ID real do Supabase
                     if (item.tempId && data) {
                         const cached = this._getCachedTx();
                         const idx = cached.findIndex(t => t.id === item.tempId);
@@ -264,16 +279,19 @@ const Storage = {
                     }
                 } else if (item.op === 'updateTransaction') {
                     const { id, updates } = item.args;
-                    const { error } = await this.db.from('transactions').update(updates).eq('id', id);
+                    if (!id || id.startsWith('temp_')) { doneQids.push(item.qid); continue; } // tempId não existe no servidor
+                    const cleanUpdates = this._cleanPayload(updates);
+                    const { error } = await this.db.from('transactions').update(cleanUpdates).eq('id', id);
                     if (error) throw error;
                 } else if (item.op === 'deleteTransaction') {
+                    if (!item.args.id || item.args.id.startsWith('temp_')) { doneQids.push(item.qid); continue; }
                     const { error } = await this.db.from('transactions').delete().eq('id', item.args.id);
                     if (error) throw error;
                 }
                 doneQids.push(item.qid);
                 synced++;
             } catch (e) {
-                console.warn('Sync failed:', item.op, e.message);
+                console.warn('Sync failed:', item.op, e.message, '| payload:', item.args);
                 failed++;
             }
         }

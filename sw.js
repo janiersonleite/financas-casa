@@ -56,10 +56,18 @@ self.addEventListener('fetch', event => {
 self.addEventListener('notificationclick', event => {
     event.notification.close();
 
-    const action = event.action || event.notification.data?.action || '';
-    const target = action === 'new-transaction' || event.notification.tag === 'quick-add'
-        ? '/financas-casa/?action=new-transaction'
-        : '/financas-casa/';
+    const action  = event.action || event.notification.data?.action || '';
+    const isReminder    = action === 'open-reminders' ||
+                          (event.notification.tag || '').startsWith('reminder_');
+    const isNewTxn      = action === 'new-transaction' || event.notification.tag === 'quick-add';
+
+    const target = isNewTxn    ? '/financas-casa/?action=new-transaction'
+                 : isReminder  ? '/financas-casa/?action=open-reminders'
+                 :               '/financas-casa/';
+
+    const postMsg = isNewTxn   ? { action: 'new-transaction' }
+                  : isReminder ? { action: 'open-reminders'  }
+                  : null;
 
     event.waitUntil(
         self.clients.matchAll({ type: 'window', includeUncontrolled: true })
@@ -67,9 +75,7 @@ self.addEventListener('notificationclick', event => {
                 // App já aberto → manda mensagem e foca
                 for (const client of list) {
                     if (client.url.includes('financas-casa')) {
-                        if (action === 'new-transaction' || event.notification.tag === 'quick-add') {
-                            client.postMessage({ action: 'new-transaction' });
-                        }
+                        if (postMsg) client.postMessage(postMsg);
                         return client.focus();
                     }
                 }

@@ -67,7 +67,14 @@ const App = {
         await this.renderHome();
         this.refreshMonthDisplay();
         // Aquece o cache offline em segundo plano (não bloqueia a UI)
-        if (navigator.onLine) this._warmOfflineCache();
+        if (navigator.onLine) {
+            this._warmOfflineCache();
+            // ⚡ Sync na inicialização: garante que ops pendentes (feitos offline
+            //    antes de fechar o app) sejam enviados quando o app abre online
+            if (Storage.pendingCount() > 0) {
+                setTimeout(() => this.onReconnect(), 1500); // pequeno delay para Supabase conectar
+            }
+        }
         // Verifica se há comprovante compartilhado (PWA share target)
         if (window.__pendingShared) await this.checkSharedContent();
         // Notificações de lembretes vencendo hoje
@@ -731,14 +738,27 @@ const App = {
                 const text   = e.target.value.trim();
                 if (!text || !catSel) return;
 
-                // 1) Mapa aprendido (retorna { cat, confidence } ou null)
+                // 1) Keywords estáticos via NLP — prioridade máxima (curados, específicos)
+                const nlpCat = NLP.extractCategoryStatic(text);
+                // 2) Mapa aprendido — usado quando NLP não achou match direto
                 const learnedResult = this._suggestLearnedCategory(text);
-                // 2) Fallback: keywords estáticos do NLP
-                const nlpCat = NLP.extractCategory(text);
 
-                const suggested  = learnedResult?.cat || nlpCat;
-                const isLearned  = !!learnedResult;
-                const confidence = learnedResult?.confidence || 0;
+                // Regra: keyword estático vence mapa aprendido com qualquer confiança;
+                // mapa aprendido só entra se não houver match estático.
+                let suggested, isLearned, confidence;
+                if (nlpCat && nlpCat !== 'Outros') {
+                    suggested  = nlpCat;
+                    isLearned  = false;
+                    confidence = 0;
+                } else if (learnedResult) {
+                    suggested  = learnedResult.cat;
+                    isLearned  = true;
+                    confidence = learnedResult.confidence;
+                } else {
+                    suggested  = 'Outros';
+                    isLearned  = false;
+                    confidence = 0;
+                }
 
                 if (suggested && suggested !== 'Outros') {
                     catSel.value = suggested;
@@ -1502,88 +1522,143 @@ const App = {
     },
 
     // ─── Notificações de lembretes ────────────────────────────────────────────
+
+    // Retorna quantos dias faltam para o próximo vencimento do lembrete (0 = hoje)
+    _daysUntilDue(day) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        // Tenta no mês atual
+        const candidate = new Date(today.getFullYear(), today.getMonth(), day);
+        candidate.setHours(0, 0, 0, 0);
+
+        let diff = Math.round((candidate - today) / 86_400_000);
+
+        // Se já passou neste mês, tenta no próximo
+        if (diff < 0) {
+            const next = new Date(today.getFullYear(), today.getMonth() + 1, day);
+            next.setHours(0, 0, 0, 0);
+            diff = Math.round((next - today) / 86_400_000);
+        }
+
+        return diff;
+    },
+
     async checkReminderNotifications() {
         if (!('Notification' in window)) return;  // navegador não suporta
 
-        const today    = new Date();
-        const todayDay = today.getDate();
-        const todayKey = today.toISOString().slice(0, 10); // "2026-04-30"
-        const storKey  = 'notified_reminders_' + todayKey;
+        const todayKey = new Date().toISOString().slice(0, 10); // "2026-04-30"
 
-        // Lembretes ativos que vencem hoje e ainda não foram pagos
-        const due = this.reminders.filter(r =>
-            r.active !== false &&
-            r.day === todayDay &&
-            !this.isReminderPaid(r.id)
-        );
-        if (!due.length) return;
+        // Configuração dos 3 alertas: chave de deduplicação, dias antes, textos
+        const THRESHOLDS = [
+            { offset: 0, storKey: `notified_rem_d0_${todayKey}`, label: 'Vence hoje!',      badge: '🔴', urgency: true  },
+            { offset: 1, storKey: `notified_rem_d1_${todayKey}`, label: 'Vence amanhã',     badge: '🟠', urgency: false },
+            { offset: 2, storKey: `notified_rem_d2_${todayKey}`, label: 'Vence em 2 dias',  badge: '🟡', urgency: false },
+        ];
+
+        // Monta lista de lembretes ativos e não pagos por threshold
+        const groups = THRESHOLDS.map(t => ({
+            ...t,
+            reminders: this.reminders.filter(r =>
+                r.active !== false &&
+                !this.isReminderPaid(r.id) &&
+                this._daysUntilDue(r.day) === t.offset
+            ),
+        })).filter(g => g.reminders.length > 0);
+
+        if (!groups.length) return;
 
         // Pede permissão se ainda não concedida
         let permission = Notification.permission;
         if (permission === 'default') {
             permission = await Notification.requestPermission();
         }
+
+        // Sem permissão: banner in-app apenas para os que vencem hoje
         if (permission !== 'granted') {
-            // Sem permissão: exibe um toast/banner in-app como fallback
-            this._showReminderBanner(due);
+            const dueToday = groups.find(g => g.offset === 0);
+            if (dueToday) this._showReminderBanner(dueToday.reminders);
             return;
         }
 
-        // Quais lembretes já foram notificados hoje (evita repetir a cada refresh)
-        let notifiedToday = [];
-        try { notifiedToday = JSON.parse(localStorage.getItem(storKey) || '[]'); } catch {}
+        // Tenta obter SW registration para showNotification (iOS / background)
+        let swReg = null;
+        try {
+            if ('serviceWorker' in navigator) swReg = await navigator.serviceWorker.ready;
+        } catch (_) {}
 
-        const toNotify = due.filter(r => !notifiedToday.includes(r.id));
-        if (!toNotify.length) return;
-
-        // Dispara uma notificação por lembrete
-        for (const r of toNotify) {
-            const body = r.amount > 0
-                ? `${r.emoji || '🔔'} Vence hoje (dia ${r.day}) — ${this.formatCurrency(r.amount)}`
-                : `${r.emoji || '🔔'} Vence hoje (dia ${r.day})`;
-
+        const _notify = (title, opts) => {
             try {
-                const n = new Notification(`💰 ${r.name}`, {
+                if (swReg?.showNotification) return swReg.showNotification(title, opts);
+                return Promise.resolve(new Notification(title, opts));
+            } catch (_) { return Promise.resolve(); }
+        };
+
+        for (const group of groups) {
+            // Carrega IDs já notificados para este threshold hoje
+            let notified = [];
+            try { notified = JSON.parse(localStorage.getItem(group.storKey) || '[]'); } catch {}
+
+            const toNotify = group.reminders.filter(r => !notified.includes(r.id));
+            if (!toNotify.length) continue;
+
+            for (const r of toNotify) {
+                const valor = r.amount > 0 ? ` — ${this.formatCurrency(r.amount)}` : '';
+                const body  = `${r.emoji || '🔔'} ${group.label} (dia ${r.day})${valor}`;
+                const title = `${group.badge} ${r.name}`;
+
+                await _notify(title, {
                     body,
-                    icon:  'icon.svg',
-                    badge: 'icon.svg',
-                    tag:   'reminder_' + r.id,
-                    requireInteraction: false,
+                    icon:               'icon.svg',
+                    badge:              'icon.svg',
+                    tag:                `reminder_${r.id}_d${group.offset}`,
+                    requireInteraction: group.offset === 0,  // persiste só no vencimento
+                    vibrate:            group.offset === 0 ? [200, 100, 200] : [100],
+                    data:               { action: 'open-reminders' },
                 });
-                // Clicar na notificação abre o app e foca no lembrete
-                n.onclick = () => { window.focus(); this.openRemindersModal(); n.close(); };
-            } catch (_) {}
 
-            notifiedToday.push(r.id);
+                notified.push(r.id);
+            }
+
+            // Persiste para não repetir hoje
+            try { localStorage.setItem(group.storKey, JSON.stringify(notified)); } catch {}
         }
-
-        // Salva lista para não repetir hoje
-        try { localStorage.setItem(storKey, JSON.stringify(notifiedToday)); } catch {}
     },
 
     // Banner in-app quando Notifications não está disponível/negado
-    _showReminderBanner(reminders) {
+    // offset: 0 = hoje, 1 = amanhã, 2 = em 2 dias
+    _showReminderBanner(reminders, offset = 0) {
         const existing = document.getElementById('reminder-banner');
         if (existing) existing.remove();
+
+        const LABEL = ['vencem hoje!', 'vencem amanhã', 'vencem em 2 dias'];
+        const COLOR = ['bg-red-500', 'bg-orange-500', 'bg-yellow-500'];
+        const ICON  = ['🔴', '🟠', '🟡'];
 
         const banner = document.createElement('div');
         banner.id = 'reminder-banner';
         banner.className = 'fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-md z-[200] px-3 pt-2';
 
         const list = reminders.map(r => {
-            const val = r.amount > 0 ? ` — ${this.formatCurrency(r.amount)}` : '';
+            const val  = r.amount > 0 ? ` — ${this.formatCurrency(r.amount)}` : '';
+            const tag  = ['text-red-200', 'text-orange-200', 'text-yellow-200'][offset] || 'text-white/70';
+            const lbl  = ['Vence hoje', 'Vence amanhã', 'Vence em 2 dias'][offset] || 'Vence';
             return `<div class="flex items-center gap-2">
                 <span>${r.emoji || '🔔'}</span>
                 <span class="font-semibold">${r.name}</span>
-                <span class="text-orange-600 text-xs">Vence hoje${val}</span>
+                <span class="${tag} text-xs">${lbl}${val}</span>
             </div>`;
         }).join('');
 
+        const colorCls = COLOR[offset] || 'bg-orange-500';
+        const icon     = ICON[offset]  || '📅';
+        const heading  = `Pagamentos ${LABEL[offset] || 'vencem em breve'}`;
+
         banner.innerHTML = `
-        <div class="bg-orange-500 text-white rounded-2xl shadow-xl px-4 py-3 flex items-start gap-3 animate-bounce-once">
-            <span class="text-2xl flex-shrink-0">📅</span>
+        <div class="${colorCls} text-white rounded-2xl shadow-xl px-4 py-3 flex items-start gap-3">
+            <span class="text-2xl flex-shrink-0">${icon}</span>
             <div class="flex-1 min-w-0 space-y-0.5">
-                <p class="text-sm font-bold mb-1">Pagamentos vencem hoje!</p>
+                <p class="text-sm font-bold mb-1">${heading}</p>
                 ${list}
             </div>
             <button id="reminder-banner-close" class="text-white/70 hover:text-white text-xl leading-none flex-shrink-0 mt-0.5">✕</button>
@@ -1599,8 +1674,8 @@ const App = {
             }
         });
 
-        // Remove automaticamente após 8 segundos
-        setTimeout(() => banner?.remove(), 8000);
+        // Remove automaticamente: 10 s para hoje, 6 s para antecipados
+        setTimeout(() => banner?.remove(), offset === 0 ? 10_000 : 6_000);
     },
 
     renderRemindersHome() {
@@ -2622,9 +2697,20 @@ const App = {
     // Extrai tokens aprendíveis: frase completa + bigramas + palavras individuais
     _extractTokens(normDesc) {
         const stopWords = new Set([
-            'para','com','uma','umas','que','por','não','nao','foi','ser','tem',
+            // Artigos / preposições / conjunções
+            'para','com','uma','umas','que','por','nao','nao','foi','ser','tem',
             'ter','das','dos','numa','num','pelo','pela','este','essa','isso',
-            'meu','minha','meus','minhas','seu','sua','seus','suas','mais','muito'
+            'meu','minha','meus','minhas','seu','sua','seus','suas','mais','muito',
+            'uns','ela','ele','eles','elas','nos','nas','aos',
+            // ⚠️ Temporais — aparecem em todo tipo de lançamento; não identificam categoria
+            'hoje','ontem','amanha','semana','passada','proxima','agora',
+            'dia','dias','mes','meses','ano','anos','manha','tarde','noite',
+            'segunda','terca','quarta','quinta','sexta','sabado','domingo',
+            // Verbos de transação — genéricos demais
+            'gastei','paguei','comprei','recebi','ganhei','fui','fiz','fez',
+            'mandei','enviei','transferi','depositei','saquei',
+            // Quantificadores genéricos
+            'real','reais','valor','total','gasto',
         ]);
         const words = normDesc.split(/\s+/).filter(w => w.length > 2 && !stopWords.has(w));
         const tokens = new Set();
@@ -2685,8 +2771,12 @@ const App = {
 
     // Aprende com todos os lançamentos já existentes (executa uma vez por sessão)
     async _retroLearn(txns) {
-        const key = 'financas_retro_learned_v2';
+        // v3: stopWords expandido (temporais removidos), mapa regenerado limpo
+        const key = 'financas_retro_learned_v3';
         if (localStorage.getItem(key)) return; // já executou
+        // Limpa mapa antigo (pode conter associações ruins com palavras temporais)
+        try { localStorage.removeItem(this._LEARN_KEY); } catch {}
+        NLP.setLearnedMap({});
         if (!txns || !txns.length) return;
         const map = this._getLearnedMap();
         const norm = str => str.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
@@ -4210,13 +4300,16 @@ const App = {
     _bindSwMessages() {
         if (!('serviceWorker' in navigator)) return;
         navigator.serviceWorker.addEventListener('message', event => {
-            if (event.data?.action === 'new-transaction') {
+            const action = event.data?.action;
+            if (action === 'new-transaction') {
                 // Pequeno delay para a janela estar em foco
                 setTimeout(() => {
                     if (document.getElementById('modal-overlay')?.classList.contains('hidden')) {
                         this.openModal();
                     }
                 }, 200);
+            } else if (action === 'open-reminders') {
+                setTimeout(() => this.openRemindersModal(), 200);
             }
         });
     },
@@ -4231,6 +4324,10 @@ const App = {
             window.history.replaceState({}, '', clean);
             // Aguarda a UI estar pronta e abre o modal
             setTimeout(() => this.openModal(), 400);
+        } else if (action === 'open-reminders') {
+            const clean = window.location.pathname;
+            window.history.replaceState({}, '', clean);
+            setTimeout(() => this.openRemindersModal(), 400);
         }
     },
 
@@ -4354,17 +4451,23 @@ const App = {
     },
 
     async onReconnect() {
+        // Aguarda até 3 s para navigator.onLine ser confiável (race condition do evento "online")
+        if (!navigator.onLine) {
+            await new Promise(r => setTimeout(r, 800));
+            if (!navigator.onLine) return; // ainda offline — desiste
+        }
+
         const pending = Storage.pendingCount();
         if (pending > 0) {
             this.updateOfflineBar();
-            this.showToast(`🔄 Sincronizando ${pending} item${pending > 1 ? 'ns' : ''}...`);
+            this.showToast(`🔄 Sincronizando ${pending} lançamento${pending > 1 ? 's' : ''}...`);
             const result = await Storage.syncPendingOps();
             if (result.synced > 0) {
-                this.showToast(`✅ ${result.synced} item${result.synced > 1 ? 'ns sincronizados' : ' sincronizado'}!`);
+                this.showToast(`✅ ${result.synced} lançamento${result.synced > 1 ? 's sincronizados' : ' sincronizado'}!`);
                 await this.renderCurrentTab();
             }
             if (result.failed > 0) {
-                this.showToast(`⚠️ ${result.failed} item${result.failed > 1 ? 'ns' : ''} não sincronizado${result.failed > 1 ? 's' : ''}`, true);
+                this.showToast(`⚠️ ${result.failed} lançamento${result.failed > 1 ? 's' : ''} não sincronizado${result.failed > 1 ? 's' : ''} — tente novamente`, true);
             }
         } else if (navigator.onLine) {
             this.showToast('✅ Conexão restaurada');

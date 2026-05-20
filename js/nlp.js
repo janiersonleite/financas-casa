@@ -298,31 +298,50 @@ const NLP = {
         return 'saida';
     },
 
-    extractCategory(text) {
-        // Usa dynamicCategories se disponível; caso contrário, estático puro
-        // Em ambos os casos, garante que keywords estáticos de fallback sejam checados
+    // Extrai categoria usando APENAS keywords estaticos (sem mapa aprendido).
+    // Usado pela UI do modal para garantir que 'frango' => Alimentacao sem ambiguidade.
+    extractCategoryStatic(text) {
         const cats = this.dynamicCategories
             ? { ...this.categories, ...this.dynamicCategories }
             : this.categories;
-        const norm = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-
-        // 1. Mapa aprendido tem prioridade m\u00e1xima
-        const learned = this._checkLearned(norm);
-        if (learned) return learned;
-
-        // 2. Regras est\u00e1ticas / keywords das categorias
+        const norm = text.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
         for (const [cat, keywords] of Object.entries(cats)) {
             if (cat === 'Outros') continue;
             for (const kw of keywords) {
                 const kwNorm = kw.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                // short keywords (≤3 chars): exact word — prevents "gas"→"gastei", "doc"→"doce"
-                // longer keywords: prefix match — allows "doce"→"doces", "uber"→"ubereats"
+                const re = kwNorm.length <= 3
+                ? new RegExp(`\\b${kwNorm}\\b`, 'i')
+                : new RegExp(`\\b${kwNorm}`, 'i');
+                if (re.test(norm)) return cat;
+            }
+        }
+        return 'Outros';
+    },
+    extractCategory(text) {
+        // Usa dynamicCategories se disponível; caso contrário, estático puro
+        const cats = this.dynamicCategories
+            ? { ...this.categories, ...this.dynamicCategories }
+            : this.categories;
+        const norm = text.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+
+        // 1. Keywords estáticos / do banco — PRIORIDADE MÁXIMA
+        //    São curados e específicos: 'frango' = Alimentação, sem ambiguidade.
+        //    Mapa aprendido só entra quando nenhum keyword estático bater.
+        for (const [cat, keywords] of Object.entries(cats)) {
+            if (cat === 'Outros') continue;
+            for (const kw of keywords) {
+                const kwNorm = kw.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
                 const re = kwNorm.length <= 3
                     ? new RegExp(`\\b${kwNorm}\\b`, 'i')
                     : new RegExp(`\\b${kwNorm}`, 'i');
                 if (re.test(norm)) return cat;
             }
         }
+
+        // 2. Mapa aprendido — cobre descrições não previstas nas listas
+        const learned = this._checkLearned(norm);
+        if (learned) return learned;
+
         return 'Outros';
     }
 };
