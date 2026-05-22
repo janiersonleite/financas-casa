@@ -1,6 +1,24 @@
 // ─── Versão ───────────────────────────────────────────────────────────────────
 const APP_VERSION = '2026-05-11 20:00';
 
+// Detecta mudança de versão e força reload (resolve cache antigo no iOS)
+(function () {
+    const STORED = 'app_version_cache';
+    const prev = localStorage.getItem(STORED);
+    if (prev && prev !== APP_VERSION) {
+        // Nova versão detectada: limpa caches e recarrega uma vez
+        localStorage.setItem(STORED, APP_VERSION);
+        if ('caches' in window) {
+            caches.keys().then(keys => Promise.all(keys.map(k => caches.delete(k))))
+                .then(() => window.location.reload());
+        } else {
+            window.location.reload();
+        }
+    } else {
+        localStorage.setItem(STORED, APP_VERSION);
+    }
+})();
+
 // ─── State ───────────────────────────────────────────────────────────────────
 const App = {
     currentTab: 'home',

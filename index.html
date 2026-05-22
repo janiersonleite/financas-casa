@@ -1489,8 +1489,79 @@
 (function () {
     if (!('serviceWorker' in navigator)) return;
 
+    // ── Registra o SW e gerencia atualizações ─────────────────────────────────
+    let _swReg = null;
+    let _updateBannerShown = false;
+
+    function showUpdateBanner() {
+        if (_updateBannerShown) return;
+        _updateBannerShown = true;
+        let banner = document.getElementById('sw-update-banner');
+        if (!banner) {
+            banner = document.createElement('div');
+            banner.id = 'sw-update-banner';
+            banner.style.cssText = [
+                'position:fixed','top:0','left:0','right:0','z-index:9999',
+                'background:linear-gradient(90deg,#4f46e5,#7c3aed)',
+                'color:#fff','display:flex','align-items:center','justify-content:space-between',
+                'padding:10px 16px','font-size:13px','font-weight:600',
+                'box-shadow:0 2px 12px rgba(0,0,0,.35)',
+            ].join(';');
+            banner.innerHTML = '<span>🆕 Nova versão disponível!</span>'
+                + '<button id="sw-update-btn" style="background:rgba(255,255,255,.25);border:none;color:#fff;'
+                + 'padding:5px 14px;border-radius:20px;font-weight:700;font-size:13px;cursor:pointer">Atualizar</button>';
+            document.body.appendChild(banner);
+        }
+        banner.style.display = 'flex';
+        document.getElementById('sw-update-btn')?.addEventListener('click', () => {
+            // Diz ao SW em espera para ativar agora
+            const waiting = _swReg?.waiting;
+            if (waiting) {
+                waiting.postMessage({ type: 'SKIP_WAITING' });
+            } else {
+                window.location.reload();
+            }
+        });
+    }
+
+    function applyUpdate(reg) {
+        if (reg.waiting) { showUpdateBanner(); return; }
+        reg.addEventListener('updatefound', () => {
+            const newSW = reg.installing;
+            if (!newSW) return;
+            newSW.addEventListener('statechange', () => {
+                if (newSW.state === 'installed' && navigator.serviceWorker.controller) {
+                    // Novo SW instalado e pronto — há um em espera
+                    showUpdateBanner();
+                }
+            });
+        });
+    }
+
+    // Quando o SW ativo muda (novo SW assumiu o controle), recarrega a página
+    let _controllerChanging = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (_controllerChanging) return;
+        _controllerChanging = true;
+        window.location.reload();
+    });
+
     // Registra o SW
-    navigator.serviceWorker.register('./sw.js').catch(console.error);
+    navigator.serviceWorker.register('./sw.js')
+        .then(reg => {
+            _swReg = reg;
+            applyUpdate(reg);
+
+            // iOS: força verificação ao voltar para o app (visibilitychange)
+            // e a cada 60 s enquanto o app está em foco
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'visible') reg.update().catch(() => {});
+            });
+            setInterval(() => {
+                if (document.visibilityState === 'visible') reg.update().catch(() => {});
+            }, 60_000);
+        })
+        .catch(console.error);
 
     // ── PWA Install prompt ────────────────────────────────────────────────────
     let deferredPrompt = null;
