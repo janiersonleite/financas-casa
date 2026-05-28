@@ -231,7 +231,11 @@ const Storage = {
         if (_fid) catQ = catQ.eq('financa_id', _fid);
         else      catQ = catQ.eq('user_id', uid).is('financa_id', null);
         const { data: catData } = await catQ;
-        if (catData) this._cacheCat(catData);
+        if (catData) {
+            // Usa a MESMA chave que getCategories() lê (por finança) — evita mismatch
+            const catCacheKey = 'cat_cache_' + (_fid || 'personal');
+            try { localStorage.setItem(catCacheKey, JSON.stringify(catData)); } catch {}
+        }
 
         // Finanças
         const { data: finData } = await this.db
@@ -518,10 +522,14 @@ const Storage = {
         const cacheKey = 'cat_cache_' + (fid || 'personal');
         const _getCached = () => { try { return JSON.parse(localStorage.getItem(cacheKey) || '[]'); } catch { return []; } };
         const _setCache  = d  => { try { localStorage.setItem(cacheKey, JSON.stringify(d)); } catch {} };
+        // Fallback final: categorias padrão (garante que nunca fica sem opções)
+        const _defaults  = () => [...this.defaultCategories];
 
         if (this.isCloud) {
             if (!this.isOnline) {
-                return this._applyOverrides(_getCached());
+                // Offline: usa cache por finança; se vazio, usa defaults
+                const cached = _getCached();
+                return this._applyOverrides(cached.length ? cached : _defaults());
             }
             let q = this.db.from('categories').select('*');
             // Finança compartilhada: busca por financa_id (qualquer membro pode ver)
@@ -530,9 +538,15 @@ const Storage = {
             else     q = q.eq('user_id', this.userId()).is('financa_id', null);
             q = q.order('name', { ascending: true });
             const { data, error } = await q;
-            if (error) throw error;
+            if (error) {
+                // Falha de rede (iOS ITP, CORS, timeout): usa cache ou defaults
+                console.warn('getCategories Supabase error:', error.message);
+                const cached = _getCached();
+                return this._applyOverrides(cached.length ? cached : _defaults());
+            }
             if (data) _setCache(data);
-            return this._applyOverrides(data ?? []);
+            // Supabase retornou [] (sem categorias criadas): usa defaults
+            return this._applyOverrides(data?.length ? data : _defaults());
         }
         // Modo local: categorias separadas por finança
         const d = this._localGet();

@@ -1,5 +1,5 @@
 // ─── Versão ───────────────────────────────────────────────────────────────────
-const APP_VERSION = '2026-05-11 20:00';
+const APP_VERSION = '2026-05-22 10:00';
 
 // Detecta mudança de versão e força reload (resolve cache antigo no iOS)
 (function () {
@@ -92,6 +92,18 @@ const App = {
             if (Storage.pendingCount() > 0) {
                 setTimeout(() => this.onReconnect(), 1500); // pequeno delay para Supabase conectar
             }
+        }
+        // Retry para iOS: rede pode não estar pronta quando o PWA abre
+        // Se categorias carregaram como defaults (sem dados do Supabase), re-tenta após 3s
+        if (navigator.onLine) {
+            setTimeout(async () => {
+                const onlyDefaults = this.categories.every(c => c.id && c.id.startsWith('d-'));
+                if (onlyDefaults) {
+                    await Storage.syncCustomTypesFromCloud();
+                    await this.loadTransactionTypes();
+                    await this.loadCategories();
+                }
+            }, 3000);
         }
         // Verifica se há comprovante compartilhado (PWA share target)
         if (window.__pendingShared) await this.checkSharedContent();
@@ -1206,7 +1218,7 @@ const App = {
         const base = {
             value,
             type:        document.getElementById('modal-type').value,
-            category:    document.getElementById('modal-category').value,
+            category:    document.getElementById('modal-category').value || 'Outros',
             description: baseDesc,
             date:        document.getElementById('modal-date').value,
             notes:       document.getElementById('modal-notes').value,
@@ -1325,6 +1337,11 @@ const App = {
 
     // ─── Transaction Types ────────────────────────────────────────────────────
     async loadTransactionTypes() {
+        // Se online mas sem tipos customizados no cache, tenta sincronizar do Supabase
+        // (cobre caso de iPhone que nunca sincronizou ou teve cache limpo)
+        if (navigator.onLine && !Storage.getCustomTypes().length) {
+            try { await Storage.syncCustomTypesFromCloud(); } catch (_) {}
+        }
         this.transactionTypes = await Storage.getTransactionTypes();
     },
 
@@ -3094,7 +3111,10 @@ const App = {
                            📦 ${t.installment_current}/${t.installment_total}
                        </span>`
                     : '';
-                const catDisplay  = highlight ? this._hlText(t.category,    highlight) : this._escHtml(t.category);
+                const _catName    = t.category || '';
+                const catDisplay  = _catName
+                    ? (highlight ? this._hlText(_catName, highlight) : this._escHtml(_catName))
+                    : `<span class="text-gray-300 italic text-xs">Sem categoria</span>`;
                 const descDisplay = highlight ? this._hlText(t.description, highlight) : this._escHtml(t.description);
                 // Badge de tipo (Entrada / Saída / tipo customizado)
                 const typeBadgeColor = beh === 'soma'    ? 'bg-green-50 text-green-600 border-green-100'
@@ -4572,6 +4592,10 @@ const App = {
         } catch (e) {
             console.warn('loadCategories:', e);
             this.categories = [];
+        }
+        // Segurança: nunca deixa sem categorias (iOS ITP / rede instável / cache vazio)
+        if (!this.categories.length) {
+            this.categories = this._sortCategories([...Storage.defaultCategories]);
         }
         NLP.setCategoryMap(this.categories);
         this.renderCategorySelect();
