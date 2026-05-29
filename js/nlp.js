@@ -376,6 +376,22 @@ const NLP = {
         return 'saida';
     },
 
+    // Verifica se o NOME de alguma categoria aparece como palavra inteira no texto.
+    // Prioriza nomes mais longos (ex: "Aluguel Casa" antes de "Casa").
+    // Ex: usuario tem categoria "Feira" e fala "feira" => retorna "Feira".
+    _matchCategoryByName(norm, catNames) {
+        const sorted = [...catNames]
+            .filter(n => n && n !== 'Outros')
+            .sort((a, b) => b.length - a.length);
+        for (const name of sorted) {
+            const nameNorm = name.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+            if (!nameNorm) continue;
+            const safe = nameNorm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            if (new RegExp(`\\b${safe}\\b`, 'i').test(norm)) return name;
+        }
+        return null;
+    },
+
     // Extrai categoria usando APENAS keywords estaticos (sem mapa aprendido).
     // Usado pela UI do modal para garantir que 'frango' => Alimentacao sem ambiguidade.
     extractCategoryStatic(text) {
@@ -383,6 +399,10 @@ const NLP = {
             ? { ...this.categories, ...this.dynamicCategories }
             : this.categories;
         const norm = text.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+        // 0. Nome exato de categoria — PRIORIDADE ABSOLUTA
+        //    Categoria do usuario ("Feira") vence keyword estatico ("feira"=>Alimentacao)
+        const byName = this._matchCategoryByName(norm, Object.keys(cats));
+        if (byName) return byName;
         for (const [cat, keywords] of Object.entries(cats)) {
             if (cat === 'Outros') continue;
             for (const kw of keywords) {
@@ -402,7 +422,11 @@ const NLP = {
             : this.categories;
         const norm = text.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 
-        // 1. Keywords estáticos / do banco — PRIORIDADE MÁXIMA
+        // 0. Nome exato de categoria — PRIORIDADE ABSOLUTA
+        const byName = this._matchCategoryByName(norm, Object.keys(cats));
+        if (byName) return byName;
+
+        // 1. Keywords estáticos / do banco — PRIORIDADE ALTA
         //    São curados e específicos: 'frango' = Alimentação, sem ambiguidade.
         //    Mapa aprendido só entra quando nenhum keyword estático bater.
         for (const [cat, keywords] of Object.entries(cats)) {
