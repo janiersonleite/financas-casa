@@ -558,13 +558,30 @@ const Storage = {
     async getCategoriesForFinanca(fid) {
         const safeFid = (fid && fid !== 'null') ? fid : null;
         if (this.isCloud) {
+            // Cache offline por finança (mesma chave que getCategories usa)
+            const cacheKey = 'cat_cache_' + (safeFid || 'personal');
+            const _getCached = () => { try { return JSON.parse(localStorage.getItem(cacheKey) || '[]'); } catch { return []; } };
+
+            if (!this.isOnline) {
+                const cached = _getCached();
+                return cached.length ? cached : [...this.defaultCategories];
+            }
             let q = this.db.from('categories').select('*');
             if (safeFid) q = q.eq('financa_id', safeFid);
             else         q = q.eq('user_id', this.userId()).is('financa_id', null);
             q = q.order('name', { ascending: true });
             const { data, error } = await q;
-            if (error) throw error;
-            return data ?? [];
+            if (error) {
+                console.warn('getCategoriesForFinanca error:', error.message);
+                const cached = _getCached();
+                return cached.length ? cached : [...this.defaultCategories];
+            }
+            // Atualiza cache e retorna; se vazio, usa defaults
+            if (data?.length) {
+                try { localStorage.setItem(cacheKey, JSON.stringify(data)); } catch {}
+                return data;
+            }
+            return [...this.defaultCategories];
         }
         const d = this._localGet();
         return (d.categories || []).filter(c => safeFid ? c.financa_id === safeFid : !c.financa_id);

@@ -1071,12 +1071,12 @@ const App = {
                     Storage.getRemindersForFinanca(this._modalFinancaId),
                 ]);
                 const seen = new Set();
-                this._modalCategories = this._sortCategories(
-                    rawCats.filter(c => {
-                        const k = (c.name || '').trim().toLowerCase();
-                        return seen.has(k) ? false : (seen.add(k), true);
-                    })
-                );
+                const deduped = rawCats.filter(c => {
+                    const k = (c.name || '').trim().toLowerCase();
+                    return seen.has(k) ? false : (seen.add(k), true);
+                });
+                // null = usa this.categories como fallback (renderCategorySelect trata)
+                this._modalCategories = deduped.length ? this._sortCategories(deduped) : null;
                 this._modalReminders = rawRem;
                 // Tipos do perfil escolhido
                 const prevFid = Storage.activeFinancaId;
@@ -4663,8 +4663,8 @@ const App = {
         const sel = document.getElementById('modal-category');
         if (!sel) return;
         const current = selectedVal ?? sel.value ?? 'Outros';
-        // Usa categorias do perfil escolhido no modal (se diferente do ativo)
-        const cats = this._modalCategories ?? this.categories;
+        // Usa categorias do perfil escolhido no modal; [] vazio cai para o perfil ativo
+        const cats = (this._modalCategories?.length) ? this._modalCategories : this.categories;
         sel.innerHTML = cats.map(c =>
             `<option value="${c.name}">${c.emoji} ${c.name}</option>`
         ).join('');
