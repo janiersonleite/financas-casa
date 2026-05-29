@@ -181,6 +181,12 @@ const NLP = {
         desc = desc.replace(/\d+([.,]\d{1,2})?\s*(reais|real|conto|contos|reis)/gi, '');
         desc = desc.replace(/\b\d+([.,]\d{1,2})?\b/g, '');
 
+        // 6b. Remove números escritos por extenso + "reais/real/conto"
+        // ex: "cinco reais", "vinte e cinco reais", "cem reais"
+        const _numPart = '(?:um|uma|dois|duas|tr[eê]s|quatro|cinco|seis|sete|oito|nove|dez|onze|doze|treze|quatorze|catorze|quinze|dezesseis|dezasseis|dezessete|dezassete|dezoito|dezenove|dezanove|vinte|trinta|quarenta|cinquenta|sessenta|setenta|oitenta|noventa|cem|cento|duzentos?|trezentos?|quatrocentos?|quinhentos?|seiscentos?|setecentos?|oitocentos?|novecentos?|mil)';
+        const _numPhrase = new RegExp(`\\b${_numPart}(?:\\s+e\\s+${_numPart}|\\s+${_numPart})*\\s+(?:reais?|real|contos?)\\b`, 'gi');
+        desc = desc.replace(_numPhrase, '');
+
         // 7. Remove conjunções e relativos sozinhos
         desc = desc.replace(/\b(que|o que|isso|aquilo|então|aí|só)\b/gi, '');
 
@@ -197,6 +203,44 @@ const NLP = {
         if (desc) desc = desc.charAt(0).toUpperCase() + desc.slice(1);
 
         return desc || text.trim();
+    },
+
+    // ─── Tabelas para números por extenso ────────────────────────────────────
+    _numWords: {
+        ones: { 'um':1,'uma':1,'dois':2,'duas':2,'tres':3,'quatro':4,'cinco':5,
+                'seis':6,'sete':7,'oito':8,'nove':9,'dez':10,'onze':11,'doze':12,
+                'treze':13,'quatorze':14,'catorze':14,'quinze':15,
+                'dezesseis':16,'dezasseis':16,'dezessete':17,'dezassete':17,
+                'dezoito':18,'dezenove':19,'dezanove':19 },
+        tens: { 'vinte':20,'trinta':30,'quarenta':40,'cinquenta':50,
+                'sessenta':60,'setenta':70,'oitenta':80,'noventa':90 },
+        hundreds: { 'cem':100,'cento':100,'duzentos':200,'duzentas':200,
+                    'trezentos':300,'trezentas':300,'quatrocentos':400,'quatrocentas':400,
+                    'quinhentos':500,'quinhentas':500,'seiscentos':600,'seiscentas':600,
+                    'setecentos':700,'setecentas':700,'oitocentos':800,'oitocentas':800,
+                    'novecentos':900,'novecentas':900 },
+    },
+
+    // Converte texto de número por extenso para float.
+    // Retorna null se não encontrar padrão reconhecível.
+    // Ex: "vinte e cinco" → 25 | "dois mil e quinhentos" → 2500 | "cinco" → 5
+    _parseWrittenNumber(text) {
+        const norm = text.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+        const { ones, tens, hundreds } = this._numWords;
+        // Divide por " e " ou espaço simples
+        const words = norm.split(/\s+e\s+|\s+/).filter(Boolean);
+        if (!words.length) return null;
+        let total = 0, current = 0, valid = false;
+        for (const w of words) {
+            if (w === 'e') continue;
+            if (ones[w]     !== undefined) { current += ones[w];     valid = true; }
+            else if (tens[w]!== undefined) { current += tens[w];     valid = true; }
+            else if (hundreds[w] !== undefined) { current += hundreds[w]; valid = true; }
+            else if (w === 'mil')          { total += (current || 1) * 1000; current = 0; valid = true; }
+            else return null; // palavra desconhecida — bail out
+        }
+        total += current;
+        return (valid && total > 0) ? total : null;
     },
 
     // ─── Converte string numérica BR para float ───────────────────────────────
@@ -294,6 +338,24 @@ const NLP = {
         if (rInt) {
             const val = parseFloat(rInt[1]);
             if (!isNaN(val) && val > 0) return val;
+        }
+
+        // ── 8. Número escrito por extenso + "reais/real/conto" ──────────────────
+        // ex: "cinco reais" → 5 | "vinte e cinco reais" → 25 | "cem reais" → 100
+        const writtenReaisMatch = t.match(/\b([a-záéíóúàâêôãõüç]+(?:\s+e\s+[a-záéíóúàâêôãõüç]+|\s+[a-záéíóúàâêôãõüç]+)*)\s+(?:reais?|real|contos?)\b/);
+        if (writtenReaisMatch) {
+            const val = this._parseWrittenNumber(writtenReaisMatch[1]);
+            if (val) return val;
+        }
+
+        // ── 9. Número escrito sozinho (sem "reais") quando não há outra info ────
+        // ex: "hoje lanche cinco" → 5  (só aplica se o texto é curto/simples)
+        const allWords = t.replace(/[^a-záéíóúàâêôãõüç\s]/g, ' ').trim().split(/\s+/);
+        if (allWords.length <= 5) {
+            for (const w of [...allWords].reverse()) {
+                const val = this._parseWrittenNumber(w);
+                if (val) return val;
+            }
         }
 
         return null;
