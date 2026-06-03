@@ -3405,12 +3405,16 @@ const App = {
         const myEmail = (Auth.user?.email || '').toLowerCase();
 
         // Group by email (fall back to current user for transactions with no inserter)
+        // Usa o BEHAVIOR do tipo (soma / subtrai / neutro) para classificar corretamente.
+        // Tipos neutros (ex: investimento, transferência) não contam como gasto nem entrada.
         const byPerson = {};
         for (const t of txns) {
             const email = (t.inserted_by_email || myEmail).toLowerCase();
             if (!byPerson[email]) byPerson[email] = { email, income: 0, expense: 0 };
-            if (t.type === 'entrada') byPerson[email].income  += Number(t.value);
-            else                      byPerson[email].expense += Number(t.value);
+            const beh = Storage.getBehavior(t.type);
+            if (beh === 'soma')         byPerson[email].income  += Number(t.value) || 0;
+            else if (beh === 'subtrai') byPerson[email].expense += Number(t.value) || 0;
+            // neutro: ignora totalmente nas somas (mas continua aparecendo no painel detalhado)
         }
 
         const people = Object.values(byPerson);
