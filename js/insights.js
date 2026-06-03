@@ -345,14 +345,20 @@ const Insights = {
     },
 
     // ─── 8. Re-categorização: lançamentos possivelmente mal categorizados ─────
-    findMiscategorized(txns, suggestFn) {
-        // suggestFn(text) → string (categoria sugerida) — passada externamente para usar NLP
+    // validCategories: Set/Array com nomes de categorias existentes para o usuário.
+    //                   Sugestões fora desse conjunto são descartadas (não há como aplicar).
+    findMiscategorized(txns, suggestFn, validCategories = null) {
+        const validSet = validCategories
+            ? (validCategories instanceof Set ? validCategories : new Set(validCategories))
+            : null;
         const result = [];
         for (const t of txns) {
             if (!t.description) continue;
             const current = t.category || 'Outros';
             const suggested = suggestFn(t.description);
             if (!suggested || suggested === 'Outros' || suggested === current) continue;
+            // Só sugere categorias que o usuário REALMENTE possui
+            if (validSet && !validSet.has(suggested)) continue;
             result.push({ tx: t, current, suggested });
         }
         return result;

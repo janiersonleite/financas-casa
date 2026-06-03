@@ -3809,8 +3809,13 @@ const App = {
         const allTxns = (await Promise.all(months.map(m => Storage.getTransactions({ month: m })))).flat();
         const missing = Insights.findMissingInstallments(allTxns);
 
-        // Mal categorizadas (no mês atual)
-        const miscategorized = Insights.findMiscategorized(monthTxns, (text) => NLP.extractCategoryStatic(text));
+        // Mal categorizadas (no mês atual) — só sugere categorias que o usuário possui
+        const userCats = new Set((this.categories || []).map(c => c.name));
+        const miscategorized = Insights.findMiscategorized(
+            monthTxns,
+            (text) => NLP.extractCategoryStatic(text),
+            userCats
+        );
 
         // Filtra pendências já dispensadas
         const filteredDupes  = dupes.filter(g => !Storage.isPendingDismissed(this._pendingKey('dupe', [...g.map(t => t.id)].sort().join('|'))));
@@ -3954,19 +3959,40 @@ const App = {
         const modal = document.getElementById('recat-modal');
         const list  = document.getElementById('recat-modal-list');
         list.innerHTML = items.map((it, i) => `
-            <label class="flex items-start gap-2 bg-gray-50 rounded-xl p-2.5 cursor-pointer">
-                <input type="checkbox" class="recat-check mt-1" data-idx="${i}" checked>
-                <div class="flex-1 min-w-0">
+            <div class="recat-item relative flex items-start gap-2 bg-gray-50 rounded-xl p-2.5" data-idx="${i}" data-tx-id="${this._escHtml(it.tx.id)}">
+                <input type="checkbox" id="recat-check-${i}" class="recat-check mt-1" data-idx="${i}" checked>
+                <label for="recat-check-${i}" class="flex-1 min-w-0 pr-7 cursor-pointer">
                     <p class="text-sm font-semibold text-gray-800 truncate">${this._escHtml(it.tx.description)}</p>
                     <p class="text-[11px] text-gray-500">${Insights._money(it.tx.value)} · ${it.tx.date || ''}</p>
                     <p class="text-xs mt-1">
                         <span class="text-gray-400 line-through">${this._escHtml(it.current)}</span>
                         <span class="text-violet-600 font-semibold">→ ${this._escHtml(it.suggested)}</span>
                     </p>
-                </div>
-            </label>
+                </label>
+                <button class="recat-dismiss-btn absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-white border border-gray-200 text-gray-500 text-xs flex items-center justify-center hover:bg-red-50 hover:text-red-500 hover:border-red-200"
+                        title="Dispensar esta sugestão (não voltará a aparecer)" data-idx="${i}">×</button>
+            </div>
         `).join('');
         modal.classList.remove('hidden');
+
+        // Handler do botão × — dispensa a sugestão individual
+        list.querySelectorAll('.recat-dismiss-btn').forEach(btn => {
+            btn.addEventListener('click', e => {
+                e.preventDefault();
+                e.stopPropagation();
+                const idx  = parseInt(btn.dataset.idx);
+                const item = items[idx];
+                if (!item) return;
+                Storage.dismissPending(this._pendingKey('miscat', item.tx.id));
+                btn.closest('.recat-item').remove();
+                this.showToast('Sugestão dispensada', false, 1200);
+                // Se não restou nenhuma sugestão, fecha modal e re-renderiza
+                if (!list.querySelectorAll('.recat-item').length) {
+                    modal.classList.add('hidden');
+                    this.renderSummary();
+                }
+            });
+        });
     },
 
     async applyRecategorize() {
