@@ -3239,6 +3239,9 @@ const App = {
         document.getElementById('sum-expense').textContent = this.formatCurrency(summary.expense);
         document.getElementById('sum-balance').textContent = this.formatCurrency(summary.balance);
 
+        // Banner de ajuste: pagamento de cartão excluído porque há parcelas no mês
+        this._renderCardPaymentNotice(summary.cardPaymentExcluded || 0, txns);
+
         const cmpTag = (cur, prev, invertGood = false) => {
             if (!prev) return '';
             const diff = cur - prev;
@@ -3600,6 +3603,44 @@ const App = {
     // ═══════════════════════════════════════════════════════════════════════
     // ─── 💡 INSIGHTS, METAS E RECONCILIAÇÃO ───────────────────────────────
     // ═══════════════════════════════════════════════════════════════════════
+
+    // ─── Aviso: pagamento de cartão excluído do saldo ─────────────────────────
+    _renderCardPaymentNotice(excluded, allTxns) {
+        const wrap   = document.getElementById('card-payment-notice');
+        const title  = document.getElementById('card-payment-notice-title');
+        const detail = document.getElementById('card-payment-notice-detail');
+        const btn    = document.getElementById('card-payment-notice-toggle');
+        if (!wrap) return;
+
+        if (!excluded || excluded <= 0) {
+            wrap.classList.add('hidden');
+            return;
+        }
+
+        const cardPayments  = allTxns.filter(t => Storage.isCardPayment(t) && Storage.getBehavior(t.type) === 'subtrai');
+        const installCount  = allTxns.filter(t => t.installment_group_id).length;
+
+        title.textContent = `Pagamento de cartão (${this.formatCurrency(excluded)}) não contado no saldo`;
+        detail.textContent = `Detectei ${cardPayments.length} pagamento${cardPayments.length !== 1 ? 's' : ''} de cartão e ${installCount} parcela${installCount !== 1 ? 's' : ''} no mês. As parcelas já representam o gasto real — o pagamento foi descontado para evitar dupla contagem.`;
+        wrap.classList.remove('hidden');
+
+        // Toggle "Ver/Ocultar" — mostra a lista de transações excluídas
+        let existingList = document.getElementById('card-payment-notice-list');
+        if (existingList) existingList.remove();
+        btn.onclick = () => {
+            const open = document.getElementById('card-payment-notice-list');
+            if (open) { open.remove(); btn.textContent = 'Ver'; return; }
+            const html = cardPayments.map(t => `
+                <div class="flex justify-between items-center text-[11px] py-1 border-t border-blue-100">
+                    <span class="truncate text-blue-700">${this._escHtml(t.description || t.category)}</span>
+                    <span class="font-semibold text-blue-800 ml-2">${this.formatCurrency(t.value)}</span>
+                </div>
+            `).join('');
+            wrap.insertAdjacentHTML('beforeend', `<div id="card-payment-notice-list" class="w-full mt-2">${html}</div>`);
+            btn.textContent = 'Ocultar';
+        };
+        btn.textContent = 'Ver';
+    },
 
     // ─── Insights & Previsão ──────────────────────────────────────────────────
     async renderInsightsSection(currTxns, prevSummary, trendSummaries) {

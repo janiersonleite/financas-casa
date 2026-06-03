@@ -974,19 +974,53 @@ const Storage = {
         return this._localFilter(filters);
     },
 
-    async getSummary(month = null) {
-        const list    = await this.getTransactions(month ? { month } : {});
-        const income  = list.filter(t => this.getBehavior(t.type) === 'soma').reduce((s, t) => s + Number(t.value), 0);
-        const expense = list.filter(t => this.getBehavior(t.type) === 'subtrai').reduce((s, t) => s + Number(t.value), 0);
-        return { income, expense, balance: income - expense, count: list.length };
+    // ── Detector de "pagamento de cartão" ─────────────────────────────────────
+    // Heurística por palavra-chave na descrição ou categoria.
+    // Usado para evitar dupla contagem com as parcelas no mesmo mês.
+    isCardPayment(t) {
+        const text = `${t.description || ''} ${t.category || ''}`
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[̀-ͯ]/g, '');
+        return /\b(cartao|fatura)\b/.test(text);
     },
 
-    async getCategoryTotals(month = null) {
-        const list   = await this.getTransactions(month ? { month } : {});
+    async getSummary(month = null, options = {}) {
+        const list = await this.getTransactions(month ? { month } : {});
+        let income  = 0, expense = 0;
+        let cardPaymentExcluded = 0;
+
+        // Lógica inteligente: se houver parcelas no mês, ignora os pagamentos de cartão
+        // (assume que as parcelas já representam o gasto real)
+        const smart = options.smartCardLogic !== false; // ligado por padrão
+        const hasInstallments = smart && list.some(t => t.installment_group_id);
+
+        for (const t of list) {
+            const beh = this.getBehavior(t.type);
+            if (beh === 'soma') {
+                income += Number(t.value);
+            } else if (beh === 'subtrai') {
+                if (hasInstallments && this.isCardPayment(t)) {
+                    cardPaymentExcluded += Number(t.value);
+                    continue;
+                }
+                expense += Number(t.value);
+            }
+        }
+        return { income, expense, balance: income - expense, count: list.length, cardPaymentExcluded };
+    },
+
+    async getCategoryTotals(month = null, options = {}) {
+        const list = await this.getTransactions(month ? { month } : {});
         const totals = {};
+        const smart = options.smartCardLogic !== false;
+        const hasInstallments = smart && list.some(t => t.installment_group_id);
+
         for (const t of list) {
             const beh = this.getBehavior(t.type);
             if (beh === 'neutro') continue;
+            // Ignora pagamento de cartão quando há parcelas no mês
+            if (hasInstallments && beh === 'subtrai' && this.isCardPayment(t)) continue;
             if (!totals[t.category]) totals[t.category] = { income: 0, expense: 0 };
             if (beh === 'soma') totals[t.category].income  += Number(t.value);
             else                totals[t.category].expense += Number(t.value);
