@@ -333,6 +333,40 @@ const Storage = {
         return list;
     },
 
+    // ── Metas por categoria (localStorage por finança) ────────────────────────
+    _goalsKey(fid) {
+        return 'category_goals_' + (fid || 'personal');
+    },
+    getGoals() {
+        const fid = (this.activeFinancaId && this.activeFinancaId !== 'null') ? this.activeFinancaId : null;
+        try { return JSON.parse(localStorage.getItem(this._goalsKey(fid)) || '{}'); } catch { return {}; }
+    },
+    setGoals(goals) {
+        const fid = (this.activeFinancaId && this.activeFinancaId !== 'null') ? this.activeFinancaId : null;
+        try { localStorage.setItem(this._goalsKey(fid), JSON.stringify(goals || {})); } catch {}
+    },
+    setGoal(category, value) {
+        const goals = this.getGoals();
+        if (value && value > 0) goals[category] = Number(value);
+        else delete goals[category];
+        this.setGoals(goals);
+    },
+
+    // Busca histórico dos últimos N meses agrupado por mês (para sugestão de metas)
+    async getHistoryByMonth(monthsBack = 3) {
+        const months = [];
+        const today = new Date();
+        for (let i = 1; i <= monthsBack; i++) {
+            const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
+            months.unshift(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+        }
+        const result = {};
+        for (const m of months) {
+            result[m] = await this.getTransactions({ month: m });
+        }
+        return result;
+    },
+
     // ── Finance state ─────────────────────────────────────────────────────────
     setActiveFinanca(id) {
         const safe = (id && id !== 'null') ? id : null;

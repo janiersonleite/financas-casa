@@ -46,6 +46,48 @@ const NLP = {
     incomeKeywords: ['recebi', 'ganhei', 'depósito', 'deposito', 'salário', 'salario', 'freela', 'freelance', 'vendi', 'entrada', 'reembolso', 'devolução', 'devolucao', 'crédito', 'credito', 'rendimento', 'lucro', 'renda', 'bolsa', 'auxílio', 'auxilio', 'benefício', 'beneficio'],
     expenseKeywords: ['gastei', 'paguei', 'comprei', 'transferi', 'mandei', 'enviei', 'saída', 'saida', 'debitou', 'cobrado', 'débito', 'debito'],
 
+    // ─── Comandos compostos por voz ──────────────────────────────────────────
+    // Detecta múltiplos lançamentos em uma única fala:
+    //   "gasolina 200 e mercado 150" → ["gasolina 200", "mercado 150"]
+    //   "gastei 50 no almoço e 30 no uber" → ["gastei 50 no almoço", "30 no uber"]
+    // Retorna [text] se não detectar comando composto.
+    splitCompoundCommand(text) {
+        const normalized = this._normalizeVoiceNumber(text);
+        // Marca posições de cada valor monetário
+        const valueRe = /(\d+(?:[.,]\d{1,2})?(?:\s*(?:reais?|real|contos?))?)/gi;
+        const matches = [...normalized.matchAll(valueRe)];
+        if (matches.length < 2) return [text];
+
+        const connectorRe = /\s+(e|tambem|também|depois|mais|ai|aí)\s+|\s*[;,]\s+/i;
+        const segments = [];
+        let lastEnd = 0;
+
+        for (let i = 0; i < matches.length - 1; i++) {
+            const m    = matches[i];
+            const next = matches[i + 1];
+            const between = normalized.slice(m.index + m[0].length, next.index);
+            const conn = between.match(connectorRe);
+            if (conn) {
+                const splitStart = m.index + m[0].length + conn.index;
+                const splitEnd   = splitStart + conn[0].length;
+                segments.push(normalized.slice(lastEnd, splitStart).trim());
+                lastEnd = splitEnd;
+            }
+        }
+        segments.push(normalized.slice(lastEnd).trim());
+
+        // Filtra segmentos sem número (não viáveis como lançamento)
+        const valid = segments.filter(s => /\d/.test(s) && s.length > 1);
+        return valid.length > 1 ? valid : [text];
+    },
+
+    // Faz parse de cada segmento separadamente
+    parseCompound(text) {
+        const segments = this.splitCompoundCommand(text);
+        if (segments.length === 1) return [this.parse(text)];
+        return segments.map(s => this.parse(s));
+    },
+
     parse(text) {
         const lower = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
         const original = text.toLowerCase();

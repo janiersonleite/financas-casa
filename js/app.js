@@ -74,6 +74,7 @@ const App = {
         this.bindHistoryPills();
         this.bindHistoryCatFilter();
         this.bindReminderNewCat();
+        this.bindInsightsHandlers();
         this._initLearnedMap();
         const verEl = document.getElementById('app-version-label');
         if (verEl) verEl.textContent = `v ${APP_VERSION}`;
@@ -596,8 +597,10 @@ const App = {
         const input  = document.getElementById('quick-input');
         const text   = input.value.trim();
         if (!text) { this.openModal({ focusValue: true }); return; }
-        const parsed = NLP.parse(text);
         input.value  = '';
+        // Comando composto? ("gasolina 200 e mercado 150")
+        if (this.handleCompoundCommand(text)) return;
+        const parsed = NLP.parse(text);
         this.openModal({ ...parsed, focusValue: !parsed.value });
     },
 
@@ -3295,6 +3298,11 @@ const App = {
         // ── Custom types chart ─────────────────────────────────────────────────
         this.renderCustomTypesChart(txns);
 
+        // ── 💡 Insights inteligentes ──────────────────────────────────────────
+        this.renderInsightsSection(txns, prevSummary, trendSummaries);
+        this.renderGoalsSection(txns);
+        this.renderReconcileSection(txns);
+
         // ── Person breakdown ───────────────────────────────────────────────────
         this.renderPersonBreakdown(txns);
 
@@ -3581,6 +3589,419 @@ const App = {
                 if (t) this.openModal(t);
             });
         });
+    },
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // ─── 💡 INSIGHTS, METAS E RECONCILIAÇÃO ───────────────────────────────
+    // ═══════════════════════════════════════════════════════════════════════
+
+    // ─── Insights & Previsão ──────────────────────────────────────────────────
+    async renderInsightsSection(currTxns, prevSummary, trendSummaries) {
+        const card = document.getElementById('insights-card');
+        const sumEl = document.getElementById('insights-summary');
+        const projEl = document.getElementById('insights-projection');
+        if (!card || !sumEl) return;
+
+        try {
+            // Resumo mensal: compara com mês anterior
+            const prevMonth = this.getPrevMonth(this.currentMonth);
+            const prevTxns  = await Storage.getTransactions({ month: prevMonth });
+            const monthly   = Insights.monthlySummary(currTxns, prevTxns, this.currentMonth, prevMonth);
+
+            if (monthly.sentences.length) {
+                sumEl.innerHTML = monthly.sentences.map(s => `<p>• ${this._escHtml(s)}</p>`).join('');
+                card.classList.remove('hidden');
+            } else {
+                sumEl.innerHTML = '<p class="text-gray-400">Sem dados suficientes para comparar.</p>';
+                card.classList.remove('hidden');
+            }
+
+            // Projeção de fechamento
+            const proj = Insights.projectMonthEnd(currTxns, this.currentMonth);
+            if (proj.isCurrent && proj.message) {
+                const goals = Storage.getGoals();
+                const totalGoal = Object.values(goals).reduce((s, v) => s + Number(v || 0), 0);
+                let metaTxt = '';
+                if (totalGoal > 0) {
+                    const overPct = ((proj.projection - totalGoal) / totalGoal) * 100;
+                    if (overPct > 5)       metaTxt = ` <span class="text-red-600 font-semibold">(${overPct.toFixed(0)}% acima da meta)</span>`;
+                    else if (overPct < -5) metaTxt = ` <span class="text-green-600 font-semibold">(${(-overPct).toFixed(0)}% abaixo da meta)</span>`;
+                }
+                projEl.innerHTML = `<p>🔮 <strong>Previsão:</strong> ${this._escHtml(proj.message)}${metaTxt}</p>`;
+            } else {
+                projEl.innerHTML = '';
+            }
+
+            // Recorrentes sem lembrete (busca em 6 meses)
+            this._renderRecurringSuggestions();
+        } catch (e) { console.warn('renderInsightsSection:', e); }
+    },
+
+    async _renderRecurringSuggestions() {
+        try {
+            const months = [];
+            let ym = this.currentMonth;
+            for (let i = 0; i < 6; i++) { months.push(ym); ym = this.getPrevMonth(ym); }
+            const allTxns = (await Promise.all(months.map(m => Storage.getTransactions({ month: m })))).flat();
+            const reminders = await Storage.getReminders();
+            const recur = Insights.findRecurringWithoutReminder(allTxns, reminders);
+
+            const projEl = document.getElementById('insights-projection');
+            if (!projEl) return;
+            if (!recur.length) return;
+
+            const rHtml = recur.map((r, i) => `
+                <div class="mt-2 bg-white rounded-xl p-2.5 border border-violet-100 flex items-center gap-2">
+                    <span class="text-base">🔁</span>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-xs font-semibold text-gray-700 truncate">${this._escHtml(r.description || r.category || '—')}</p>
+                        <p class="text-[10px] text-gray-400">Aparece todo mês ≈ dia ${r.day} · média ${Insights._money(r.avgValue)}</p>
+                    </div>
+                    <button class="recur-create-btn text-[10px] font-semibold bg-violet-100 text-violet-700 px-2.5 py-1.5 rounded-full"
+                            data-name="${this._escHtml(r.description || r.category)}"
+                            data-day="${r.day}"
+                            data-value="${r.avgValue.toFixed(2)}"
+                            data-cat="${this._escHtml(r.category || '')}">Criar lembrete</button>
+                </div>
+            `).join('');
+            projEl.insertAdjacentHTML('beforeend', `<div class="mt-2"><p class="text-xs text-violet-700 font-semibold mt-3 mb-1">🔁 Recorrências sem lembrete:</p>${rHtml}</div>`);
+
+            // Liga handlers de criar lembrete
+            projEl.querySelectorAll('.recur-create-btn').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    e.stopPropagation();
+                    try {
+                        await Storage.createReminder({
+                            name:     btn.dataset.name,
+                            day:      parseInt(btn.dataset.day),
+                            amount:   parseFloat(btn.dataset.value),
+                            category: btn.dataset.cat || 'Outros',
+                            type:     'saida',
+                            emoji:    '🔔',
+                        });
+                        this.showToast('✅ Lembrete criado!');
+                        await this.loadReminders();
+                        await this.renderSummary();
+                    } catch (err) { this.showToast('❌ Erro ao criar lembrete', true); }
+                });
+            });
+        } catch (e) { console.warn('_renderRecurringSuggestions:', e); }
+    },
+
+    // ─── Metas ────────────────────────────────────────────────────────────────
+    renderGoalsSection(currTxns) {
+        const goals = Storage.getGoals();
+        const listEl     = document.getElementById('goals-list');
+        const alertsEl   = document.getElementById('goals-alerts');
+        const suggestBtn = document.getElementById('goals-suggest-btn');
+        if (!listEl) return;
+
+        const goalEntries = Object.entries(goals);
+
+        // Alertas (apenas mês atual)
+        const alerts = Insights.goalAlerts(currTxns, goals, this.currentMonth);
+        alertsEl.innerHTML = alerts.map(a => {
+            const colors = a.level === 'danger'    ? 'bg-red-50 border-red-200 text-red-700'
+                         : a.level === 'warning'   ? 'bg-orange-50 border-orange-200 text-orange-700'
+                         :                           'bg-yellow-50 border-yellow-200 text-yellow-700';
+            const icon   = a.level === 'danger' ? '🚨' : a.level === 'warning' ? '⚠️' : '📈';
+            return `<div class="${colors} border rounded-xl p-2.5 text-xs">${icon} ${this._escHtml(a.message)}</div>`;
+        }).join('');
+
+        // Lista de metas com barra de progresso
+        if (!goalEntries.length) {
+            listEl.innerHTML = '<p class="text-xs text-gray-400 text-center py-2">Nenhuma meta definida.</p>';
+            suggestBtn.classList.remove('hidden');
+        } else {
+            const expByCat = Insights._expenseByCategory(currTxns);
+            listEl.innerHTML = goalEntries.map(([cat, limit]) => {
+                const spent = expByCat[cat] || 0;
+                const pct   = Math.min(100, (spent / limit) * 100);
+                const barColor = pct >= 100 ? 'bg-red-500' : pct >= 80 ? 'bg-orange-500' : 'bg-emerald-500';
+                const txtColor = pct >= 100 ? 'text-red-600' : pct >= 80 ? 'text-orange-600' : 'text-emerald-700';
+                return `<div>
+                    <div class="flex justify-between items-center text-xs mb-1">
+                        <span class="font-medium text-gray-700">${this._escHtml(cat)}</span>
+                        <span class="${txtColor} font-semibold">${Insights._money(spent)} / ${Insights._money(limit)}</span>
+                    </div>
+                    <div class="bg-gray-100 rounded-full h-1.5"><div class="${barColor} h-1.5 rounded-full" style="width:${pct}%"></div></div>
+                </div>`;
+            }).join('');
+            suggestBtn.classList.remove('hidden');
+        }
+    },
+
+    // Sugere metas pelo histórico (mediana dos últimos 3 meses)
+    async suggestAndApplyGoals() {
+        try {
+            const history = await Storage.getHistoryByMonth(3);
+            const suggested = Insights.suggestGoals(history);
+            if (!Object.keys(suggested).length) {
+                this.showToast('Histórico insuficiente para sugerir metas (precisa ≥ 2 meses)', true, 4000);
+                return;
+            }
+            // Funde com metas existentes (não sobrescreve as já definidas)
+            const current = Storage.getGoals();
+            const merged = { ...suggested, ...current };
+            Storage.setGoals(merged);
+            this.showToast(`✨ ${Object.keys(suggested).length} meta${Object.keys(suggested).length !== 1 ? 's' : ''} sugerida${Object.keys(suggested).length !== 1 ? 's' : ''} com base no histórico`, false, 3500);
+            await this.renderSummary();
+        } catch (e) { this.showToast('❌ Erro ao sugerir metas', true); }
+    },
+
+    openGoalsModal() {
+        const modal = document.getElementById('goals-modal');
+        const list  = document.getElementById('goals-modal-list');
+        if (!modal || !list) return;
+        const goals = Storage.getGoals();
+        const cats  = this.categories || [];
+        list.innerHTML = cats.map(c => {
+            const val = goals[c.name] || '';
+            return `<div class="flex items-center gap-2">
+                <span class="text-lg">${c.emoji || '📦'}</span>
+                <span class="flex-1 text-sm text-gray-700">${this._escHtml(c.name)}</span>
+                <div class="flex items-center gap-1">
+                    <span class="text-xs text-gray-400">R$</span>
+                    <input type="number" inputmode="decimal" class="goal-input w-24 border border-gray-200 rounded-lg px-2 py-1.5 text-sm text-right" placeholder="0" value="${val}" data-cat="${this._escHtml(c.name)}">
+                </div>
+            </div>`;
+        }).join('');
+        modal.classList.remove('hidden');
+    },
+
+    saveGoalsModal() {
+        const inputs = document.querySelectorAll('#goals-modal-list .goal-input');
+        const goals = {};
+        for (const inp of inputs) {
+            const v = parseFloat(inp.value);
+            if (!isNaN(v) && v > 0) goals[inp.dataset.cat] = v;
+        }
+        Storage.setGoals(goals);
+        document.getElementById('goals-modal').classList.add('hidden');
+        this.showToast('✅ Metas atualizadas');
+        this.renderSummary();
+    },
+
+    // ─── Reconciliação ────────────────────────────────────────────────────────
+    async renderReconcileSection(monthTxns) {
+        const card = document.getElementById('reconcile-card');
+        const list = document.getElementById('reconcile-list');
+        if (!card || !list) return;
+
+        const dupes = Insights.findDuplicates(monthTxns);
+
+        // Parcelas faltantes — varre 12 meses
+        const months = [];
+        let ym = this.currentMonth;
+        for (let i = 0; i < 12; i++) { months.push(ym); ym = this.getPrevMonth(ym); }
+        const allTxns = (await Promise.all(months.map(m => Storage.getTransactions({ month: m })))).flat();
+        const missing = Insights.findMissingInstallments(allTxns);
+
+        // Mal categorizadas (no mês atual)
+        const miscategorized = Insights.findMiscategorized(monthTxns, (text) => NLP.extractCategoryStatic(text));
+
+        const blocks = [];
+
+        if (dupes.length) {
+            const dupHtml = dupes.map(group => `
+                <div class="bg-yellow-50 border border-yellow-200 rounded-xl p-2.5">
+                    <p class="font-semibold text-yellow-800 mb-1">🔁 ${group.length} lançamentos similares em ${group[0].date}</p>
+                    ${group.map(t => `
+                        <div class="flex items-center justify-between mt-1">
+                            <span class="text-gray-700 truncate">${this._escHtml(t.description || t.category || '')}</span>
+                            <span class="font-semibold text-red-600 ml-2">${Insights._money(t.value)}</span>
+                        </div>
+                    `).join('')}
+                    <button class="dupe-del-btn mt-2 w-full text-[10px] font-semibold bg-red-500 text-white py-1.5 rounded-lg" data-ids="${group.slice(1).map(t => t.id).join(',')}">
+                        Remover ${group.length - 1} duplicata${group.length - 1 > 1 ? 's' : ''}
+                    </button>
+                </div>
+            `).join('');
+            blocks.push(dupHtml);
+        }
+
+        if (missing.length) {
+            const missHtml = missing.map(m => `
+                <div class="bg-orange-50 border border-orange-200 rounded-xl p-2.5">
+                    <p class="font-semibold text-orange-800 mb-1">📦 Parcela faltando: ${this._escHtml(m.description || '')}</p>
+                    <p class="text-gray-600">${m.missing.length} de ${m.total} parcelas não foram lançadas</p>
+                    <p class="text-[10px] text-gray-500">Faltando: ${m.missing.map(g => `${g.num}/${m.total}`).join(', ')}</p>
+                    <button class="miss-create-btn mt-2 w-full text-[10px] font-semibold bg-orange-500 text-white py-1.5 rounded-lg"
+                            data-group="${m.group_id}">Criar parcelas faltantes</button>
+                </div>
+            `).join('');
+            blocks.push(missHtml);
+        }
+
+        if (miscategorized.length) {
+            blocks.push(`<button id="open-recat-btn" class="w-full bg-violet-50 border border-violet-200 text-violet-700 rounded-xl p-2.5 text-left font-semibold">
+                🤖 ${miscategorized.length} lançamento${miscategorized.length !== 1 ? 's' : ''} podem estar mal categorizado${miscategorized.length !== 1 ? 's' : ''} — revisar
+            </button>`);
+        }
+
+        list.innerHTML = blocks.join('');
+        if (blocks.length) card.classList.remove('hidden');
+        else card.classList.add('hidden');
+
+        // Handlers
+        this._miscategorizedCache = miscategorized;
+        this._missingInstallmentsCache = missing;
+
+        list.querySelectorAll('.dupe-del-btn').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                if (!confirm('Remover duplicatas?')) return;
+                const ids = btn.dataset.ids.split(',').filter(Boolean);
+                for (const id of ids) {
+                    try { await Storage.deleteTransaction(id); } catch (_) {}
+                }
+                this.showToast(`✅ ${ids.length} duplicata${ids.length !== 1 ? 's' : ''} removida${ids.length !== 1 ? 's' : ''}`);
+                await this.renderCurrentTab();
+            });
+        });
+
+        list.querySelectorAll('.miss-create-btn').forEach(btn => {
+            btn.addEventListener('click', () => this._createMissingInstallments(btn.dataset.group));
+        });
+
+        document.getElementById('open-recat-btn')?.addEventListener('click', () => this.openRecategorizeModal());
+    },
+
+    async _createMissingInstallments(groupId) {
+        const m = this._missingInstallmentsCache?.find(x => x.group_id === groupId);
+        if (!m) return;
+        if (!confirm(`Criar ${m.missing.length} parcela(s) faltante(s) de "${m.description}"?`)) return;
+        let created = 0;
+        for (const gap of m.missing) {
+            try {
+                await Storage.addTransaction({
+                    value: m.value,
+                    type: m.type,
+                    category: m.category,
+                    description: `${m.description.replace(/\s*\(\d+\/\d+\)\s*$/, '')} (${gap.num}/${m.total})`,
+                    date: gap.expectedDate,
+                    notes: 'Criado via reconciliação',
+                    installment_group_id: groupId,
+                    installment_current: gap.num,
+                    installment_total: m.total,
+                });
+                created++;
+            } catch (_) {}
+        }
+        this.showToast(`✅ ${created} parcela${created !== 1 ? 's' : ''} criada${created !== 1 ? 's' : ''}`);
+        await this.renderCurrentTab();
+    },
+
+    openRecategorizeModal() {
+        const items = this._miscategorizedCache || [];
+        if (!items.length) return;
+        const modal = document.getElementById('recat-modal');
+        const list  = document.getElementById('recat-modal-list');
+        list.innerHTML = items.map((it, i) => `
+            <label class="flex items-start gap-2 bg-gray-50 rounded-xl p-2.5 cursor-pointer">
+                <input type="checkbox" class="recat-check mt-1" data-idx="${i}" checked>
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm font-semibold text-gray-800 truncate">${this._escHtml(it.tx.description)}</p>
+                    <p class="text-[11px] text-gray-500">${Insights._money(it.tx.value)} · ${it.tx.date || ''}</p>
+                    <p class="text-xs mt-1">
+                        <span class="text-gray-400 line-through">${this._escHtml(it.current)}</span>
+                        <span class="text-violet-600 font-semibold">→ ${this._escHtml(it.suggested)}</span>
+                    </p>
+                </div>
+            </label>
+        `).join('');
+        modal.classList.remove('hidden');
+    },
+
+    async applyRecategorize() {
+        const items   = this._miscategorizedCache || [];
+        const checked = document.querySelectorAll('#recat-modal-list .recat-check:checked');
+        let updated = 0;
+        for (const cb of checked) {
+            const it = items[parseInt(cb.dataset.idx)];
+            if (!it) continue;
+            try {
+                await Storage.updateTransaction(it.tx.id, { category: it.suggested });
+                updated++;
+            } catch (_) {}
+        }
+        document.getElementById('recat-modal').classList.add('hidden');
+        this.showToast(`✅ ${updated} lançamento${updated !== 1 ? 's' : ''} recategorizado${updated !== 1 ? 's' : ''}`);
+        await this.renderCurrentTab();
+    },
+
+    // ─── Comandos compostos por voz ───────────────────────────────────────────
+    handleCompoundCommand(text) {
+        const segments = NLP.splitCompoundCommand(text);
+        if (segments.length <= 1) return false; // não é composto
+        const parsedList = segments.map(s => NLP.parse(s));
+        // Só vale a pena se ≥2 segmentos tiverem valor
+        const validCount = parsedList.filter(p => p.value && p.value > 0).length;
+        if (validCount < 2) return false;
+
+        this._compoundDraft = parsedList;
+        this._renderCompoundModal();
+        return true;
+    },
+
+    _renderCompoundModal() {
+        const modal = document.getElementById('compound-modal');
+        const list  = document.getElementById('compound-modal-list');
+        list.innerHTML = this._compoundDraft.map((p, i) => `
+            <div class="bg-gray-50 rounded-xl p-2.5">
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="text-xs font-semibold text-indigo-600">#${i + 1}</span>
+                    <span class="text-xs text-gray-500 truncate flex-1">"${this._escHtml(p.original || '')}"</span>
+                </div>
+                <div class="grid grid-cols-2 gap-1.5 text-xs">
+                    <div><span class="text-gray-400">Descrição:</span> <strong>${this._escHtml(p.description || '—')}</strong></div>
+                    <div><span class="text-gray-400">Valor:</span> <strong class="text-red-600">${p.value ? Insights._money(p.value) : '—'}</strong></div>
+                    <div><span class="text-gray-400">Categoria:</span> <strong>${this._escHtml(p.category || 'Outros')}</strong></div>
+                    <div><span class="text-gray-400">Tipo:</span> <strong>${p.type === 'entrada' ? 'Entrada' : 'Saída'}</strong></div>
+                </div>
+            </div>
+        `).join('');
+        modal.classList.remove('hidden');
+    },
+
+    async saveCompoundCommand() {
+        const drafts = this._compoundDraft || [];
+        let saved = 0;
+        const todayStr = new Date().toISOString().slice(0, 10);
+        for (const p of drafts) {
+            if (!p.value || p.value <= 0) continue;
+            try {
+                await Storage.addTransaction({
+                    value:       p.value,
+                    type:        p.type || 'saida',
+                    category:    p.category || 'Outros',
+                    description: p.description || 'Sem descrição',
+                    date:        p.date || todayStr,
+                    notes:       'Voz (composto)',
+                });
+                saved++;
+            } catch (_) {}
+        }
+        document.getElementById('compound-modal').classList.add('hidden');
+        this._compoundDraft = null;
+        this.showToast(`✅ ${saved} lançamento${saved !== 1 ? 's' : ''} criado${saved !== 1 ? 's' : ''}!`);
+        await this.renderCurrentTab();
+    },
+
+    // Liga handlers das modais e botões (chamado no init)
+    bindInsightsHandlers() {
+        document.getElementById('goals-edit-btn')?.addEventListener('click', () => this.openGoalsModal());
+        document.getElementById('goals-modal-close')?.addEventListener('click', () => document.getElementById('goals-modal').classList.add('hidden'));
+        document.getElementById('goals-modal-save')?.addEventListener('click', () => this.saveGoalsModal());
+        document.getElementById('goals-suggest-btn')?.addEventListener('click', () => this.suggestAndApplyGoals());
+        document.getElementById('recat-modal-close')?.addEventListener('click', () => document.getElementById('recat-modal').classList.add('hidden'));
+        document.getElementById('recat-modal-cancel')?.addEventListener('click', () => document.getElementById('recat-modal').classList.add('hidden'));
+        document.getElementById('recat-modal-apply')?.addEventListener('click', () => this.applyRecategorize());
+        document.getElementById('compound-modal-close')?.addEventListener('click', () => document.getElementById('compound-modal').classList.add('hidden'));
+        document.getElementById('compound-modal-cancel')?.addEventListener('click', () => {
+            document.getElementById('compound-modal').classList.add('hidden');
+            this._compoundDraft = null;
+        });
+        document.getElementById('compound-modal-save')?.addEventListener('click', () => this.saveCompoundCommand());
     },
 
     // ─── Custom Types Chart ───────────────────────────────────────────────────
