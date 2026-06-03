@@ -3958,21 +3958,51 @@ const App = {
         if (!items.length) return;
         const modal = document.getElementById('recat-modal');
         const list  = document.getElementById('recat-modal-list');
+
+        // Constrói lista de categorias disponíveis para o usuário escolher
+        const allCats = (this.categories || []).map(c => c.name);
+        const buildOptions = (selectedName) => allCats.map(name => {
+            const cat = this.categories.find(c => c.name === name);
+            const emoji = cat?.emoji || '📦';
+            const sel = name === selectedName ? 'selected' : '';
+            return `<option value="${this._escHtml(name)}" ${sel}>${emoji} ${this._escHtml(name)}</option>`;
+        }).join('');
+
         list.innerHTML = items.map((it, i) => `
             <div class="recat-item relative flex items-start gap-2 bg-gray-50 rounded-xl p-2.5" data-idx="${i}" data-tx-id="${this._escHtml(it.tx.id)}">
                 <input type="checkbox" id="recat-check-${i}" class="recat-check mt-1" data-idx="${i}" checked>
-                <label for="recat-check-${i}" class="flex-1 min-w-0 pr-7 cursor-pointer">
-                    <p class="text-sm font-semibold text-gray-800 truncate">${this._escHtml(it.tx.description)}</p>
-                    <p class="text-[11px] text-gray-500">${Insights._money(it.tx.value)} · ${it.tx.date || ''}</p>
-                    <p class="text-xs mt-1">
-                        <span class="text-gray-400 line-through">${this._escHtml(it.current)}</span>
-                        <span class="text-violet-600 font-semibold">→ ${this._escHtml(it.suggested)}</span>
-                    </p>
-                </label>
+                <div class="flex-1 min-w-0 pr-7">
+                    <label for="recat-check-${i}" class="block cursor-pointer">
+                        <p class="text-sm font-semibold text-gray-800 truncate">${this._escHtml(it.tx.description)}</p>
+                        <p class="text-[11px] text-gray-500">${Insights._money(it.tx.value)} · ${it.tx.date || ''}</p>
+                    </label>
+                    <div class="flex items-center gap-1.5 text-xs mt-1.5 flex-wrap">
+                        <span class="text-gray-400 line-through whitespace-nowrap">${this._escHtml(it.current)}</span>
+                        <span class="text-gray-400">→</span>
+                        <select class="recat-cat-select bg-white border border-violet-300 rounded-lg px-1.5 py-0.5 text-violet-700 font-semibold text-xs focus:outline-none focus:ring-2 focus:ring-violet-200" data-idx="${i}">
+                            ${buildOptions(it.suggested)}
+                        </select>
+                    </div>
+                </div>
                 <button class="recat-dismiss-btn absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-white border border-gray-200 text-gray-500 text-xs flex items-center justify-center hover:bg-red-50 hover:text-red-500 hover:border-red-200"
                         title="Dispensar esta sugestão (não voltará a aparecer)" data-idx="${i}">×</button>
             </div>
         `).join('');
+
+        // Quando o usuário escolhe outra categoria no dropdown, atualiza o cache
+        // para que applyRecategorize use o valor escolhido (não o sugerido original)
+        list.querySelectorAll('.recat-cat-select').forEach(sel => {
+            sel.addEventListener('change', e => {
+                const idx = parseInt(sel.dataset.idx);
+                if (items[idx]) items[idx].suggested = sel.value;
+                // Marca o checkbox automaticamente (usuário interagiu)
+                const cb = list.querySelector(`#recat-check-${idx}`);
+                if (cb) cb.checked = true;
+                e.stopPropagation();
+            });
+            // Impede que o clique no select propague para o label/checkbox
+            sel.addEventListener('click', e => e.stopPropagation());
+        });
         modal.classList.remove('hidden');
 
         // Handler do botão × — dispensa a sugestão individual
