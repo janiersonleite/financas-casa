@@ -3670,7 +3670,29 @@ const App = {
                             data-cat="${this._escHtml(r.category || '')}">Criar lembrete</button>
                 </div>
             `).join('');
-            projEl.insertAdjacentHTML('beforeend', `<div class="mt-2"><p class="text-xs text-violet-700 font-semibold mt-3 mb-1">🔁 Recorrências sem lembrete:</p>${rHtml}</div>`);
+
+            // Estado de minimização persistido no localStorage
+            const collapsedKey = 'recurring_section_collapsed';
+            const isCollapsed  = localStorage.getItem(collapsedKey) === '1';
+            projEl.insertAdjacentHTML('beforeend', `
+                <div class="mt-2" id="recurring-section">
+                    <button id="recurring-toggle" class="w-full flex items-center justify-between text-xs text-violet-700 font-semibold mt-3 mb-1 px-1 hover:bg-violet-100 rounded-md py-1 transition-colors">
+                        <span>🔁 Recorrências sem lembrete (${recur.length})</span>
+                        <span id="recurring-chevron" class="text-[10px] transition-transform" style="transform:${isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)'}">▼</span>
+                    </button>
+                    <div id="recurring-body" class="${isCollapsed ? 'hidden' : ''}">${rHtml}</div>
+                </div>
+            `);
+
+            // Toggle minimizar/expandir
+            document.getElementById('recurring-toggle')?.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const body    = document.getElementById('recurring-body');
+                const chevron = document.getElementById('recurring-chevron');
+                const collapsedNow = body.classList.toggle('hidden');
+                chevron.style.transform = collapsedNow ? 'rotate(-90deg)' : 'rotate(0deg)';
+                try { localStorage.setItem(collapsedKey, collapsedNow ? '1' : '0'); } catch {}
+            });
 
             // Liga handlers de criar lembrete
             projEl.querySelectorAll('.recur-create-btn').forEach(btn => {
