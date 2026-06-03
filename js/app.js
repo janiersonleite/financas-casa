@@ -3206,6 +3206,12 @@ const App = {
         return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
     },
 
+    getNextMonth(ym) {
+        const [y, m] = ym.split('-').map(Number);
+        const d = new Date(y, m, 1); // m é o próximo mês (Date month é 0-indexed)
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    },
+
     formatMonthShort(ym) {
         const [y, m] = ym.split('-');
         const names = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
@@ -3793,10 +3799,13 @@ const App = {
 
         const dupes = Insights.findDuplicates(monthTxns);
 
-        // Parcelas faltantes — varre 12 meses
+        // Parcelas faltantes — varre 24 meses para trás + 24 para frente
+        // (parcelamentos podem estar tanto no passado quanto agendados no futuro)
         const months = [];
-        let ym = this.currentMonth;
-        for (let i = 0; i < 12; i++) { months.push(ym); ym = this.getPrevMonth(ym); }
+        let ymBack = this.currentMonth;
+        for (let i = 0; i < 24; i++) { months.push(ymBack); ymBack = this.getPrevMonth(ymBack); }
+        let ymFwd = this.getNextMonth(this.currentMonth);
+        for (let i = 0; i < 24; i++) { months.push(ymFwd); ymFwd = this.getNextMonth(ymFwd); }
         const allTxns = (await Promise.all(months.map(m => Storage.getTransactions({ month: m })))).flat();
         const missing = Insights.findMissingInstallments(allTxns);
 
