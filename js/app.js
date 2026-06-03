@@ -4081,29 +4081,131 @@ const App = {
     _renderCompoundModal() {
         const modal = document.getElementById('compound-modal');
         const list  = document.getElementById('compound-modal-list');
-        list.innerHTML = this._compoundDraft.map((p, i) => `
-            <div class="bg-gray-50 rounded-xl p-2.5">
-                <div class="flex items-center gap-2 mb-1">
+        const drafts = this._compoundDraft || [];
+
+        if (!drafts.length) {
+            list.innerHTML = '<p class="text-sm text-gray-400 text-center py-6">Nenhum lançamento. Cancele para sair.</p>';
+            modal.classList.remove('hidden');
+            this._bindCompoundItemHandlers();
+            return;
+        }
+
+        // Opções de categoria (todas do usuário)
+        const catOptions = (selected) => (this.categories || []).map(c => {
+            const sel = c.name === selected ? 'selected' : '';
+            return `<option value="${this._escHtml(c.name)}" ${sel}>${c.emoji || '📦'} ${this._escHtml(c.name)}</option>`;
+        }).join('');
+
+        // Opções de tipo (fixos + customizados)
+        const typeOptions = (selected) => (this.transactionTypes || []).map(t => {
+            const sel = t.id === selected ? 'selected' : '';
+            return `<option value="${this._escHtml(t.id)}" ${sel}>${t.emoji || ''} ${this._escHtml(t.name)}</option>`;
+        }).join('');
+
+        const todayStr = new Date().toISOString().slice(0, 10);
+
+        list.innerHTML = drafts.map((p, i) => `
+            <div class="compound-item relative bg-gray-50 rounded-xl p-3 border border-gray-200" data-idx="${i}">
+                <div class="flex items-center gap-2 mb-2">
                     <span class="text-xs font-semibold text-indigo-600">#${i + 1}</span>
-                    <span class="text-xs text-gray-500 truncate flex-1">"${this._escHtml(p.original || '')}"</span>
+                    <span class="text-[10px] text-gray-400 truncate flex-1 italic">"${this._escHtml(p.original || '')}"</span>
+                    <button class="compound-del-btn w-6 h-6 rounded-full bg-white border border-red-200 text-red-500 text-xs flex items-center justify-center hover:bg-red-50"
+                            title="Remover este lançamento" data-idx="${i}">×</button>
                 </div>
-                <div class="grid grid-cols-2 gap-1.5 text-xs">
-                    <div><span class="text-gray-400">Descrição:</span> <strong>${this._escHtml(p.description || '—')}</strong></div>
-                    <div><span class="text-gray-400">Valor:</span> <strong class="text-red-600">${p.value ? Insights._money(p.value) : '—'}</strong></div>
-                    <div><span class="text-gray-400">Categoria:</span> <strong>${this._escHtml(p.category || 'Outros')}</strong></div>
-                    <div><span class="text-gray-400">Tipo:</span> <strong>${p.type === 'entrada' ? 'Entrada' : 'Saída'}</strong></div>
+                <div class="space-y-1.5">
+                    <div>
+                        <label class="text-[10px] text-gray-500">Descrição</label>
+                        <input type="text" class="compound-desc w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white"
+                               placeholder="Descrição" value="${this._escHtml(p.description || '')}" data-idx="${i}">
+                    </div>
+                    <div class="grid grid-cols-2 gap-1.5">
+                        <div>
+                            <label class="text-[10px] text-gray-500">Valor (R$)</label>
+                            <input type="number" step="0.01" min="0" class="compound-val w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white text-right font-semibold"
+                                   placeholder="0,00" value="${p.value ? p.value.toFixed(2) : ''}" data-idx="${i}">
+                        </div>
+                        <div>
+                            <label class="text-[10px] text-gray-500">Data</label>
+                            <input type="date" class="compound-date w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white"
+                                   value="${p.date || todayStr}" data-idx="${i}">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-1.5">
+                        <div>
+                            <label class="text-[10px] text-gray-500">Tipo</label>
+                            <select class="compound-type w-full border border-gray-200 rounded-lg px-1.5 py-1.5 text-sm bg-white" data-idx="${i}">
+                                ${typeOptions(p.type || 'saida')}
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-[10px] text-gray-500">Categoria</label>
+                            <select class="compound-cat w-full border border-gray-200 rounded-lg px-1.5 py-1.5 text-sm bg-white" data-idx="${i}">
+                                ${catOptions(p.category || 'Outros')}
+                            </select>
+                        </div>
+                    </div>
                 </div>
             </div>
         `).join('');
+
         modal.classList.remove('hidden');
+        this._bindCompoundItemHandlers();
+    },
+
+    _bindCompoundItemHandlers() {
+        const list = document.getElementById('compound-modal-list');
+        if (!list) return;
+
+        // Atualiza draft conforme o usuário edita os campos
+        const updateField = (field, idx, value) => {
+            if (!this._compoundDraft?.[idx]) return;
+            this._compoundDraft[idx][field] = value;
+        };
+        list.querySelectorAll('.compound-desc').forEach(inp => {
+            inp.addEventListener('input', e => updateField('description', parseInt(inp.dataset.idx), inp.value));
+        });
+        list.querySelectorAll('.compound-val').forEach(inp => {
+            inp.addEventListener('input', e => {
+                const v = parseFloat(inp.value);
+                updateField('value', parseInt(inp.dataset.idx), isNaN(v) ? null : v);
+            });
+        });
+        list.querySelectorAll('.compound-date').forEach(inp => {
+            inp.addEventListener('change', e => updateField('date', parseInt(inp.dataset.idx), inp.value));
+        });
+        list.querySelectorAll('.compound-type').forEach(sel => {
+            sel.addEventListener('change', e => updateField('type', parseInt(sel.dataset.idx), sel.value));
+        });
+        list.querySelectorAll('.compound-cat').forEach(sel => {
+            sel.addEventListener('change', e => updateField('category', parseInt(sel.dataset.idx), sel.value));
+        });
+
+        // Botão × — remove o lançamento do rascunho
+        list.querySelectorAll('.compound-del-btn').forEach(btn => {
+            btn.addEventListener('click', e => {
+                e.preventDefault();
+                e.stopPropagation();
+                const idx = parseInt(btn.dataset.idx);
+                if (isNaN(idx) || !this._compoundDraft) return;
+                this._compoundDraft.splice(idx, 1);
+                this._renderCompoundModal(); // re-renderiza com índices atualizados
+                this.showToast('Lançamento removido', false, 1200);
+            });
+        });
     },
 
     async saveCompoundCommand() {
         const drafts = this._compoundDraft || [];
+        // Valida: precisa ter ao menos 1 com valor > 0
+        const valid = drafts.filter(p => p.value && p.value > 0);
+        if (!valid.length) {
+            this.showToast('⚠️ Nenhum lançamento válido (valor obrigatório)', true, 2500);
+            return;
+        }
+
         let saved = 0;
         const todayStr = new Date().toISOString().slice(0, 10);
-        for (const p of drafts) {
-            if (!p.value || p.value <= 0) continue;
+        for (const p of valid) {
             try {
                 await Storage.addTransaction({
                     value:       p.value,
