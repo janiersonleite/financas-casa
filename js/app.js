@@ -3436,32 +3436,81 @@ const App = {
 
             // Monta painel inline de transações
             const personTxns = (txnsByPerson[p.email] || []).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+
+            // Helper: renderiza um item de lançamento (usado por ambas as visões)
+            const renderItem = (t) => {
+                const beh      = Storage.getBehavior(t.type);
+                const isIncome = beh === 'soma';
+                const sign     = isIncome ? '+' : beh === 'subtrai' ? '-' : '±';
+                const color    = isIncome ? 'text-green-600' : beh === 'subtrai' ? 'text-red-600' : 'text-gray-500';
+                const badge    = this.getInserterBadge(t);
+                const catIcon  = this.getCategoryIcon(t.category);
+                return `
+                <div class="person-panel-item flex items-center gap-2 bg-white rounded-lg px-2.5 py-1.5 mb-1 border border-emerald-100 cursor-pointer hover:bg-emerald-50 transition-colors" data-id="${t.id}">
+                    <span class="text-base flex-shrink-0">${catIcon}</span>
+                    <div class="flex-1 min-w-0">
+                        <div class="text-xs font-medium text-gray-800 truncate">${t.description || t.category || '—'}</div>
+                        <div class="text-[10px] text-gray-400 truncate">${t.category || ''}${t.date ? ' · ' + t.date.slice(8) + '/' + this._monthAbbr(t.date) : ''}</div>
+                        ${badge ? `<div class="mt-0.5">${badge}</div>` : ''}
+                    </div>
+                    <div class="text-xs font-bold flex-shrink-0 ${color}">${sign}${this.formatCurrency(t.value)}</div>
+                </div>`;
+            };
+
+            // VISÃO 1: agrupada por data (padrão)
             const byDate = {};
             for (const t of personTxns) { const d = t.date || ''; if (!byDate[d]) byDate[d] = []; byDate[d].push(t); }
-
-            let panelHtml = '';
+            let byDateHtml = '';
             for (const [date, items] of Object.entries(byDate)) {
-                panelHtml += `<div class="text-[10px] font-semibold text-emerald-500 uppercase pt-2 pb-0.5 px-1">${this.formatDateGroup(date)}</div>`;
-                for (const t of items) {
-                    const beh      = Storage.getBehavior(t.type);
-                    const isIncome = beh === 'soma';
-                    const sign     = isIncome ? '+' : beh === 'subtrai' ? '-' : '±';
-                    const color    = isIncome ? 'text-green-600' : beh === 'subtrai' ? 'text-red-600' : 'text-gray-500';
-                    const badge    = this.getInserterBadge(t);
-                    const catIcon  = this.getCategoryIcon(t.category);
-                    panelHtml += `
-                    <div class="person-panel-item flex items-center gap-2 bg-white rounded-lg px-2.5 py-1.5 mb-1 border border-emerald-100 cursor-pointer hover:bg-emerald-50 transition-colors" data-id="${t.id}">
-                        <span class="text-base flex-shrink-0">${catIcon}</span>
-                        <div class="flex-1 min-w-0">
-                            <div class="text-xs font-medium text-gray-800 truncate">${t.description || t.category || '—'}</div>
-                            <div class="text-[10px] text-gray-400 truncate">${t.category || ''}${t.date ? ' · ' + t.date.slice(8) + '/' + this._monthAbbr(t.date) : ''}</div>
-                            ${badge ? `<div class="mt-0.5">${badge}</div>` : ''}
-                        </div>
-                        <div class="text-xs font-bold flex-shrink-0 ${color}">${sign}${this.formatCurrency(t.value)}</div>
-                    </div>`;
-                }
+                byDateHtml += `<div class="text-[10px] font-semibold text-emerald-500 uppercase pt-2 pb-0.5 px-1">${this.formatDateGroup(date)}</div>`;
+                for (const t of items) byDateHtml += renderItem(t);
             }
-            if (!panelHtml) panelHtml = '<p class="text-xs text-gray-400 py-2 text-center">Sem lançamentos</p>';
+
+            // VISÃO 2: agrupada por categoria — soma por categoria (apenas saídas para o ranking),
+            //          mas exibe entradas/neutros também. Categorias ordenadas por total gasto desc.
+            const byCat = {};
+            for (const t of personTxns) {
+                const cat = t.category || 'Sem categoria';
+                if (!byCat[cat]) byCat[cat] = { items: [], expense: 0, income: 0 };
+                byCat[cat].items.push(t);
+                const beh = Storage.getBehavior(t.type);
+                if (beh === 'subtrai') byCat[cat].expense += Number(t.value) || 0;
+                else if (beh === 'soma') byCat[cat].income += Number(t.value) || 0;
+            }
+            const catsSorted = Object.entries(byCat).sort((a, b) => b[1].expense - a[1].expense);
+            let byCatHtml = '';
+            for (const [cat, info] of catsSorted) {
+                const catIcon = this.getCategoryIcon(cat);
+                const totalLine = info.expense > 0
+                    ? `<span class="text-red-600 font-bold">-${this.formatCurrency(info.expense)}</span>`
+                    : info.income > 0 ? `<span class="text-green-600 font-bold">+${this.formatCurrency(info.income)}</span>`
+                    : '';
+                byCatHtml += `
+                <div class="flex items-center justify-between pt-2 pb-0.5 px-1">
+                    <div class="text-[10px] font-semibold text-emerald-600 uppercase flex items-center gap-1">
+                        <span class="text-sm">${catIcon}</span>${this._escHtml(cat)}
+                        <span class="text-gray-400 normal-case">· ${info.items.length}</span>
+                    </div>
+                    <div class="text-[11px]">${totalLine}</div>
+                </div>`;
+                // Itens da categoria, do maior valor para o menor
+                const sortedItems = [...info.items].sort((a, b) => (Number(b.value) || 0) - (Number(a.value) || 0));
+                for (const t of sortedItems) byCatHtml += renderItem(t);
+            }
+
+            // Toggle de visualização (apenas se houver lançamentos)
+            let panelHtml = '';
+            if (personTxns.length) {
+                panelHtml = `
+                <div class="flex gap-1 bg-white rounded-full p-1 mb-2 sticky top-0 z-10" data-view-toggle>
+                    <button class="view-btn flex-1 text-[11px] font-semibold py-1.5 px-2 rounded-full transition-all bg-emerald-500 text-white" data-view="date">📅 Por data</button>
+                    <button class="view-btn flex-1 text-[11px] font-semibold py-1.5 px-2 rounded-full transition-all text-gray-500 hover:bg-emerald-50" data-view="cat">🏷️ Por categoria</button>
+                </div>
+                <div data-view-content="date">${byDateHtml}</div>
+                <div data-view-content="cat" class="hidden">${byCatHtml}</div>`;
+            } else {
+                panelHtml = '<p class="text-xs text-gray-400 py-2 text-center">Sem lançamentos</p>';
+            }
 
             html += `
             <div class="border-b border-gray-100 last:border-0">
@@ -3498,6 +3547,27 @@ const App = {
                 const open    = !panel.classList.contains('hidden');
                 panel.classList.toggle('hidden', open);
                 chevron.style.transform = open ? '' : 'rotate(180deg)';
+            });
+        });
+
+        // Toggle de visualização (Por data / Por categoria) dentro do painel
+        bd.querySelectorAll('.view-btn').forEach(btn => {
+            btn.addEventListener('click', e => {
+                e.stopPropagation();
+                const view  = btn.dataset.view;
+                const panel = btn.closest('.person-txn-panel');
+                if (!panel) return;
+                // Alterna botões
+                panel.querySelectorAll('.view-btn').forEach(b => {
+                    const active = b.dataset.view === view;
+                    b.classList.toggle('bg-emerald-500', active);
+                    b.classList.toggle('text-white', active);
+                    b.classList.toggle('text-gray-500', !active);
+                });
+                // Alterna conteúdo
+                panel.querySelectorAll('[data-view-content]').forEach(c => {
+                    c.classList.toggle('hidden', c.dataset.viewContent !== view);
+                });
             });
         });
 
