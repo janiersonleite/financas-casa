@@ -333,6 +333,31 @@ const Storage = {
         return list;
     },
 
+    // ── Pendências dispensadas (não reaparecem após o usuário ignorar) ────────
+    _DISMISSED_KEY: 'pendings_dismissed',
+    _getDismissed() {
+        try { return new Set(JSON.parse(localStorage.getItem(this._DISMISSED_KEY) || '[]')); } catch { return new Set(); }
+    },
+    _saveDismissed(set) {
+        try { localStorage.setItem(this._DISMISSED_KEY, JSON.stringify([...set])); } catch {}
+    },
+    isPendingDismissed(key) {
+        return this._getDismissed().has(key);
+    },
+    dismissPending(key) {
+        const set = this._getDismissed();
+        set.add(key);
+        this._saveDismissed(set);
+    },
+    restorePending(key) {
+        const set = this._getDismissed();
+        set.delete(key);
+        this._saveDismissed(set);
+    },
+    clearAllDismissedPendings() {
+        try { localStorage.removeItem(this._DISMISSED_KEY); } catch {}
+    },
+
     // ── Metas por categoria (localStorage por finança) ────────────────────────
     _goalsKey(fid) {
         return 'category_goals_' + (fid || 'personal');

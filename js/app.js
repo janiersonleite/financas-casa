@@ -3783,6 +3783,9 @@ const App = {
     },
 
     // ─── Reconciliação ────────────────────────────────────────────────────────
+    // Gera chave estável para cada pendência (usada para "dispensar")
+    _pendingKey(type, identifier) { return `${type}::${identifier}`; },
+
     async renderReconcileSection(monthTxns) {
         const card = document.getElementById('reconcile-card');
         const list = document.getElementById('reconcile-list');
@@ -3800,12 +3803,21 @@ const App = {
         // Mal categorizadas (no mês atual)
         const miscategorized = Insights.findMiscategorized(monthTxns, (text) => NLP.extractCategoryStatic(text));
 
+        // Filtra pendências já dispensadas
+        const filteredDupes  = dupes.filter(g => !Storage.isPendingDismissed(this._pendingKey('dupe', [...g.map(t => t.id)].sort().join('|'))));
+        const filteredMiss   = missing.filter(m => !Storage.isPendingDismissed(this._pendingKey('miss', m.group_id)));
+        const filteredMiscat = miscategorized.filter(it => !Storage.isPendingDismissed(this._pendingKey('miscat', it.tx.id)));
+
         const blocks = [];
 
-        if (dupes.length) {
-            const dupHtml = dupes.map(group => `
-                <div class="bg-yellow-50 border border-yellow-200 rounded-xl p-2.5">
-                    <p class="font-semibold text-yellow-800 mb-1">🔁 ${group.length} lançamentos similares em ${group[0].date}</p>
+        if (filteredDupes.length) {
+            const dupHtml = filteredDupes.map(group => {
+                const key = this._pendingKey('dupe', [...group.map(t => t.id)].sort().join('|'));
+                return `
+                <div class="relative bg-yellow-50 border border-yellow-200 rounded-xl p-2.5">
+                    <button class="pending-dismiss absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-white border border-yellow-200 text-yellow-700 text-xs flex items-center justify-center hover:bg-yellow-100"
+                            title="Dispensar este aviso" data-dismiss-key="${this._escHtml(key)}">×</button>
+                    <p class="font-semibold text-yellow-800 mb-1 pr-7">🔁 ${group.length} lançamentos similares em ${group[0].date}</p>
                     ${group.map(t => `
                         <div class="flex items-center justify-between mt-1">
                             <span class="text-gray-700 truncate">${this._escHtml(t.description || t.category || '')}</span>
@@ -3815,27 +3827,45 @@ const App = {
                     <button class="dupe-del-btn mt-2 w-full text-[10px] font-semibold bg-red-500 text-white py-1.5 rounded-lg" data-ids="${group.slice(1).map(t => t.id).join(',')}">
                         Remover ${group.length - 1} duplicata${group.length - 1 > 1 ? 's' : ''}
                     </button>
-                </div>
-            `).join('');
+                </div>`;
+            }).join('');
             blocks.push(dupHtml);
         }
 
-        if (missing.length) {
-            const missHtml = missing.map(m => `
-                <div class="bg-orange-50 border border-orange-200 rounded-xl p-2.5">
-                    <p class="font-semibold text-orange-800 mb-1">📦 Parcela faltando: ${this._escHtml(m.description || '')}</p>
+        if (filteredMiss.length) {
+            const missHtml = filteredMiss.map(m => {
+                const key = this._pendingKey('miss', m.group_id);
+                return `
+                <div class="relative bg-orange-50 border border-orange-200 rounded-xl p-2.5">
+                    <button class="pending-dismiss absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-white border border-orange-200 text-orange-700 text-xs flex items-center justify-center hover:bg-orange-100"
+                            title="Dispensar este aviso" data-dismiss-key="${this._escHtml(key)}">×</button>
+                    <p class="font-semibold text-orange-800 mb-1 pr-7">📦 Parcela faltando: ${this._escHtml(m.description || '')}</p>
                     <p class="text-gray-600">${m.missing.length} de ${m.total} parcelas não foram lançadas</p>
                     <p class="text-[10px] text-gray-500">Faltando: ${m.missing.map(g => `${g.num}/${m.total}`).join(', ')}</p>
                     <button class="miss-create-btn mt-2 w-full text-[10px] font-semibold bg-orange-500 text-white py-1.5 rounded-lg"
                             data-group="${m.group_id}">Criar parcelas faltantes</button>
-                </div>
-            `).join('');
+                </div>`;
+            }).join('');
             blocks.push(missHtml);
         }
 
-        if (miscategorized.length) {
-            blocks.push(`<button id="open-recat-btn" class="w-full bg-violet-50 border border-violet-200 text-violet-700 rounded-xl p-2.5 text-left font-semibold">
-                🤖 ${miscategorized.length} lançamento${miscategorized.length !== 1 ? 's' : ''} podem estar mal categorizado${miscategorized.length !== 1 ? 's' : ''} — revisar
+        if (filteredMiscat.length) {
+            const miscatKeys = filteredMiscat.map(it => this._pendingKey('miscat', it.tx.id)).join(',');
+            blocks.push(`
+                <div class="relative bg-violet-50 border border-violet-200 rounded-xl">
+                    <button class="pending-dismiss absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-white border border-violet-200 text-violet-700 text-xs flex items-center justify-center hover:bg-violet-100"
+                            title="Dispensar todos estes avisos" data-dismiss-key="${this._escHtml(miscatKeys)}">×</button>
+                    <button id="open-recat-btn" class="w-full text-violet-700 p-2.5 text-left font-semibold pr-9">
+                        🤖 ${filteredMiscat.length} lançamento${filteredMiscat.length !== 1 ? 's' : ''} podem estar mal categorizado${filteredMiscat.length !== 1 ? 's' : ''} — revisar
+                    </button>
+                </div>`);
+        }
+
+        // Botão "Mostrar dispensadas" — se houver alguma escondida
+        const totalHidden = (dupes.length - filteredDupes.length) + (missing.length - filteredMiss.length) + (miscategorized.length - filteredMiscat.length);
+        if (totalHidden > 0) {
+            blocks.push(`<button id="pendings-restore-btn" class="w-full text-[11px] text-gray-500 hover:text-gray-700 py-1.5">
+                ↩️ Mostrar ${totalHidden} aviso${totalHidden !== 1 ? 's' : ''} dispensado${totalHidden !== 1 ? 's' : ''}
             </button>`);
         }
 
@@ -3844,8 +3874,8 @@ const App = {
         else card.classList.add('hidden');
 
         // Handlers
-        this._miscategorizedCache = miscategorized;
-        this._missingInstallmentsCache = missing;
+        this._miscategorizedCache = filteredMiscat;
+        this._missingInstallmentsCache = filteredMiss;
 
         list.querySelectorAll('.dupe-del-btn').forEach(btn => {
             btn.addEventListener('click', async () => {
@@ -3864,6 +3894,24 @@ const App = {
         });
 
         document.getElementById('open-recat-btn')?.addEventListener('click', () => this.openRecategorizeModal());
+
+        // Botão "×" → dispensa o aviso (sem confirmação, é não-destrutivo e reversível)
+        list.querySelectorAll('.pending-dismiss').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const keys = btn.dataset.dismissKey.split(',').filter(Boolean);
+                for (const k of keys) Storage.dismissPending(k);
+                this.showToast(`Aviso dispensado${keys.length > 1 ? 's' : ''}`, false, 1500);
+                this.renderReconcileSection(monthTxns);
+            });
+        });
+
+        // Botão "Mostrar dispensadas" → restaura todas
+        document.getElementById('pendings-restore-btn')?.addEventListener('click', () => {
+            Storage.clearAllDismissedPendings();
+            this.showToast('Avisos restaurados', false, 1500);
+            this.renderReconcileSection(monthTxns);
+        });
     },
 
     async _createMissingInstallments(groupId) {
