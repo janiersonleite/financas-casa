@@ -1556,6 +1556,23 @@
                     <option value="entrada">💰 Entrada (Receita)</option>
                 </select>
             </div>
+            <!-- Duração / Recorrência -->
+            <div>
+                <label class="text-xs text-gray-500 font-medium mb-1 block">Duração</label>
+                <select id="reminder-duration-input" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300">
+                    <option value="0">♾️ Sempre (sem prazo)</option>
+                    <option value="1">1 mês</option>
+                    <option value="2">2 meses</option>
+                    <option value="3">3 meses</option>
+                    <option value="6">6 meses</option>
+                    <option value="12">12 meses</option>
+                    <option value="24">24 meses</option>
+                    <option value="36">36 meses</option>
+                    <option value="custom">Outro…</option>
+                </select>
+                <input id="reminder-duration-custom" type="number" min="1" max="240" placeholder="Quantos meses?" class="hidden mt-2 w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300">
+                <p id="reminder-duration-info" class="text-[10px] text-gray-400 mt-1">O lembrete aparecerá todo mês até ser excluído.</p>
+            </div>
         </div>
         <div class="px-4 pb-5 flex gap-2">
             <button id="reminder-form-cancel" class="flex-1 py-3 rounded-xl bg-gray-100 text-gray-600 text-sm font-semibold">Cancelar</button>

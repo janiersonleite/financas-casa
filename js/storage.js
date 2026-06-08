@@ -733,11 +733,11 @@ const Storage = {
                 // Sincroniza cache local
                 const all = this._getLocalReminders().filter(r => r._localOnly);
                 this._saveLocalReminders([...(data ?? []), ...all]);
-                return data ?? [];
+                return this._applyReminderDurations(data ?? []);
             } catch (_) {}
         }
         // Local fallback: filtra por finança
-        return this._getLocalReminders().filter(r => fid ? r.financa_id === fid : !r.financa_id);
+        return this._applyReminderDurations(this._getLocalReminders().filter(r => fid ? r.financa_id === fid : !r.financa_id));
     },
 
     // Busca lembretes de uma finança específica (independente da ativa)
@@ -751,28 +751,65 @@ const Storage = {
                 q = q.order('day', { ascending: true });
                 const { data, error } = await q;
                 if (error) throw error;
-                return data ?? [];
+                return this._applyReminderDurations(data ?? []);
             } catch (_) { return []; }
         }
-        return this._getLocalReminders().filter(r => safeFid ? r.financa_id === safeFid : !r.financa_id);
+        return this._applyReminderDurations(this._getLocalReminders().filter(r => safeFid ? r.financa_id === safeFid : !r.financa_id));
     },
 
-    async createReminder({ name, day, amount, category, type, emoji, financa_id }) {
+    // ── Durações de lembretes (localStorage — fallback se Supabase não tem a coluna) ──
+    _REM_DUR_KEY: 'reminder_durations',
+    _getReminderDurations() {
+        try { return JSON.parse(localStorage.getItem(this._REM_DUR_KEY) || '{}'); } catch { return {}; }
+    },
+    _setReminderDuration(id, months) {
+        try {
+            const map = this._getReminderDurations();
+            if (months && months > 0) map[id] = Number(months);
+            else                       delete map[id];
+            localStorage.setItem(this._REM_DUR_KEY, JSON.stringify(map));
+        } catch {}
+    },
+    // Aplica a duração local em cima de uma lista de reminders (merge não-destrutivo)
+    _applyReminderDurations(list) {
+        const map = this._getReminderDurations();
+        return (list || []).map(r => {
+            const localDur = map[r.id];
+            // localStorage tem prioridade — fonte da verdade local
+            if (localDur !== undefined) return { ...r, duration_months: localDur };
+            return r;
+        });
+    },
+
+    async createReminder({ name, day, amount, category, type, emoji, financa_id, duration_months }) {
         const fid = financa_id ?? ((this.activeFinancaId && this.activeFinancaId !== 'null') ? this.activeFinancaId : null);
         const localId = 'rem_' + Date.now().toString(36);
         const base = { name, day: Number(day), amount: Number(amount) || 0, category: category || '', type: type || 'saida', emoji: emoji || '🔔', active: true };
+        const durMonths = Number(duration_months) || 0;
         if (this.isCloud) {
             try {
-                const payload = { ...base, user_id: this.userId(), ...(fid ? { financa_id: fid } : {}) };
-                const { data, error } = await this.db.from('reminders').insert(payload).select().single();
+                // Tenta enviar com duration_months; se a coluna não existir, faz fallback sem ela
+                const payloadWithDur = { ...base, user_id: this.userId(), ...(fid ? { financa_id: fid } : {}), ...(durMonths > 0 ? { duration_months: durMonths } : {}) };
+                let data, error;
+                ({ data, error } = await this.db.from('reminders').insert(payloadWithDur).select().single());
+                if (error && /duration_months/i.test(error.message || '')) {
+                    // Coluna ausente: insere sem o campo
+                    const { user_id, financa_id, ...rest } = payloadWithDur;
+                    delete rest.duration_months;
+                    ({ data, error } = await this.db.from('reminders').insert({ ...rest, user_id, ...(fid ? { financa_id } : {}) }).select().single());
+                }
                 if (error) throw error;
+                // Salva duração no localStorage (fonte da verdade local)
+                this._setReminderDuration(data.id, durMonths);
+                data.duration_months = durMonths;
                 const list = this._getLocalReminders();
                 list.push(data);
                 this._saveLocalReminders(list);
                 return data;
             } catch (_) {}
         }
-        const rem = { ...base, id: localId, user_id: 'local', _localOnly: true, ...(fid ? { financa_id: fid } : {}), created_at: new Date().toISOString() };
+        const rem = { ...base, id: localId, user_id: 'local', _localOnly: true, ...(fid ? { financa_id: fid } : {}), created_at: new Date().toISOString(), duration_months: durMonths };
+        this._setReminderDuration(localId, durMonths);
         const list = this._getLocalReminders();
         list.push(rem);
         this._saveLocalReminders(list);
@@ -780,8 +817,20 @@ const Storage = {
     },
 
     async updateReminder(id, updates) {
+        // duration_months sempre é gravado no localStorage (fonte da verdade local)
+        if (Object.prototype.hasOwnProperty.call(updates, 'duration_months')) {
+            this._setReminderDuration(id, updates.duration_months);
+        }
         if (this.isCloud) {
-            try { await this.db.from('reminders').update(updates).eq('id', id).eq('user_id', this.userId()); } catch (_) {}
+            try {
+                await this.db.from('reminders').update(updates).eq('id', id).eq('user_id', this.userId());
+            } catch (_) {
+                // Se erro de coluna duration_months, tenta sem o campo
+                const { duration_months, ...rest } = updates;
+                if (Object.keys(rest).length) {
+                    try { await this.db.from('reminders').update(rest).eq('id', id).eq('user_id', this.userId()); } catch (__) {}
+                }
+            }
         }
         const list = this._getLocalReminders();
         const idx = list.findIndex(r => r.id === id);
@@ -792,6 +841,7 @@ const Storage = {
         if (this.isCloud) {
             try { await this.db.from('reminders').delete().eq('id', id).eq('user_id', this.userId()); } catch (_) {}
         }
+        this._setReminderDuration(id, 0); // remove duração do localStorage
         this._saveLocalReminders(this._getLocalReminders().filter(r => r.id !== id));
     },
 

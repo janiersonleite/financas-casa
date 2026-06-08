@@ -1599,6 +1599,7 @@ const App = {
             ...t,
             reminders: this.reminders.filter(r =>
                 r.active !== false &&
+                !this._isReminderExpired(r) &&
                 !this.isReminderPaid(r.id) &&
                 this._daysUntilDue(r.day) === t.offset
             ),
@@ -1727,7 +1728,7 @@ const App = {
             emptyBtn.addEventListener('click', () => this.openRemindersModal());
         }
 
-        const active = this.reminders.filter(r => r.active !== false);
+        const active = this.reminders.filter(r => r.active !== false && !this._isReminderExpired(r));
         if (!active.length) {
             // Mostra só o botão de acesso vazio
             if (emptyBtn) emptyBtn.classList.remove('hidden');
@@ -2181,11 +2182,15 @@ const App = {
         list.innerHTML = this.reminders.map(r => {
             const amt = r.amount > 0 ? ` · ${this.formatCurrency(r.amount)}` : '';
             const cat = r.category ? ` · ${r.category}` : '';
-            return `<div class="flex items-center gap-3 bg-gray-50 rounded-xl px-3 py-3 border border-gray-100">
+            const expired = this._isReminderExpired(r);
+            const durTxt  = this._reminderDurationText(r);
+            const opacity = expired ? 'opacity-50' : '';
+            const expiredBadge = expired ? '<span class="ml-1 inline-block bg-red-100 text-red-600 text-[9px] font-bold uppercase rounded px-1.5 py-0.5">expirado</span>' : '';
+            return `<div class="flex items-center gap-3 bg-gray-50 rounded-xl px-3 py-3 border border-gray-100 ${opacity}">
                 <span class="text-2xl">${r.emoji || '🔔'}</span>
                 <div class="flex-1 min-w-0">
-                    <div class="font-semibold text-gray-800 text-sm truncate">${r.name}</div>
-                    <div class="text-xs text-gray-400">Todo dia ${r.day}${cat}${amt}</div>
+                    <div class="font-semibold text-gray-800 text-sm truncate">${r.name}${expiredBadge}</div>
+                    <div class="text-xs text-gray-400">Todo dia ${r.day}${cat}${amt}${durTxt ? ' · ' + durTxt : ''}</div>
                 </div>
                 <button class="reminder-edit-btn p-1.5 rounded-lg hover:bg-white text-gray-400 hover:text-emerald-600" data-id="${r.id}" title="Editar">✏️</button>
                 <button class="reminder-del-btn  p-1.5 rounded-lg hover:bg-white text-gray-400 hover:text-red-500"  data-id="${r.id}" title="Excluir">🗑️</button>
@@ -2198,6 +2203,30 @@ const App = {
         list.querySelectorAll('.reminder-del-btn').forEach(btn => {
             btn.addEventListener('click', () => this.deleteReminder(btn.dataset.id));
         });
+    },
+
+    // Verifica se o lembrete está fora do prazo configurado
+    // 0 ou ausência de duration_months => "sempre" (nunca expira)
+    _isReminderExpired(r) {
+        const months = Number(r?.duration_months) || 0;
+        if (months <= 0) return false; // sempre
+        if (!r.created_at) return false; // sem data → não expira
+        const start = new Date(r.created_at);
+        const end = new Date(start);
+        end.setMonth(end.getMonth() + months);
+        return new Date() > end;
+    },
+
+    // Retorna texto curto para mostrar a duração configurada
+    _reminderDurationText(r) {
+        const months = Number(r?.duration_months) || 0;
+        if (months <= 0) return ''; // sempre: não exibe nada
+        if (!r.created_at) return `${months} ${months === 1 ? 'mês' : 'meses'}`;
+        const start = new Date(r.created_at);
+        const end = new Date(start);
+        end.setMonth(end.getMonth() + months);
+        const endStr = end.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' });
+        return `até ${endStr}`;
     },
 
     openReminderForm(reminder = null) {
@@ -2222,8 +2251,71 @@ const App = {
             ...Storage.getCustomTypes().map(t => ({ id: t.id, name: `${t.emoji} ${t.name}` }))
         ];
         typeSel.innerHTML = allTypes.map(t => `<option value="${t.id}" ${reminder?.type === t.id ? 'selected' : ''}>${t.name}</option>`).join('');
+
+        // Duração — preenche select e campo customizado, e calcula info de "até quando"
+        const durSel    = document.getElementById('reminder-duration-input');
+        const durCustom = document.getElementById('reminder-duration-custom');
+        const durInfo   = document.getElementById('reminder-duration-info');
+        const months = Number(reminder?.duration_months || 0);
+        const presets = [0, 1, 2, 3, 6, 12, 24, 36];
+        if (months === 0 || presets.includes(months)) {
+            durSel.value = String(months);
+            durCustom.classList.add('hidden');
+            durCustom.value = '';
+        } else {
+            durSel.value = 'custom';
+            durCustom.classList.remove('hidden');
+            durCustom.value = String(months);
+        }
+        this._updateReminderDurationInfo(reminder);
+
+        // Bind 1x dos eventos para alternar entre preset/custom (idempotente)
+        if (!durSel._bound) {
+            durSel.addEventListener('change', () => {
+                if (durSel.value === 'custom') {
+                    durCustom.classList.remove('hidden');
+                    durCustom.focus();
+                } else {
+                    durCustom.classList.add('hidden');
+                    durCustom.value = '';
+                }
+                this._updateReminderDurationInfo();
+            });
+            durCustom.addEventListener('input', () => this._updateReminderDurationInfo());
+            durSel._bound = true;
+        }
+
         document.getElementById('reminder-form-modal')?.classList.remove('hidden');
         document.getElementById('reminder-name-input').focus();
+    },
+
+    // Calcula a duração atual em meses (lendo o form) e mostra a data limite
+    _readReminderDurationMonths() {
+        const sel = document.getElementById('reminder-duration-input');
+        if (!sel) return 0;
+        if (sel.value === 'custom') {
+            const v = parseInt(document.getElementById('reminder-duration-custom').value);
+            return isNaN(v) || v < 1 ? 0 : v;
+        }
+        return parseInt(sel.value) || 0;
+    },
+
+    _updateReminderDurationInfo(reminder = null) {
+        const info = document.getElementById('reminder-duration-info');
+        if (!info) return;
+        const months = this._readReminderDurationMonths();
+        if (months === 0) {
+            info.textContent = 'O lembrete aparecerá todo mês até ser excluído.';
+            info.className = 'text-[10px] text-gray-400 mt-1';
+            return;
+        }
+        // Calcula data final a partir do created_at (se editando) ou hoje
+        const start = reminder?.created_at ? new Date(reminder.created_at) : new Date();
+        const end = new Date(start);
+        end.setMonth(end.getMonth() + months);
+        const endStr = end.toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' });
+        info.textContent = `Aparecerá por ${months} ${months === 1 ? 'mês' : 'meses'} (até ${endStr}).`;
+        info.className = 'text-[10px] text-emerald-600 mt-1 font-medium';
     },
 
     closeReminderForm() {
@@ -2316,6 +2408,7 @@ const App = {
         const catRaw   = document.getElementById('reminder-category-input').value;
         const category = catRaw === '__new__' ? '' : catRaw; // ignora opção de nova categoria não finalizada
         const type   = document.getElementById('reminder-type-input').value || 'saida';
+        const duration_months = this._readReminderDurationMonths(); // 0 = sempre
 
         if (!name) { document.getElementById('reminder-name-input').focus(); return; }
         if (!day || day < 1 || day > 31) { this.showToast('⚠️ Dia inválido (1–31)', true); return; }
@@ -2324,11 +2417,11 @@ const App = {
         btn.disabled = true; btn.textContent = 'Salvando...';
         try {
             if (this.editingReminderId) {
-                await Storage.updateReminder(this.editingReminderId, { name, day, amount, emoji, category, type });
+                await Storage.updateReminder(this.editingReminderId, { name, day, amount, emoji, category, type, duration_months });
                 const idx = this.reminders.findIndex(r => r.id === this.editingReminderId);
-                if (idx !== -1) this.reminders[idx] = { ...this.reminders[idx], name, day, amount, emoji, category, type };
+                if (idx !== -1) this.reminders[idx] = { ...this.reminders[idx], name, day, amount, emoji, category, type, duration_months };
             } else {
-                const r = await Storage.createReminder({ name, day, amount, emoji, category, type });
+                const r = await Storage.createReminder({ name, day, amount, emoji, category, type, duration_months });
                 this.reminders.push(r);
             }
             this.reminders.sort((a, b) => a.day - b.day);
