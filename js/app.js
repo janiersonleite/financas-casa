@@ -1763,10 +1763,22 @@ const App = {
 
         // ── Accent por urgência (só aplica a não pagos) ────────────────────────
         const accentFor = r => {
-            if (r.day < refDay)           return { iconBg:'#fff1f2', label:'#ef4444', badge:'⚠️ Vencido',        amtColor:'#ef4444', fill:'background:linear-gradient(90deg,#f87171,#ef4444)', btn:'#ef4444' };
-            if (r.day === refDay)         return { iconBg:'#fff7ed', label:'#f97316', badge:'📅 Vence hoje',      amtColor:'#f97316', fill:'background:linear-gradient(90deg,#fb923c,#f97316)', btn:'#f97316' };
-            if (r.day <= in7)             return { iconBg:'#f0fdf4', label:'#059669', badge:'📆 Próximos 7 dias', amtColor:'#059669', fill:'background:linear-gradient(90deg,#a3e635,#4ade80)', btn:'#059669' };
-            /* later */                   return { iconBg:'#f8fafc', label:'#64748b', badge:'🗓️ Este mês',        amtColor:'#374151', fill:'background:linear-gradient(90deg,#94a3b8,#64748b)', btn:'#64748b' };
+            const daysUntil = r.day - refDay; // só faz sentido se isCurrentMonth (refDay > 0)
+            if (r.day < refDay) {
+                const overdue = refDay - r.day;
+                return { iconBg:'#fff1f2', label:'#ef4444', badge:`⚠️ Vencido há ${overdue} dia${overdue !== 1 ? 's' : ''}`, amtColor:'#ef4444', fill:'background:linear-gradient(90deg,#f87171,#ef4444)', btn:'#ef4444' };
+            }
+            if (r.day === refDay) {
+                return { iconBg:'#fff7ed', label:'#f97316', badge:'📅 Vence hoje', amtColor:'#f97316', fill:'background:linear-gradient(90deg,#fb923c,#f97316)', btn:'#f97316' };
+            }
+            if (isCurrentMonth && daysUntil === 1) {
+                return { iconBg:'#fff7ed', label:'#f97316', badge:'📅 Vence amanhã', amtColor:'#f97316', fill:'background:linear-gradient(90deg,#fb923c,#f97316)', btn:'#f97316' };
+            }
+            if (isCurrentMonth && daysUntil <= 7) {
+                return { iconBg:'#f0fdf4', label:'#059669', badge:`📆 Faltam ${daysUntil} dias`, amtColor:'#059669', fill:'background:linear-gradient(90deg,#a3e635,#4ade80)', btn:'#059669' };
+            }
+            /* later */
+            return { iconBg:'#f8fafc', label:'#64748b', badge:'🗓️ Este mês', amtColor:'#374151', fill:'background:linear-gradient(90deg,#94a3b8,#64748b)', btn:'#64748b' };
         };
 
         // ── Deal-card builder (reference design style) ──────────────────────────
