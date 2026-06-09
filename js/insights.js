@@ -239,13 +239,15 @@ const Insights = {
 
             let level = 'ok';
             let message = '';
-            if (pct >= 100) {
+            if (pct > 100) {
+                // Estourou: só alerta se realmente ULTRAPASSOU a meta (não exibe quando == 100%)
                 level = 'danger';
                 message = `Você estourou a meta de ${cat}: ${this._money(spent)} de ${this._money(limit)} (${pct.toFixed(0)}%).`;
-            } else if (pct >= 80) {
+            } else if (pct >= 80 && pct < 100) {
+                // 100% exato é silencioso: meta batida no limite, sem precisar alertar
                 level = 'warning';
                 message = `Você está em ${pct.toFixed(0)}% da meta de ${cat} e ainda faltam ${daysRemaining} dia${daysRemaining !== 1 ? 's' : ''} do mês.`;
-            } else if (pct > expectedPct + 25) {
+            } else if (pct < 100 && pct > expectedPct + 25) {
                 level = 'attention';
                 message = `Gasto com ${cat} acelerado: ${pct.toFixed(0)}% da meta com ${expectedPct.toFixed(0)}% do mês passado.`;
             } else continue;
