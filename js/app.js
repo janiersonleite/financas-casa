@@ -1254,9 +1254,12 @@ const App = {
                     }
                     const toUpdate = choice === 'all' ? groupTxns : choice === 'future' ? futureTxns : [original];
                     for (const tx of toUpdate) {
+                        // Se editar APENAS esta parcela, respeita a nova data do form.
+                        // Se editar todas/futuras, mantém a data individual (uma por mês).
+                        const newDate = choice === 'single' ? base.date : tx.date;
                         await Storage.updateTransaction(tx.id, {
                             ...base,
-                            date:        tx.date,  // mantém a data de cada parcela
+                            date:        newDate,
                             description: `${baseDesc} (${tx.installment_current}/${tx.installment_total})`,
                         });
                     }
