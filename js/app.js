@@ -1803,6 +1803,11 @@ const App = {
 
             const amtTxt = r.amount > 0 ? this.formatCurrency(r.amount) : '—';
             const dayTxt = `Dia ${r.day}${r.category ? ' · ' + r.category : ''}`;
+            const installBadge = this._reminderInstallmentBadge(r, viewMonth);
+            const isUnbounded  = this._reminderInstallmentInfo(r, viewMonth).type === 'unbounded';
+            const installColor = isUnbounded ? '#94a3b8' : '#7c3aed'; // cinza para sempre, violeta para parcelado
+            const installBg    = isUnbounded ? '#f1f5f9' : '#f5f3ff';
+            const installHtml  = `<span class="inline-flex items-center text-[9px] font-semibold rounded-full px-1.5 py-0.5 ml-1 align-middle" style="background:${installBg};color:${installColor}">${installBadge}</span>`;
 
             if (isPaid) {
                 const refMonth = this._reminderPaidMonth(r.id);
@@ -1814,7 +1819,7 @@ const App = {
                     <div class="flex items-center gap-2 mb-1.5">
                         <div class="w-7 h-7 rounded-lg flex items-center justify-center text-base flex-shrink-0" style="background:#f0fdf4">${r.emoji || '🔔'}</div>
                         <div class="flex-1 min-w-0">
-                            <div class="text-xs font-semibold text-gray-400 truncate line-through">${r.name}</div>
+                            <div class="text-xs font-semibold text-gray-400 truncate line-through">${r.name}${installHtml}</div>
                             <div class="text-[10px] text-green-500 font-medium">✅ Pago · ${monthName} · <span class="underline">ver lançamento</span></div>
                         </div>
                         <button class="reminder-unpay-btn text-[10px] text-gray-300 hover:text-red-400 px-1 flex-shrink-0" data-reminder-id="${r.id}" title="Desfazer">↩</button>
@@ -1832,7 +1837,7 @@ const App = {
                 <div class="flex items-center gap-2 mb-1.5">
                     <div class="w-7 h-7 rounded-lg flex items-center justify-center text-base flex-shrink-0" style="background:${accent.iconBg}">${r.emoji || '🔔'}</div>
                     <div class="flex-1 min-w-0">
-                        <div class="text-xs font-bold text-gray-800 truncate">${r.name}</div>
+                        <div class="text-xs font-bold text-gray-800 truncate">${r.name}${installHtml}</div>
                         <div class="text-[10px] font-medium" style="color:${accent.label}">${accent.badge}</div>
                     </div>
                     <span class="text-sm font-extrabold" style="color:${accent.amtColor}">${amtTxt}</span>
@@ -2186,14 +2191,25 @@ const App = {
             const amt = r.amount > 0 ? ` · ${this.formatCurrency(r.amount)}` : '';
             const cat = r.category ? ` · ${r.category}` : '';
             const expired = this._isReminderExpired(r);
-            const durTxt  = this._reminderDurationText(r);
+            const installInfo = this._reminderInstallmentInfo(r);
             const opacity = expired ? 'opacity-50' : '';
             const expiredBadge = expired ? '<span class="ml-1 inline-block bg-red-100 text-red-600 text-[9px] font-bold uppercase rounded px-1.5 py-0.5">expirado</span>' : '';
+
+            // Badge de parcela / sem prazo
+            const isUnbounded = installInfo.type === 'unbounded';
+            const badgeText   = isUnbounded
+                ? '♾️ Sem prazo'
+                : `📄 ${installInfo.current}/${installInfo.total}${installInfo.remaining > 0 ? ` · faltam ${installInfo.remaining}` : ' · última'}`;
+            const badgeColors = isUnbounded
+                ? 'bg-gray-100 text-gray-600'
+                : (installInfo.remaining === 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-violet-50 text-violet-700');
+            const installBadge = `<span class="ml-1 inline-block text-[10px] font-semibold rounded-full px-2 py-0.5 ${badgeColors}">${badgeText}</span>`;
+
             return `<div class="flex items-center gap-3 bg-gray-50 rounded-xl px-3 py-3 border border-gray-100 ${opacity}">
                 <span class="text-2xl">${r.emoji || '🔔'}</span>
                 <div class="flex-1 min-w-0">
-                    <div class="font-semibold text-gray-800 text-sm truncate">${r.name}${expiredBadge}</div>
-                    <div class="text-xs text-gray-400">Todo dia ${r.day}${cat}${amt}${durTxt ? ' · ' + durTxt : ''}</div>
+                    <div class="font-semibold text-gray-800 text-sm truncate">${r.name}${expiredBadge}${installBadge}</div>
+                    <div class="text-xs text-gray-400">Todo dia ${r.day}${cat}${amt}</div>
                 </div>
                 <button class="reminder-edit-btn p-1.5 rounded-lg hover:bg-white text-gray-400 hover:text-emerald-600" data-id="${r.id}" title="Editar">✏️</button>
                 <button class="reminder-del-btn  p-1.5 rounded-lg hover:bg-white text-gray-400 hover:text-red-500"  data-id="${r.id}" title="Excluir">🗑️</button>
@@ -2230,6 +2246,30 @@ const App = {
         end.setMonth(end.getMonth() + months);
         const endStr = end.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' });
         return `até ${endStr}`;
+    },
+
+    // Retorna info de parcela do lembrete (baseado no mês visualizado)
+    // - { type: 'unbounded' }                          → sem prazo determinado
+    // - { type: 'bounded', current, total, remaining } → parcela X/N
+    _reminderInstallmentInfo(r, viewMonth = null) {
+        const total = Number(r?.duration_months) || 0;
+        if (total <= 0) return { type: 'unbounded' };
+        if (!r.created_at) return { type: 'bounded', current: 1, total, remaining: total };
+        const start = new Date(r.created_at);
+        // Mês visualizado (padrão = mês atual)
+        const ref = viewMonth || (new Date().getFullYear() + '-' + String(new Date().getMonth() + 1).padStart(2, '0'));
+        const [vy, vm] = ref.split('-').map(Number);
+        const monthsDiff = (vy - start.getFullYear()) * 12 + ((vm - 1) - start.getMonth());
+        const current = Math.min(total, Math.max(1, monthsDiff + 1));
+        const remaining = Math.max(0, total - current);
+        return { type: 'bounded', current, total, remaining };
+    },
+
+    // Texto curto para exibir no card (♾️ Sem prazo  /  📄 Parcela 3/8)
+    _reminderInstallmentBadge(r, viewMonth = null) {
+        const info = this._reminderInstallmentInfo(r, viewMonth);
+        if (info.type === 'unbounded') return '♾️ Sem prazo';
+        return `📄 Parcela ${info.current}/${info.total}`;
     },
 
     openReminderForm(reminder = null) {
