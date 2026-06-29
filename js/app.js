@@ -2930,8 +2930,18 @@ const App = {
         if (!description || !category || category === 'Outros') return;
         const map  = this._getLearnedMap();
         const norm = str => str.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
-        const tokens = this._extractTokens(norm(description));
+        const normalized = norm(description);
 
+        // PRIORIDADE MÁXIMA: descrição exata (prefixo especial)
+        // Peso 10× porque match exato é muito mais confiável que tokens isolados.
+        if (normalized.length >= 2) {
+            const exactKey = `__exact__:${normalized}`;
+            if (!map[exactKey]) map[exactKey] = {};
+            map[exactKey][category] = (map[exactKey][category] || 0) + weight * 10;
+        }
+
+        // Fallback: tokens (frase completa, bigramas, palavras individuais)
+        const tokens = this._extractTokens(normalized);
         for (const token of tokens) {
             if (!map[token]) map[token] = {};
             map[token][category] = (map[token][category] || 0) + weight;
@@ -2943,16 +2953,20 @@ const App = {
 
     // Converte mapa de frequências → mapa simples { token: categoriaVencedora }
     // usado pelo NLP (que espera o formato simples)
+    // Para chaves __exact__:xxx, removemos o prefixo para que o NLP possa usar a
+    // descrição completa como termo de busca direto.
     _resolveLearnedMap(map) {
         const resolved = {};
         for (const [token, counts] of Object.entries(map)) {
             if (!counts || typeof counts !== 'object') {
-                // Compatibilidade com mapa antigo (valor era string direto)
                 if (typeof counts === 'string') resolved[token] = counts;
                 continue;
             }
             const best = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
-            if (best) resolved[token] = best[0];
+            if (!best) continue;
+            // Remove prefixo das chaves exatas para que o NLP encontre a frase no texto
+            const key = token.startsWith('__exact__:') ? token.slice('__exact__:'.length) : token;
+            resolved[key] = best[0];
         }
         return resolved;
     },
@@ -2962,21 +2976,60 @@ const App = {
         NLP.setLearnedMap(this._resolveLearnedMap(this._getLearnedMap()));
     },
 
-    // Aprende com todos os lançamentos já existentes (executa uma vez por sessão)
-    async _retroLearn(txns) {
-        // v3: stopWords expandido (temporais removidos), mapa regenerado limpo
-        const key = 'financas_retro_learned_v3';
-        if (localStorage.getItem(key)) return; // já executou
-        // Limpa mapa antigo (pode conter associações ruins com palavras temporais)
+    // Aprende com todos os lançamentos já existentes
+    // v4: aprende com TODO o histórico (até 12 meses), prioriza descrição exata,
+    //     e re-treina quando o nº de transações cresce ≥ 15 desde o último treino.
+    async _retroLearn(currentMonthTxns) {
+        const versionKey  = 'financas_retro_learned_v4';
+        const lastCountKey = 'financas_last_train_count';
+        const lastCount    = parseInt(localStorage.getItem(lastCountKey) || '0');
+
+        // Conta total de transações disponíveis no cache local (fonte rápida)
+        const cached = Storage._getCachedTx ? Storage._getCachedTx() : (currentMonthTxns || []);
+        const currentCount = cached.length || (currentMonthTxns?.length || 0);
+
+        const firstRun     = !localStorage.getItem(versionKey);
+        const shouldRetrain = firstRun || (currentCount - lastCount >= 15);
+        if (!shouldRetrain) return;
+
+        // Reset: rebuilda o mapa do zero
         try { localStorage.removeItem(this._LEARN_KEY); } catch {}
         NLP.setLearnedMap({});
-        if (!txns || !txns.length) return;
+
+        // Busca transações de TODOS os meses recentes (12 meses) para treinar com histórico completo
+        let allTxns = [];
+        try {
+            const months = [];
+            let ym = this.currentMonth;
+            for (let i = 0; i < 12; i++) { months.push(ym); ym = this.getPrevMonth(ym); }
+            const lists = await Promise.all(months.map(m => Storage.getTransactions({ month: m })));
+            allTxns = lists.flat();
+        } catch (_) {
+            allTxns = currentMonthTxns || [];
+        }
+
+        if (!allTxns.length) {
+            localStorage.setItem(versionKey, '1');
+            localStorage.setItem(lastCountKey, String(currentCount));
+            return;
+        }
+
         const map = this._getLearnedMap();
         const norm = str => str.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
 
-        for (const t of txns) {
+        for (const t of allTxns) {
             if (!t.description || !t.category || t.category === 'Outros') continue;
-            const tokens = this._extractTokens(norm(t.description));
+            const normDesc = norm(t.description);
+
+            // PRIORIDADE MÁXIMA: descrição exata, peso 10× para vencer tokens isolados
+            if (normDesc.length >= 2) {
+                const exactKey = `__exact__:${normDesc}`;
+                if (!map[exactKey]) map[exactKey] = {};
+                map[exactKey][t.category] = (map[exactKey][t.category] || 0) + 10;
+            }
+
+            // Fallback tradicional: tokens
+            const tokens = this._extractTokens(normDesc);
             for (const token of tokens) {
                 if (!map[token]) map[token] = {};
                 map[token][t.category] = (map[token][t.category] || 0) + 1;
@@ -2984,7 +3037,8 @@ const App = {
         }
         this._saveLearnedMap(map);
         NLP.setLearnedMap(this._resolveLearnedMap(map));
-        localStorage.setItem(key, '1');
+        localStorage.setItem(versionKey, '1');
+        localStorage.setItem(lastCountKey, String(currentCount));
     },
 
     // Testa se o texto tem associação aprendida; retorna { cat, confidence } ou null
@@ -2992,26 +3046,55 @@ const App = {
         if (!text || text.length < 2) return null;
         const map = this._getLearnedMap();
         if (!Object.keys(map).length) return null;
-        const norm = text.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+        const norm = text.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
 
-        // Testa tokens do texto contra o mapa, preferindo frases mais longas
+        // 🎯 PRIORIDADE 1: match exato de descrição (peso 10× no _learnCategory)
+        // Se a descrição inteira já foi vista antes, retorna a categoria com 100% de confiança
+        const exactKey = `__exact__:${norm}`;
+        if (map[exactKey] && typeof map[exactKey] === 'object') {
+            const best = Object.entries(map[exactKey]).sort((a, b) => b[1] - a[1])[0];
+            if (best) return { cat: best[0], confidence: 100 };
+        }
+
+        // 🎯 PRIORIDADE 2: match exato com lançamentos que CONTÊM o texto (substring inversa)
+        // Ex: usuário digitou "Padaria", mas tem aprendizado de "Padaria do João"
+        let bestSubstring = null;
+        for (const key of Object.keys(map)) {
+            if (!key.startsWith('__exact__:')) continue;
+            const stored = key.slice('__exact__:'.length);
+            // Match em ambas direções: stored contém norm OU norm contém stored
+            const contains = stored.includes(norm) || norm.includes(stored);
+            if (!contains) continue;
+            const counts = map[key];
+            if (typeof counts !== 'object') continue;
+            const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+            if (!top) continue;
+            // Pesa pela "qualidade" do match: quanto maior o overlap, melhor
+            const overlap = Math.min(stored.length, norm.length) / Math.max(stored.length, norm.length);
+            const score = top[1] * overlap;
+            if (!bestSubstring || score > bestSubstring.score) {
+                bestSubstring = { cat: top[0], score, overlap };
+            }
+        }
+        if (bestSubstring && bestSubstring.overlap >= 0.5) {
+            return { cat: bestSubstring.cat, confidence: Math.round(bestSubstring.overlap * 100) };
+        }
+
+        // 🎯 PRIORIDADE 3: matching por tokens (fallback do sistema antigo)
         const candidates = {};
         const tokens = this._extractTokens(norm);
-
         for (const token of tokens) {
+            if (token.startsWith('__exact__:')) continue;
             const counts = map[token];
             if (!counts) continue;
-            // Compatibilidade com formato antigo
             if (typeof counts === 'string') {
                 candidates[counts] = (candidates[counts] || 0) + token.split(' ').length;
                 continue;
             }
             for (const [cat, count] of Object.entries(counts)) {
-                // Peso: contagem × comprimento do token (frases longas = mais específicas)
                 candidates[cat] = (candidates[cat] || 0) + count * token.split(' ').length;
             }
         }
-
         if (!Object.keys(candidates).length) return null;
         const best = Object.entries(candidates).sort((a, b) => b[1] - a[1])[0];
         const total = Object.values(candidates).reduce((s, v) => s + v, 0);
