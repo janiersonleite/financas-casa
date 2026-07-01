@@ -1861,7 +1861,7 @@ const App = {
         // Injeta os cards numa div separada para não sobrescrever o botão vazio
         wrap.querySelectorAll('.reminder-cards-wrap').forEach(el => el.remove());
         const cardsDiv = document.createElement('div');
-        cardsDiv.className = 'reminder-cards-wrap space-y-3';
+        cardsDiv.className = 'reminder-cards-wrap grid grid-cols-2 gap-2';
         cardsDiv.innerHTML = html;
         wrap.appendChild(cardsDiv);
 
