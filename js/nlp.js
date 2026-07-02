@@ -418,20 +418,97 @@ const NLP = {
         return 'saida';
     },
 
-    // Verifica se o NOME de alguma categoria aparece como palavra inteira no texto.
-    // Prioriza nomes mais longos (ex: "Aluguel Casa" antes de "Casa").
-    // Ex: usuario tem categoria "Feira" e fala "feira" => retorna "Feira".
+    // Dicionário semantico: marca/produto → conceito
+    // Expande o texto para permitir que "unimed" case com categoria "Plano de saude"
+    _semanticExpansions: {
+        // Planos de saude
+        'unimed': 'plano saude',
+        'hapvida': 'plano saude',
+        'amil': 'plano saude',
+        'sulamerica': 'plano saude',
+        'notredame': 'plano saude',
+        'notre dame': 'plano saude',
+        'gndi': 'plano saude',
+        'bradesco saude': 'plano saude',
+        // Farmacia / medicamentos
+        'droga raia': 'farmacia remedio',
+        'drogasil': 'farmacia remedio',
+        'pacheco': 'farmacia remedio',
+        'panvel': 'farmacia remedio',
+        // Delivery / alimentacao
+        'ifood': 'delivery comida',
+        'rappi': 'delivery comida',
+        'uber eats': 'delivery comida',
+        // Transporte
+        '99 pop': 'transporte corrida',
+        '99pop': 'transporte corrida',
+        // Streaming
+        'netflix': 'streaming assinatura',
+        'spotify': 'streaming assinatura',
+        'disney plus': 'streaming assinatura',
+        'hbo max': 'streaming assinatura',
+        'prime video': 'streaming assinatura',
+        // Utilidades
+        'enel': 'energia luz',
+        'cemig': 'energia luz',
+        'coelba': 'energia luz',
+        'cagece': 'agua saneamento',
+        'sabesp': 'agua saneamento',
+        'copasa': 'agua saneamento',
+    },
+
+    _expandSemantic(text) {
+        let expanded = text;
+        for (const [brand, concept] of Object.entries(this._semanticExpansions)) {
+            if (text.includes(brand)) expanded += ' ' + concept;
+        }
+        return expanded;
+    },
+
+    // Extrai tokens significativos de um texto (>=3 chars, sem stopwords portuguesas)
+    _catTokens(text) {
+        const stop = new Set(['de', 'da', 'do', 'das', 'dos', 'e', 'a', 'o', 'as', 'os',
+                              'para', 'pra', 'com', 'em', 'na', 'no', 'nas', 'nos',
+                              'um', 'uma', 'uns', 'umas', 'ao', 'aos']);
+        return text.split(/\s+/).filter(w => w.length >= 3 && !stop.has(w));
+    },
+
+    // Verifica se o NOME de alguma categoria aparece como palavra inteira no texto,
+    // OU se ha sobreposicao significativa de tokens (>= 50%) considerando expansoes semanticas.
+    // Prioriza: (1) match exato da frase inteira, (2) maior sobreposicao proporcional.
     _matchCategoryByName(norm, catNames) {
-        const sorted = [...catNames]
-            .filter(n => n && n !== 'Outros')
-            .sort((a, b) => b.length - a.length);
+        const candidates = [...catNames].filter(n => n && n !== 'Outros');
+        if (!candidates.length) return null;
+        const sorted = [...candidates].sort((a, b) => b.length - a.length);
+
+        // FASE 1: match exato da frase inteira (comportamento anterior)
         for (const name of sorted) {
             const nameNorm = name.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
             if (!nameNorm) continue;
             const safe = nameNorm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
             if (new RegExp(`\\b${safe}\\b`, 'i').test(norm)) return name;
         }
-        return null;
+
+        // FASE 2: expande texto com dicionario semantico e tenta sobreposicao de tokens
+        const expanded = this._expandSemantic(norm);
+        const textTokens = new Set(this._catTokens(expanded));
+        if (!textTokens.size) return null;
+
+        let best = null;
+        for (const name of sorted) {
+            const nameNorm = name.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+            const nameTokens = this._catTokens(nameNorm);
+            if (nameTokens.length < 2) continue; // categorias de 1 palavra ja foram testadas na fase 1
+
+            const overlap = nameTokens.filter(t => textTokens.has(t)).length;
+            const ratio   = overlap / nameTokens.length;
+            if (ratio < 0.5) continue;
+
+            // Melhor = maior overlap absoluto; empate → maior ratio; empate → nome mais longo
+            const score = overlap * 100 + ratio * 10 + nameNorm.length * 0.01;
+            if (!best || score > best.score) best = { name, score, overlap, ratio };
+        }
+        return best?.name || null;
     },
 
     // Extrai categoria usando APENAS keywords estaticos (sem mapa aprendido).
