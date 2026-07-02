@@ -50,6 +50,8 @@ const App = {
     _modalCategories:   null,  // categorias do perfil escolhido no modal (null = usa o ativo)
     _modalReminders:    null,  // lembretes do perfil escolhido no modal (null = usa o ativo)
     _LEARN_KEY: 'financas_learned_cats',  // chave localStorage para aprendizado
+    _recentCatMap: null,                  // cache: descrição normalizada → { cat: score } dos últimos 3 meses
+    _recentCatMapLoadedAt: 0,             // timestamp do último rebuild (ms)
     _catUserPicked:     false,  // true quando usuário escolheu categoria manualmente no modal
 
     // ─── Init ─────────────────────────────────────────────────────────────────
@@ -76,6 +78,8 @@ const App = {
         this.bindReminderNewCat();
         this.bindInsightsHandlers();
         this._initLearnedMap();
+        // Mapa de histórico recente (últimos 3 meses) — carregado em background
+        setTimeout(() => this._buildRecentCategoryMap(true), 1500);
         const verEl = document.getElementById('app-version-label');
         if (verEl) verEl.textContent = `v ${APP_VERSION}`;
         await this.loadFinancas();
@@ -773,35 +777,42 @@ const App = {
 
                 // 1) Keywords estáticos via NLP — prioridade máxima (curados, específicos)
                 const nlpCat = NLP.extractCategoryStatic(text);
-                // 2) Mapa aprendido — usado quando NLP não achou match direto
+                // 2) 🆕 Histórico RECENTE (últimos 3 meses) — mais confiável que o mapa geral
+                const recentResult = this._suggestFromRecent(text);
+                // 3) Mapa aprendido geral (12+ meses) — fallback quando nada mais bater
                 const learnedResult = this._suggestLearnedCategory(text);
 
-                // Regra: keyword estático vence mapa aprendido com qualquer confiança;
-                // mapa aprendido só entra se não houver match estático.
-                let suggested, isLearned, confidence;
+                // Ordem: keyword estático > histórico recente > mapa aprendido geral
+                let suggested, source, confidence;
                 if (nlpCat && nlpCat !== 'Outros') {
                     suggested  = nlpCat;
-                    isLearned  = false;
+                    source     = 'static';
                     confidence = 0;
+                } else if (recentResult) {
+                    suggested  = recentResult.cat;
+                    source     = 'recent';
+                    confidence = recentResult.confidence;
                 } else if (learnedResult) {
                     suggested  = learnedResult.cat;
-                    isLearned  = true;
+                    source     = 'learned';
                     confidence = learnedResult.confidence;
                 } else {
                     suggested  = 'Outros';
-                    isLearned  = false;
+                    source     = null;
                     confidence = 0;
                 }
 
                 if (suggested && suggested !== 'Outros') {
                     catSel.value = suggested;
                     if (badge) {
-                        if (isLearned) {
+                        if (source === 'recent' || source === 'learned') {
                             badge.classList.remove('hidden');
                             badge.classList.add('inline-flex');
-                            // Mostra indicador de confiança: alto ≥70%, médio ≥40%, baixo <40%
-                            const level = confidence >= 70 ? '🧠' : confidence >= 40 ? '💡' : '❓';
-                            badge.textContent = `${level} Aprendido ${confidence}%`;
+                            const icon  = source === 'recent'
+                                ? (confidence >= 90 ? '🔥' : '📊')
+                                : (confidence >= 70 ? '🧠' : confidence >= 40 ? '💡' : '❓');
+                            const label = source === 'recent' ? 'Histórico recente' : 'Aprendido';
+                            badge.textContent = `${icon} ${label} ${confidence}%`;
                         } else {
                             badge.classList.add('hidden');
                             badge.classList.remove('inline-flex');
@@ -1284,6 +1295,10 @@ const App = {
 
             // Aprende associação descrição → categoria para sugestões futuras
             this._learnCategory(baseDesc, base.category);
+            // Invalida cache do histórico recente para refletir o novo lançamento
+            this._recentCatMap = null;
+            this._recentCatMapLoadedAt = 0;
+            setTimeout(() => this._buildRecentCategoryMap(true), 300);
 
             // Marca lembrete como pago se o modal foi aberto via "Registrar"
             const paidReminderId   = this._reminderSourceId;
@@ -3039,6 +3054,78 @@ const App = {
         NLP.setLearnedMap(this._resolveLearnedMap(map));
         localStorage.setItem(versionKey, '1');
         localStorage.setItem(lastCountKey, String(currentCount));
+    },
+
+    // ─── Sugestão por HISTÓRICO RECENTE (últimos 3 meses) ─────────────────────
+    // Constrói um mapa em memória a partir das transações dos últimos 3 meses.
+    // Peso por RECÊNCIA: mês atual = 3, anterior = 2, dois meses atrás = 1.
+    // Peso extra se a categoria ainda existe na lista atual do usuário.
+    async _buildRecentCategoryMap(force = false) {
+        // Rebuild no máximo a cada 60s (a menos que force=true)
+        const now = Date.now();
+        if (!force && this._recentCatMap && (now - this._recentCatMapLoadedAt) < 60_000) return;
+
+        try {
+            const months = [this.currentMonth];
+            for (let i = 0; i < 2; i++) months.push(this.getPrevMonth(months[months.length - 1]));
+            const lists = await Promise.all(months.map(m => Storage.getTransactions({ month: m })));
+
+            const norm = str => (str || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+            const userCats = new Set((this.categories || []).map(c => c.name));
+
+            const map = {};
+            months.forEach((m, idx) => {
+                const weight = 3 - idx; // 3 / 2 / 1
+                for (const t of lists[idx] || []) {
+                    if (!t.description || !t.category || t.category === 'Outros') continue;
+                    // Só considera categorias que ainda existem para o usuário
+                    if (userCats.size && !userCats.has(t.category)) continue;
+                    const key = norm(t.description);
+                    if (key.length < 2) continue;
+                    if (!map[key]) map[key] = {};
+                    map[key][t.category] = (map[key][t.category] || 0) + weight;
+                }
+            });
+
+            this._recentCatMap = map;
+            this._recentCatMapLoadedAt = now;
+        } catch (e) {
+            console.warn('_buildRecentCategoryMap:', e);
+            this._recentCatMap = this._recentCatMap || {};
+        }
+    },
+
+    // Consulta o mapa recente. Retorna { cat, confidence, source } ou null.
+    // Faz match: 1) exato  2) o texto contém a descrição salva  3) descrição salva contém o texto
+    _suggestFromRecent(text) {
+        if (!text || !this._recentCatMap) return null;
+        const norm = text.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+        if (norm.length < 2) return null;
+
+        // 1) Match exato — 100%
+        if (this._recentCatMap[norm]) {
+            const entries = Object.entries(this._recentCatMap[norm]);
+            const best = entries.sort((a, b) => b[1] - a[1])[0];
+            if (best) return { cat: best[0], confidence: 100, source: 'recent-exact' };
+        }
+
+        // 2/3) Substring: acumula scores de descrições que contêm/estão contidas
+        const candidates = {};
+        for (const [key, counts] of Object.entries(this._recentCatMap)) {
+            const contains = key.includes(norm) || norm.includes(key);
+            if (!contains) continue;
+            // Score proporcional ao overlap × peso da entrada
+            const overlap = Math.min(key.length, norm.length) / Math.max(key.length, norm.length);
+            if (overlap < 0.5) continue;
+            for (const [cat, count] of Object.entries(counts)) {
+                candidates[cat] = (candidates[cat] || 0) + count * overlap;
+            }
+        }
+        if (!Object.keys(candidates).length) return null;
+        const best = Object.entries(candidates).sort((a, b) => b[1] - a[1])[0];
+        const total = Object.values(candidates).reduce((s, v) => s + v, 0);
+        const confidence = Math.round((best[1] / total) * 100);
+        return { cat: best[0], confidence, source: 'recent-substring' };
     },
 
     // Testa se o texto tem associação aprendida; retorna { cat, confidence } ou null
