@@ -1834,7 +1834,7 @@ const App = {
                     <div class="flex items-center gap-2 mb-1.5">
                         <div class="w-7 h-7 rounded-lg flex items-center justify-center text-base flex-shrink-0" style="background:#f0fdf4">${r.emoji || '🔔'}</div>
                         <div class="flex-1 min-w-0">
-                            <div class="text-xs font-semibold text-gray-400 truncate line-through">${r.name}${installHtml}</div>
+                            <div class="text-xs font-semibold text-gray-400 line-through break-words">${r.name}${installHtml}</div>
                             <div class="text-[10px] text-green-500 font-medium">✅ Pago · ${monthName} · <span class="underline">ver lançamento</span></div>
                         </div>
                         <button class="reminder-unpay-btn text-[10px] text-gray-300 hover:text-red-400 px-1 flex-shrink-0" data-reminder-id="${r.id}" title="Desfazer">↩</button>
@@ -1852,7 +1852,7 @@ const App = {
                 <div class="flex items-center gap-2 mb-1.5">
                     <div class="w-7 h-7 rounded-lg flex items-center justify-center text-base flex-shrink-0" style="background:${accent.iconBg}">${r.emoji || '🔔'}</div>
                     <div class="flex-1 min-w-0">
-                        <div class="text-xs font-bold text-gray-800 truncate">${r.name}${installHtml}</div>
+                        <div class="text-xs font-bold text-gray-800 break-words leading-tight">${r.name}${installHtml}</div>
                         <div class="text-[10px] font-medium" style="color:${accent.label}">${accent.badge}</div>
                     </div>
                     <span class="text-sm font-extrabold" style="color:${accent.amtColor}">${amtTxt}</span>
