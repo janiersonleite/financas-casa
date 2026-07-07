@@ -759,6 +759,7 @@ const Storage = {
 
     // ── Durações de lembretes (localStorage — fallback se Supabase não tem a coluna) ──
     _REM_DUR_KEY: 'reminder_durations',
+    _REM_START_KEY: 'reminder_start_months',
     _getReminderDurations() {
         try { return JSON.parse(localStorage.getItem(this._REM_DUR_KEY) || '{}'); } catch { return {}; }
     },
@@ -770,46 +771,69 @@ const Storage = {
             localStorage.setItem(this._REM_DUR_KEY, JSON.stringify(map));
         } catch {}
     },
-    // Aplica a duração local em cima de uma lista de reminders (merge não-destrutivo)
+    // Mês de início do lembrete: string 'YYYY-MM' ou vazio para usar created_at
+    _getReminderStartMonths() {
+        try { return JSON.parse(localStorage.getItem(this._REM_START_KEY) || '{}'); } catch { return {}; }
+    },
+    _setReminderStartMonth(id, ym) {
+        try {
+            const map = this._getReminderStartMonths();
+            if (ym && /^\d{4}-\d{2}$/.test(ym)) map[id] = ym;
+            else                                 delete map[id];
+            localStorage.setItem(this._REM_START_KEY, JSON.stringify(map));
+        } catch {}
+    },
+    // Aplica duração + mês de início locais em cima de uma lista de reminders
     _applyReminderDurations(list) {
-        const map = this._getReminderDurations();
+        const durMap   = this._getReminderDurations();
+        const startMap = this._getReminderStartMonths();
         return (list || []).map(r => {
-            const localDur = map[r.id];
+            const out = { ...r };
+            const localDur   = durMap[r.id];
+            const localStart = startMap[r.id];
             // localStorage tem prioridade — fonte da verdade local
-            if (localDur !== undefined) return { ...r, duration_months: localDur };
-            return r;
+            if (localDur   !== undefined) out.duration_months = localDur;
+            if (localStart !== undefined) out.start_month     = localStart;
+            return out;
         });
     },
 
-    async createReminder({ name, day, amount, category, type, emoji, financa_id, duration_months }) {
+    async createReminder({ name, day, amount, category, type, emoji, financa_id, duration_months, start_month }) {
         const fid = financa_id ?? ((this.activeFinancaId && this.activeFinancaId !== 'null') ? this.activeFinancaId : null);
         const localId = 'rem_' + Date.now().toString(36);
         const base = { name, day: Number(day), amount: Number(amount) || 0, category: category || '', type: type || 'saida', emoji: emoji || '🔔', active: true };
-        const durMonths = Number(duration_months) || 0;
+        const durMonths  = Number(duration_months) || 0;
+        const startMonth = (start_month && /^\d{4}-\d{2}$/.test(start_month)) ? start_month : '';
         if (this.isCloud) {
             try {
-                // Tenta enviar com duration_months; se a coluna não existir, faz fallback sem ela
-                const payloadWithDur = { ...base, user_id: this.userId(), ...(fid ? { financa_id: fid } : {}), ...(durMonths > 0 ? { duration_months: durMonths } : {}) };
+                // Tenta enviar com duration_months + start_month; se coluna não existir, faz fallback
+                const payloadWithDur = { ...base, user_id: this.userId(), ...(fid ? { financa_id: fid } : {}),
+                    ...(durMonths > 0 ? { duration_months: durMonths } : {}),
+                    ...(startMonth   ? { start_month: startMonth } : {}) };
                 let data, error;
                 ({ data, error } = await this.db.from('reminders').insert(payloadWithDur).select().single());
-                if (error && /duration_months/i.test(error.message || '')) {
-                    // Coluna ausente: insere sem o campo
+                if (error && /(duration_months|start_month)/i.test(error.message || '')) {
+                    // Uma ou ambas colunas ausentes: insere sem os campos custom
                     const { user_id, financa_id, ...rest } = payloadWithDur;
                     delete rest.duration_months;
+                    delete rest.start_month;
                     ({ data, error } = await this.db.from('reminders').insert({ ...rest, user_id, ...(fid ? { financa_id } : {}) }).select().single());
                 }
                 if (error) throw error;
-                // Salva duração no localStorage (fonte da verdade local)
+                // Salva no localStorage (fonte da verdade local)
                 this._setReminderDuration(data.id, durMonths);
+                this._setReminderStartMonth(data.id, startMonth);
                 data.duration_months = durMonths;
+                if (startMonth) data.start_month = startMonth;
                 const list = this._getLocalReminders();
                 list.push(data);
                 this._saveLocalReminders(list);
                 return data;
             } catch (_) {}
         }
-        const rem = { ...base, id: localId, user_id: 'local', _localOnly: true, ...(fid ? { financa_id: fid } : {}), created_at: new Date().toISOString(), duration_months: durMonths };
+        const rem = { ...base, id: localId, user_id: 'local', _localOnly: true, ...(fid ? { financa_id: fid } : {}), created_at: new Date().toISOString(), duration_months: durMonths, ...(startMonth ? { start_month: startMonth } : {}) };
         this._setReminderDuration(localId, durMonths);
+        this._setReminderStartMonth(localId, startMonth);
         const list = this._getLocalReminders();
         list.push(rem);
         this._saveLocalReminders(list);
@@ -817,16 +841,19 @@ const Storage = {
     },
 
     async updateReminder(id, updates) {
-        // duration_months sempre é gravado no localStorage (fonte da verdade local)
+        // duration_months e start_month sempre no localStorage (fonte da verdade local)
         if (Object.prototype.hasOwnProperty.call(updates, 'duration_months')) {
             this._setReminderDuration(id, updates.duration_months);
+        }
+        if (Object.prototype.hasOwnProperty.call(updates, 'start_month')) {
+            this._setReminderStartMonth(id, updates.start_month);
         }
         if (this.isCloud) {
             try {
                 await this.db.from('reminders').update(updates).eq('id', id).eq('user_id', this.userId());
             } catch (_) {
-                // Se erro de coluna duration_months, tenta sem o campo
-                const { duration_months, ...rest } = updates;
+                // Se erro de coluna ausente, tenta sem os campos customizados
+                const { duration_months, start_month, ...rest } = updates;
                 if (Object.keys(rest).length) {
                     try { await this.db.from('reminders').update(rest).eq('id', id).eq('user_id', this.userId()); } catch (__) {}
                 }
@@ -841,7 +868,8 @@ const Storage = {
         if (this.isCloud) {
             try { await this.db.from('reminders').delete().eq('id', id).eq('user_id', this.userId()); } catch (_) {}
         }
-        this._setReminderDuration(id, 0); // remove duração do localStorage
+        this._setReminderDuration(id, 0);   // remove duração do localStorage
+        this._setReminderStartMonth(id, ''); // remove mês de início
         this._saveLocalReminders(this._getLocalReminders().filter(r => r.id !== id));
     },
 

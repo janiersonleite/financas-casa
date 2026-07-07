@@ -2239,13 +2239,26 @@ const App = {
         });
     },
 
+    // Retorna a data efetiva de início do lembrete (Date):
+    // 1º) start_month explícito ('YYYY-MM' → dia 1 do mês)
+    // 2º) created_at (comportamento anterior)
+    // 3º) null se nenhum
+    _reminderStartDate(r) {
+        if (r?.start_month && /^\d{4}-\d{2}$/.test(r.start_month)) {
+            const [y, m] = r.start_month.split('-').map(Number);
+            return new Date(y, m - 1, 1);
+        }
+        if (r?.created_at) return new Date(r.created_at);
+        return null;
+    },
+
     // Verifica se o lembrete está fora do prazo configurado
     // 0 ou ausência de duration_months => "sempre" (nunca expira)
     _isReminderExpired(r) {
         const months = Number(r?.duration_months) || 0;
         if (months <= 0) return false; // sempre
-        if (!r.created_at) return false; // sem data → não expira
-        const start = new Date(r.created_at);
+        const start = this._reminderStartDate(r);
+        if (!start) return false; // sem data → não expira
         const end = new Date(start);
         end.setMonth(end.getMonth() + months);
         return new Date() > end;
@@ -2255,8 +2268,8 @@ const App = {
     _reminderDurationText(r) {
         const months = Number(r?.duration_months) || 0;
         if (months <= 0) return ''; // sempre: não exibe nada
-        if (!r.created_at) return `${months} ${months === 1 ? 'mês' : 'meses'}`;
-        const start = new Date(r.created_at);
+        const start = this._reminderStartDate(r);
+        if (!start) return `${months} ${months === 1 ? 'mês' : 'meses'}`;
         const end = new Date(start);
         end.setMonth(end.getMonth() + months);
         const endStr = end.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' });
@@ -2269,8 +2282,8 @@ const App = {
     _reminderInstallmentInfo(r, viewMonth = null) {
         const total = Number(r?.duration_months) || 0;
         if (total <= 0) return { type: 'unbounded' };
-        if (!r.created_at) return { type: 'bounded', current: 1, total, remaining: total };
-        const start = new Date(r.created_at);
+        const start = this._reminderStartDate(r);
+        if (!start) return { type: 'bounded', current: 1, total, remaining: total };
         // Mês visualizado (padrão = mês atual)
         const ref = viewMonth || (new Date().getFullYear() + '-' + String(new Date().getMonth() + 1).padStart(2, '0'));
         const [vy, vm] = ref.split('-').map(Number);
@@ -2309,6 +2322,22 @@ const App = {
             ...Storage.getCustomTypes().map(t => ({ id: t.id, name: `${t.emoji} ${t.name}` }))
         ];
         typeSel.innerHTML = allTypes.map(t => `<option value="${t.id}" ${reminder?.type === t.id ? 'selected' : ''}>${t.name}</option>`).join('');
+
+        // Mês de início — preenche com start_month, ou created_at, ou mês atual
+        const startInput = document.getElementById('reminder-start-month');
+        if (startInput) {
+            let ymDefault;
+            if (reminder?.start_month && /^\d{4}-\d{2}$/.test(reminder.start_month)) {
+                ymDefault = reminder.start_month;
+            } else if (reminder?.created_at) {
+                const d = new Date(reminder.created_at);
+                ymDefault = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+            } else {
+                const d = new Date();
+                ymDefault = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+            }
+            startInput.value = ymDefault;
+        }
 
         // Duração — preenche select e campo customizado, e calcula info de "até quando"
         const durSel    = document.getElementById('reminder-duration-input');
@@ -2467,6 +2496,9 @@ const App = {
         const category = catRaw === '__new__' ? '' : catRaw; // ignora opção de nova categoria não finalizada
         const type   = document.getElementById('reminder-type-input').value || 'saida';
         const duration_months = this._readReminderDurationMonths(); // 0 = sempre
+        // Mês de início (YYYY-MM). Vazio = usa created_at (comportamento antigo).
+        const startRaw    = document.getElementById('reminder-start-month')?.value || '';
+        const start_month = /^\d{4}-\d{2}$/.test(startRaw) ? startRaw : '';
 
         if (!name) { document.getElementById('reminder-name-input').focus(); return; }
         if (!day || day < 1 || day > 31) { this.showToast('⚠️ Dia inválido (1–31)', true); return; }
@@ -2475,11 +2507,11 @@ const App = {
         btn.disabled = true; btn.textContent = 'Salvando...';
         try {
             if (this.editingReminderId) {
-                await Storage.updateReminder(this.editingReminderId, { name, day, amount, emoji, category, type, duration_months });
+                await Storage.updateReminder(this.editingReminderId, { name, day, amount, emoji, category, type, duration_months, start_month });
                 const idx = this.reminders.findIndex(r => r.id === this.editingReminderId);
-                if (idx !== -1) this.reminders[idx] = { ...this.reminders[idx], name, day, amount, emoji, category, type, duration_months };
+                if (idx !== -1) this.reminders[idx] = { ...this.reminders[idx], name, day, amount, emoji, category, type, duration_months, start_month };
             } else {
-                const r = await Storage.createReminder({ name, day, amount, emoji, category, type, duration_months });
+                const r = await Storage.createReminder({ name, day, amount, emoji, category, type, duration_months, start_month });
                 this.reminders.push(r);
             }
             this.reminders.sort((a, b) => a.day - b.day);
