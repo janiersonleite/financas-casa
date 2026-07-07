@@ -4761,6 +4761,140 @@ const App = {
             this._compoundDraft = null;
         });
         document.getElementById('compound-modal-save')?.addEventListener('click', () => this.saveCompoundCommand());
+        // 🧰 Editor de layout do dashboard
+        document.getElementById('dashboard-edit-btn')?.addEventListener('click', () => this._toggleDashboardEdit());
+        // Aplica ordem persistida das seções (se houver)
+        this._applyDashboardOrder();
+    },
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // ─── 🧰 EDITOR DE LAYOUT DO DASHBOARD ──────────────────────────────────
+    // ═══════════════════════════════════════════════════════════════════════
+    _DASHBOARD_ORDER_KEY: 'dashboard_section_order',
+
+    _loadDashboardOrder() {
+        try { return JSON.parse(localStorage.getItem(this._DASHBOARD_ORDER_KEY) || '[]'); } catch { return []; }
+    },
+    _saveDashboardOrder(order) {
+        try { localStorage.setItem(this._DASHBOARD_ORDER_KEY, JSON.stringify(order || [])); } catch {}
+    },
+    _computeDashboardOrder() {
+        const container = document.getElementById('summary-sections');
+        if (!container) return [];
+        return [...container.querySelectorAll(':scope > [data-section-id]')].map(el => el.dataset.sectionId);
+    },
+    _applyDashboardOrder() {
+        const container = document.getElementById('summary-sections');
+        if (!container) return;
+        const savedOrder = this._loadDashboardOrder();
+        if (!savedOrder.length) return;
+
+        const byId = {};
+        for (const el of container.querySelectorAll(':scope > [data-section-id]')) {
+            byId[el.dataset.sectionId] = el;
+        }
+        // Reorganiza: primeiro os IDs na ordem salva, depois qualquer novo ID não presente
+        const knownIds = Object.keys(byId);
+        const ordered  = [
+            ...savedOrder.filter(id => byId[id]),
+            ...knownIds.filter(id => !savedOrder.includes(id)),
+        ];
+        for (const id of ordered) container.appendChild(byId[id]);
+    },
+
+    _toggleDashboardEdit() {
+        const container = document.getElementById('summary-sections');
+        const btn       = document.getElementById('dashboard-edit-btn');
+        if (!container || !btn) return;
+
+        const editing = container.classList.toggle('editing');
+        if (editing) {
+            btn.innerHTML = '<span>✓ Concluir</span>';
+            btn.classList.remove('text-emerald-600');
+            btn.classList.add('text-emerald-800', 'bg-emerald-100', 'px-3', 'py-1.5', 'rounded-full');
+            this._bindAllSectionDrag();
+            this.showToast('🎯 Arraste pelo ⋮⋮ para reordenar', false, 3000);
+        } else {
+            btn.innerHTML = '<span>✏️ Editar layout</span>';
+            btn.classList.add('text-emerald-600');
+            btn.classList.remove('text-emerald-800', 'bg-emerald-100', 'px-3', 'py-1.5', 'rounded-full');
+            this._unbindAllSectionDrag();
+            const order = this._computeDashboardOrder();
+            this._saveDashboardOrder(order);
+            this.showToast('✅ Layout salvo', false, 1500);
+        }
+    },
+
+    _bindAllSectionDrag() {
+        const container = document.getElementById('summary-sections');
+        if (!container) return;
+        this._sectionDragHandlers = [];
+        for (const section of container.querySelectorAll(':scope > [data-section-id]')) {
+            const handler = this._makeSectionDragHandler(section, container);
+            section.addEventListener('pointerdown', handler);
+            this._sectionDragHandlers.push({ section, handler });
+        }
+    },
+    _unbindAllSectionDrag() {
+        for (const { section, handler } of (this._sectionDragHandlers || [])) {
+            section.removeEventListener('pointerdown', handler);
+        }
+        this._sectionDragHandlers = [];
+    },
+
+    // Retorna um handler de pointerdown para uma seção específica.
+    // Só ativa arraste se o clique for na área do handle (::before, top-right).
+    _makeSectionDragHandler(section, container) {
+        return (e) => {
+            // Só arrasta quando o pointer está sobre o handle (canto superior direito)
+            const rect = section.getBoundingClientRect();
+            const dx = rect.right - e.clientX;
+            const dy = e.clientY - rect.top;
+            const inHandle = dx >= 0 && dx <= 40 && dy >= 0 && dy <= 40;
+            if (!inHandle) return;
+
+            e.preventDefault();
+            const startY = e.clientY;
+            const initialRect = section.getBoundingClientRect();
+            let placeholder = document.createElement('div');
+            placeholder.className = 'section-placeholder';
+            placeholder.style.height = initialRect.height + 'px';
+            container.insertBefore(placeholder, section);
+            section.classList.add('dragging');
+            section.style.position = 'relative';
+
+            const onMove = (ev) => {
+                const dy = ev.clientY - startY;
+                section.style.transform = `translateY(${dy}px)`;
+                // Detecta seção sob o cursor e move o placeholder
+                const others = [...container.querySelectorAll(':scope > [data-section-id]')].filter(el => el !== section);
+                for (const other of others) {
+                    const r = other.getBoundingClientRect();
+                    if (ev.clientY >= r.top && ev.clientY <= r.bottom) {
+                        const mid = r.top + r.height / 2;
+                        if (ev.clientY < mid) container.insertBefore(placeholder, other);
+                        else                  container.insertBefore(placeholder, other.nextSibling);
+                        break;
+                    }
+                }
+            };
+            const onUp = () => {
+                container.insertBefore(section, placeholder);
+                placeholder.remove();
+                section.classList.remove('dragging');
+                section.style.transform = '';
+                section.style.position = '';
+                document.removeEventListener('pointermove', onMove);
+                document.removeEventListener('pointerup', onUp);
+                document.removeEventListener('pointercancel', onUp);
+                // Salva a nova ordem imediatamente (persiste mesmo se sair do modo edição)
+                const order = this._computeDashboardOrder();
+                this._saveDashboardOrder(order);
+            };
+            document.addEventListener('pointermove', onMove);
+            document.addEventListener('pointerup', onUp);
+            document.addEventListener('pointercancel', onUp);
+        };
     },
 
     // ─── Custom Types Chart ───────────────────────────────────────────────────

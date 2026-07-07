@@ -89,6 +89,45 @@
         /* Progress bar */
         .prog-bar { height: 6px; border-radius: 9999px; background: #e5e7eb; overflow: hidden; }
         .prog-fill { height: 100%; border-radius: 9999px; background: linear-gradient(90deg,#a3e635,#4ade80); }
+
+        /* Dashboard edit mode — drag & drop de seções */
+        #summary-sections.editing [data-section-id] {
+            position: relative;
+            outline: 2px dashed #10b981;
+            outline-offset: -2px;
+            border-radius: 1rem;
+            transition: transform 0.15s ease-out, opacity 0.15s;
+        }
+        #summary-sections.editing [data-section-id]::before {
+            content: "⋮⋮";
+            position: absolute;
+            top: 6px;
+            right: 8px;
+            font-size: 20px;
+            line-height: 1;
+            color: #10b981;
+            background: white;
+            border: 1px solid #10b981;
+            border-radius: 8px;
+            padding: 2px 6px;
+            cursor: grab;
+            z-index: 5;
+            font-weight: bold;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            touch-action: none;
+        }
+        #summary-sections.editing [data-section-id].dragging {
+            opacity: 0.85;
+            transform: scale(1.02);
+            z-index: 50;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+            outline-color: #059669;
+        }
+        .section-placeholder {
+            background: rgba(16,185,129,0.08);
+            border: 2px dashed #10b981;
+            border-radius: 1rem;
+        }
     </style>
 </head>
 <body class="max-w-md mx-auto min-h-screen relative" style="background:var(--clr-bg)">
@@ -406,8 +445,17 @@
     </div>
 
     <div class="px-4 pt-4 space-y-4">
+        <!-- 🧰 Toolbar de layout -->
+        <div class="flex items-center justify-between px-1">
+            <p class="text-xs text-gray-400 uppercase tracking-wide">Resumo</p>
+            <button id="dashboard-edit-btn" class="text-xs font-semibold text-emerald-600 hover:text-emerald-700 flex items-center gap-1">
+                <span>✏️ Editar layout</span>
+            </button>
+        </div>
+
+        <div id="summary-sections" class="space-y-4">
         <!-- Cards com comparativo -->
-        <div class="grid grid-cols-3 gap-3">
+        <div data-section-id="balance-cards" class="grid grid-cols-3 gap-3">
             <div class="bg-green-50 rounded-2xl p-3 text-center border border-green-100">
                 <div class="text-xs text-green-600 mb-1">Entradas</div>
                 <div id="sum-income" class="text-sm font-bold text-green-700">R$ 0</div>
@@ -426,7 +474,7 @@
         </div>
 
         <!-- 💳 Aviso de Pagamento de Cartão ajustado -->
-        <div id="card-payment-notice" class="hidden bg-blue-50 border border-blue-200 rounded-2xl p-3 flex items-start gap-2">
+        <div id="card-payment-notice" data-section-id="card-payment-notice" class="hidden bg-blue-50 border border-blue-200 rounded-2xl p-3 flex items-start gap-2">
             <span class="text-base flex-shrink-0">💳</span>
             <div class="flex-1 text-xs">
                 <p class="font-semibold text-blue-800" id="card-payment-notice-title"></p>
@@ -436,14 +484,14 @@
         </div>
 
         <!-- 💡 Insights & Inteligência -->
-        <div id="insights-card" class="bg-gradient-to-br from-violet-50 to-fuchsia-50 rounded-2xl shadow-sm border border-violet-100 p-4 hidden">
+        <div id="insights-card" data-section-id="insights" class="bg-gradient-to-br from-violet-50 to-fuchsia-50 rounded-2xl shadow-sm border border-violet-100 p-4 hidden">
             <p class="text-sm font-semibold text-violet-800 mb-2 flex items-center gap-1.5">💡 Insights do mês</p>
             <div id="insights-summary" class="text-xs text-gray-700 leading-relaxed space-y-1"></div>
             <div id="insights-projection" class="mt-3 pt-3 border-t border-violet-100 text-xs text-gray-700"></div>
         </div>
 
         <!-- 🎯 Metas / Alertas -->
-        <div id="goals-card" class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+        <div id="goals-card" data-section-id="goals" class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
             <div class="flex items-center justify-between mb-2">
                 <p class="text-sm font-semibold text-gray-700">🎯 Metas por categoria</p>
                 <button id="goals-edit-btn" class="text-xs text-emerald-600 font-semibold hover:underline">Editar</button>
@@ -456,13 +504,13 @@
         </div>
 
         <!-- ⚠️ Pendências / Reconciliação -->
-        <div id="reconcile-card" class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 hidden">
+        <div id="reconcile-card" data-section-id="reconcile" class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 hidden">
             <p class="text-sm font-semibold text-gray-700 mb-2">⚠️ Pendências detectadas</p>
             <div id="reconcile-list" class="space-y-2 text-xs"></div>
         </div>
 
         <!-- Donut: gastos por categoria -->
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+        <div data-section-id="donut" class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
             <p class="text-sm font-semibold text-gray-700 mb-3">Gastos por categoria</p>
             <div id="expense-chart-wrap" class="max-w-xs mx-auto">
                 <canvas id="expense-chart"></canvas>
@@ -470,13 +518,13 @@
         </div>
 
         <!-- Bar: evolução 6 meses -->
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+        <div data-section-id="trend" class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
             <p class="text-sm font-semibold text-gray-700 mb-3">Evolução dos últimos 6 meses</p>
             <canvas id="trend-chart" height="130"></canvas>
         </div>
 
         <!-- Outros tipos de lançamento (customizados) -->
-        <div id="custom-types-chart-wrap" class="hidden bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+        <div id="custom-types-chart-wrap" data-section-id="custom-types" class="hidden bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
             <p class="text-sm font-semibold text-gray-700 mb-1">Outros tipos de lançamento</p>
             <p class="text-xs text-gray-400 mb-3">Lançamentos que não afetam o saldo</p>
             <div id="custom-types-cards" class="flex flex-wrap gap-2 mb-4"></div>
@@ -484,16 +532,17 @@
         </div>
 
         <!-- Gastos por pessoa -->
-        <div id="person-breakdown-wrap" class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 hidden">
+        <div id="person-breakdown-wrap" data-section-id="person" class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 hidden">
             <p class="text-sm font-semibold text-gray-700 mb-3">👥 Gastos por pessoa</p>
             <div id="person-breakdown"></div>
         </div>
 
         <!-- Category breakdown -->
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+        <div data-section-id="category-breakdown" class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
             <p class="text-sm font-semibold text-gray-700 mb-3">Detalhamento por categoria</p>
             <div id="category-breakdown"></div>
         </div>
+        </div><!-- /#summary-sections -->
 
         <!-- Exportação / Importação -->
         <div class="space-y-2 pb-2">
