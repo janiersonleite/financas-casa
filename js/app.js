@@ -1158,19 +1158,8 @@ const App = {
                 this._renderInstallmentPicker();
             }
         }
-        // Exibe vínculo com lembrete (se existir)
-        const reminderBadgeEl = document.getElementById('modal-reminder-badge');
-        if (reminderBadgeEl) {
-            const linked = data.reminder_id ? this.reminders.find(r => r.id === data.reminder_id) : null;
-            if (linked) {
-                reminderBadgeEl.innerHTML = `<span class="inline-flex items-center gap-1.5 text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl px-3 py-1.5 font-medium">
-                    ${linked.emoji || '🔔'} Lembrete: <strong>${linked.name}</strong> — todo dia ${linked.day}
-                </span>`;
-                reminderBadgeEl.classList.remove('hidden');
-            } else {
-                reminderBadgeEl.classList.add('hidden');
-            }
-        }
+        // Renderiza área de vínculo com lembrete (sempre visível — botão de vincular/desvincular)
+        this._renderReminderLinkArea();
         if (data.focusValue) setTimeout(() => document.getElementById('modal-value').focus(), 100);
         // Verifica sugestão de lembrete para a categoria já preenchida ao abrir
         setTimeout(() => this._checkReminderSuggestByCategory(), 50);
@@ -1183,6 +1172,127 @@ const App = {
         this._modalFinancaId   = null;
         this._modalCategories  = null; // limpa categorias temporárias do perfil escolhido
         this._modalReminders   = null; // limpa lembretes temporários do perfil escolhido
+    },
+
+    // ─── Vinculação com lembrete (retroativa / manual) ────────────────────────
+    _renderReminderLinkArea() {
+        const el = document.getElementById('modal-reminder-badge');
+        if (!el) return;
+        el.classList.remove('hidden');
+
+        const linkedId = this._reminderSourceId;
+        const linked   = linkedId ? this.reminders.find(r => r.id === linkedId) : null;
+
+        if (linked) {
+            el.innerHTML = `
+                <div class="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2">
+                    <span class="text-base">${linked.emoji || '🔔'}</span>
+                    <div class="flex-1 min-w-0 text-xs text-emerald-800">
+                        Lembrete: <strong>${this._escHtml(linked.name)}</strong>
+                        <div class="text-[10px] text-emerald-600">todo dia ${linked.day}</div>
+                    </div>
+                    <button id="modal-reminder-unlink" type="button"
+                        class="text-xs text-emerald-700 border border-emerald-300 bg-white rounded-lg px-2 py-1 hover:bg-emerald-100" title="Desvincular">
+                        ✕ Desvincular
+                    </button>
+                </div>`;
+            document.getElementById('modal-reminder-unlink')?.addEventListener('click', (e) => {
+                e.preventDefault();
+                this._reminderSourceId = null;
+                this._renderReminderLinkArea();
+                this._checkReminderSuggestByCategory();
+            });
+        } else {
+            // Botão para abrir seletor de lembrete
+            const availableCount = this.reminders.filter(r => r.active !== false).length;
+            const disabled = availableCount === 0;
+            el.innerHTML = `
+                <button id="modal-reminder-link-btn" type="button"
+                    class="w-full flex items-center justify-center gap-2 border border-dashed border-gray-300 text-gray-500 rounded-xl px-3 py-2 text-xs font-semibold hover:border-emerald-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors ${disabled ? 'opacity-50 cursor-not-allowed' : ''}">
+                    🔔 ${disabled ? 'Nenhum lembrete cadastrado' : 'Vincular a um lembrete'}
+                </button>`;
+            if (!disabled) {
+                document.getElementById('modal-reminder-link-btn')?.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    this._openReminderPicker();
+                });
+            }
+        }
+    },
+
+    _openReminderPicker() {
+        const reminders = (this.reminders || []).filter(r => r.active !== false);
+        if (!reminders.length) return;
+
+        // Cria overlay dinamicamente (evita adicionar mais HTML estático)
+        const existing = document.getElementById('reminder-picker-overlay');
+        if (existing) existing.remove();
+
+        const wrap = document.createElement('div');
+        wrap.id = 'reminder-picker-overlay';
+        wrap.className = 'fixed inset-0 bg-black/60 z-[100] flex items-end justify-center';
+        // Lista ordenada por nome
+        const sorted = [...reminders].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt-BR'));
+        const currentSel = this._reminderSourceId;
+        const currentDate = document.getElementById('modal-date')?.value || '';
+        const currentDay  = currentDate ? parseInt(currentDate.slice(8, 10)) : null;
+        wrap.innerHTML = `
+            <div class="bg-white w-full max-w-md rounded-t-3xl shadow-xl overflow-hidden max-h-[85vh] flex flex-col">
+                <div class="p-4 bg-emerald-600 text-white flex items-center justify-between">
+                    <h3 class="font-bold text-lg">🔔 Vincular a lembrete</h3>
+                    <button id="rem-picker-close" class="text-2xl leading-none">×</button>
+                </div>
+                <div class="p-3 border-b border-gray-100">
+                    <input id="rem-picker-search" type="text" placeholder="🔎 Buscar lembrete..." class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm">
+                </div>
+                <div id="rem-picker-list" class="overflow-y-auto flex-1 divide-y divide-gray-100">
+                    ${sorted.map(r => {
+                        const isSelected = r.id === currentSel;
+                        const sameDay    = currentDay && r.day === currentDay;
+                        const highlight  = isSelected ? 'bg-emerald-50 border-l-4 border-emerald-500'
+                                        : sameDay   ? 'bg-yellow-50 border-l-4 border-yellow-300'
+                                        : '';
+                        const amt = r.amount > 0 ? this.formatCurrency(r.amount) : '';
+                        return `
+                        <button type="button" class="rem-picker-item w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center gap-3 ${highlight}" data-id="${r.id}" data-name="${this._escHtml(r.name)}">
+                            <span class="text-xl">${r.emoji || '🔔'}</span>
+                            <div class="flex-1 min-w-0">
+                                <p class="text-sm font-semibold text-gray-800 truncate">${this._escHtml(r.name)}${isSelected ? ' <span class="text-emerald-600 text-xs">✓ vinculado</span>' : ''}${sameDay && !isSelected ? ' <span class="text-yellow-700 text-[10px]">📅 mesmo dia</span>' : ''}</p>
+                                <p class="text-[11px] text-gray-500">Dia ${r.day}${r.category ? ' · ' + this._escHtml(r.category) : ''}${amt ? ' · ' + amt : ''}</p>
+                            </div>
+                        </button>`;
+                    }).join('')}
+                </div>
+                <div class="p-3 bg-gray-50 border-t border-gray-200">
+                    <button id="rem-picker-cancel" class="w-full bg-gray-200 text-gray-700 font-bold py-2.5 rounded-xl text-sm">Cancelar</button>
+                </div>
+            </div>`;
+        document.body.appendChild(wrap);
+
+        const close = () => wrap.remove();
+        wrap.addEventListener('click', e => { if (e.target === wrap) close(); });
+        document.getElementById('rem-picker-close')?.addEventListener('click', close);
+        document.getElementById('rem-picker-cancel')?.addEventListener('click', close);
+
+        // Busca em tempo real
+        document.getElementById('rem-picker-search')?.addEventListener('input', e => {
+            const q = e.target.value.toLowerCase().trim();
+            wrap.querySelectorAll('.rem-picker-item').forEach(btn => {
+                const name = btn.dataset.name.toLowerCase();
+                btn.style.display = (!q || name.includes(q)) ? '' : 'none';
+            });
+        });
+
+        // Clica em um item → vincula
+        wrap.querySelectorAll('.rem-picker-item').forEach(btn => {
+            btn.addEventListener('click', () => {
+                this._reminderSourceId = btn.dataset.id;
+                close();
+                this._renderReminderLinkArea();
+                this._checkReminderSuggestByCategory();
+                this.showToast('✅ Lembrete vinculado', false, 1500);
+            });
+        });
     },
 
     // Verifica se há lembrete com a categoria selecionada e exibe sugestão de vínculo
@@ -1236,7 +1346,11 @@ const App = {
             description: baseDesc,
             date:        document.getElementById('modal-date').value,
             notes:       document.getElementById('modal-notes').value,
-            ...(this._reminderSourceId ? { reminder_id: this._reminderSourceId } : {}),
+            // Se editando: envia reminder_id (ou null para desvincular).
+            // Se novo lançamento: só inclui se houver vínculo.
+            ...(this.editingId
+                ? { reminder_id: this._reminderSourceId || null }
+                : (this._reminderSourceId ? { reminder_id: this._reminderSourceId } : {})),
             ...(!this.editingId && this._modalFinancaId ? { _targetFinancaId: this._modalFinancaId } : {})
         };
 
