@@ -3339,7 +3339,9 @@ const App = {
     async renderHistory() {
         const search = document.getElementById('history-search')?.value?.toLowerCase() || '';
         const n      = this._historyMonths || 1;
-        const months = this._buildMonthRange(this.currentMonth, n);
+        // Quando há busca ativa, também inclui meses futuros (parcelas agendadas)
+        const includesFuture = !!search;
+        const months = this._buildMonthRange(this.currentMonth, n, includesFuture);
 
         // Busca todos os meses em paralelo
         const results = await Promise.all(months.map(m => Storage.getTransactions({ month: m })));
@@ -3467,13 +3469,24 @@ const App = {
     },
 
     // Gera array de N meses retroativos a partir de baseMonth (inclusive)
-    _buildMonthRange(baseMonth, n) {
+    _buildMonthRange(baseMonth, n, includeFuture = false) {
         const [cy, cm] = baseMonth.split('-').map(Number);
         const months = [];
+        // Sempre inclui os N meses passados (comportamento original)
         for (let i = 0; i < n; i++) {
             let year = cy, month = cm - i;
             while (month <= 0) { month += 12; year--; }
             months.push(`${year}-${String(month).padStart(2, '0')}`);
+        }
+        // Quando includeFuture: adiciona também os próximos N meses (parcelas agendadas)
+        if (includeFuture) {
+            for (let i = 1; i <= n; i++) {
+                let year = cy, month = cm + i;
+                while (month > 12) { month -= 12; year++; }
+                months.push(`${year}-${String(month).padStart(2, '0')}`);
+            }
+            // Ordena decrescentemente (mais recente primeiro) para renderização correta
+            months.sort((a, b) => b.localeCompare(a));
         }
         return months;
     },
