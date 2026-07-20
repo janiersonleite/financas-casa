@@ -333,6 +333,43 @@ const Storage = {
         return list;
     },
 
+    // ── Grupos de recorrência (localStorage — set de group_ids marcados como recorrentes) ──
+    _RECURRING_KEY: 'recurring_groups',
+    _getRecurringGroups() {
+        try { return new Set(JSON.parse(localStorage.getItem(this._RECURRING_KEY) || '[]')); } catch { return new Set(); }
+    },
+    _saveRecurringGroups(set) {
+        try { localStorage.setItem(this._RECURRING_KEY, JSON.stringify([...set])); } catch {}
+    },
+    isRecurringGroup(groupId) {
+        if (!groupId) return false;
+        if (typeof groupId === 'string' && groupId.startsWith('rec_')) return true; // convenção do prefixo
+        return this._getRecurringGroups().has(groupId);
+    },
+    markRecurringGroup(groupId, isRecurring = true) {
+        if (!groupId) return;
+        const set = this._getRecurringGroups();
+        if (isRecurring) set.add(groupId);
+        else             set.delete(groupId);
+        this._saveRecurringGroups(set);
+    },
+    // Encerra a recorrência: apaga transações do grupo com data >= fromDate.
+    async endRecurringGroup(groupId, fromDate) {
+        if (!groupId) return { deleted: 0 };
+        const all = await this.getTransactions();
+        const toDelete = all.filter(t =>
+            t.installment_group_id === groupId &&
+            t.date && t.date >= fromDate
+        );
+        for (const t of toDelete) {
+            try { await this.deleteTransaction(t.id); } catch (_) {}
+        }
+        // Se não sobrou nenhuma transação no grupo, remove a marca
+        const remaining = all.filter(t => t.installment_group_id === groupId && (!t.date || t.date < fromDate));
+        if (!remaining.length) this.markRecurringGroup(groupId, false);
+        return { deleted: toDelete.length };
+    },
+
     // ── Pendências dispensadas (não reaparecem após o usuário ignorar) ────────
     _DISMISSED_KEY: 'pendings_dismissed',
     _getDismissed() {

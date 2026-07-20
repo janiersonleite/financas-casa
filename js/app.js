@@ -614,6 +614,7 @@ const App = {
         document.getElementById('modal-cancel').addEventListener('click', () => this.closeModal());
         document.getElementById('modal-voice-btn')?.addEventListener('click', () => this._startModalVoice());
         document.getElementById('modal-save').addEventListener('click',   () => this.saveModal());
+        document.getElementById('modal-end-recurring-btn')?.addEventListener('click', () => this._endCurrentRecurring());
         document.getElementById('modal-overlay').addEventListener('click', e => {
             if (e.target === e.currentTarget) this.closeModal();
         });
@@ -674,7 +675,13 @@ const App = {
         document.getElementById('modal-overlay')?.addEventListener('click', e => {
             const btn = e.target.closest('.installment-opt');
             if (!btn) return;
-            this._installmentQty = parseInt(btn.dataset.qty) || 1;
+            const qty = btn.dataset.qty;
+            if (qty === 'recurring') {
+                // Sentinela especial: -1 significa recorrência sem fim
+                this._installmentQty = -1;
+            } else {
+                this._installmentQty = parseInt(qty) || 1;
+            }
             const customInput = document.getElementById('modal-installment-custom');
             if (customInput) customInput.value = '';
             this._renderInstallmentPicker();
@@ -957,16 +964,29 @@ const App = {
 
     _renderInstallmentPicker(customActive = false) {
         const qty = this._installmentQty || 1;
+        const isRecurring = qty === -1;
         document.querySelectorAll('.installment-opt').forEach(btn => {
-            const bQty   = parseInt(btn.dataset.qty);
-            const active = !customActive && bQty === qty;
-            btn.className = active
-                ? 'installment-opt px-3 py-1.5 rounded-xl text-xs font-semibold border-2 border-emerald-500 bg-emerald-50 text-emerald-700 transition-all'
-                : 'installment-opt px-3 py-1.5 rounded-xl text-xs font-semibold border-2 border-gray-200 text-gray-500 hover:border-emerald-300 transition-all';
+            const bQtyRaw = btn.dataset.qty;
+            const bQty    = bQtyRaw === 'recurring' ? -1 : parseInt(bQtyRaw);
+            const active  = !customActive && bQty === qty;
+            if (active && isRecurring) {
+                // Estado ativo do botão de recorrente — cor violeta para distinguir
+                btn.className = 'installment-opt px-3 py-1.5 rounded-xl text-xs font-semibold border-2 border-violet-500 bg-violet-50 text-violet-700 transition-all';
+            } else if (active) {
+                btn.className = 'installment-opt px-3 py-1.5 rounded-xl text-xs font-semibold border-2 border-emerald-500 bg-emerald-50 text-emerald-700 transition-all';
+            } else if (bQtyRaw === 'recurring') {
+                btn.className = 'installment-opt px-3 py-1.5 rounded-xl text-xs font-semibold border-2 border-gray-200 text-gray-500 hover:border-violet-400 transition-all';
+            } else {
+                btn.className = 'installment-opt px-3 py-1.5 rounded-xl text-xs font-semibold border-2 border-gray-200 text-gray-500 hover:border-emerald-300 transition-all';
+            }
         });
         const preview = document.getElementById('modal-installment-preview');
         if (!preview) return;
-        if (qty > 1) {
+        if (isRecurring) {
+            preview.textContent = '♾️ Recorrente — 60 meses gerados. Encerre a qualquer momento no lançamento.';
+            preview.className = 'text-xs text-violet-600 mt-1.5';
+            preview.classList.remove('hidden');
+        } else if (qty > 1) {
             const date = document.getElementById('modal-date')?.value;
             if (date) {
                 const lastDate = this._addMonths(date, qty - 1);
@@ -974,6 +994,7 @@ const App = {
                 const lastMonth = new Date(Number(ly), Number(lm) - 1, 1)
                     .toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
                 preview.textContent = `${qty} parcelas — até ${lastMonth}`;
+                preview.className = 'text-xs text-emerald-600 mt-1.5';
                 preview.classList.remove('hidden');
             }
         } else {
@@ -1139,22 +1160,36 @@ const App = {
         const infoSection    = document.getElementById('modal-installment-info');
         const customInput    = document.getElementById('modal-installment-custom');
         if (customInput) customInput.value = '';
+        const recSection = document.getElementById('modal-recurring-info');
         if (installWrap && pickerSection && infoSection) {
-            if (this.editingId && data.installment_group_id) {
-                // Editando uma parcela existente: mostra info, esconde picker
+            const isRecurring = data.installment_group_id
+                && (Number(data.installment_total) === 0 || Storage.isRecurringGroup(data.installment_group_id));
+            if (this.editingId && data.installment_group_id && isRecurring) {
+                // Editando uma parcela RECORRENTE
+                installWrap.classList.remove('hidden');
+                pickerSection.classList.add('hidden');
+                infoSection.classList.add('hidden');
+                if (recSection) recSection.classList.remove('hidden');
+                const num = document.getElementById('modal-recurring-info-num');
+                if (num) num.textContent = `mês ${data.installment_current || '—'}`;
+            } else if (this.editingId && data.installment_group_id) {
+                // Editando uma parcela finita: mostra info, esconde picker
                 installWrap.classList.remove('hidden');
                 pickerSection.classList.add('hidden');
                 infoSection.classList.remove('hidden');
+                if (recSection) recSection.classList.add('hidden');
                 const infoText = document.getElementById('modal-installment-info-text');
                 if (infoText) infoText.textContent = `${data.installment_current}/${data.installment_total}`;
             } else if (this.editingId) {
                 // Editando lançamento simples: esconde seção
                 installWrap.classList.add('hidden');
+                if (recSection) recSection.classList.add('hidden');
             } else {
                 // Novo lançamento: mostra picker
                 installWrap.classList.remove('hidden');
                 pickerSection.classList.remove('hidden');
                 infoSection.classList.add('hidden');
+                if (recSection) recSection.classList.add('hidden');
                 this._renderInstallmentPicker();
             }
         }
@@ -1332,6 +1367,32 @@ const App = {
         suggest.style.display = 'flex';
     },
 
+    // Encerra a recorrência a partir da transação sendo editada (inclusive)
+    async _endCurrentRecurring() {
+        if (!this.editingId) return;
+        try {
+            const all = await Storage.getTransactions();
+            const current = all.find(t => t.id === this.editingId);
+            if (!current || !current.installment_group_id) {
+                this.showToast('❌ Este lançamento não é recorrente', true);
+                return;
+            }
+            const fromDate = current.date;
+            const future = all.filter(t =>
+                t.installment_group_id === current.installment_group_id &&
+                t.date && t.date >= fromDate
+            );
+            const msg = `Encerrar a recorrência a partir de ${fromDate}?\n\nSerão removidas ${future.length} entradas futuras (incluindo esta).`;
+            if (!confirm(msg)) return;
+            const { deleted } = await Storage.endRecurringGroup(current.installment_group_id, fromDate);
+            this.showToast(`✅ Recorrência encerrada (${deleted} entradas removidas)`);
+            this.closeModal();
+            await this.renderCurrentTab();
+        } catch (e) {
+            this.showToast('❌ Erro ao encerrar: ' + (e.message || ''), true);
+        }
+    },
+
     async saveModal() {
         const value = this._parseMaskedCurrency(document.getElementById('modal-value').value);
         if (!value || value <= 0) { this.shake(document.getElementById('modal-value')); return; }
@@ -1356,7 +1417,9 @@ const App = {
 
         const btn = document.getElementById('modal-save');
         btn.disabled = true;
-        btn.textContent = installQty > 1 ? `Criando ${installQty} parcelas...` : 'Salvando...';
+        btn.textContent = installQty === -1 ? 'Criando recorrência...'
+                        : installQty > 1     ? `Criando ${installQty} parcelas...`
+                        :                       'Salvando...';
 
         try {
             let result;
@@ -1378,19 +1441,38 @@ const App = {
                         return;
                     }
                     const toUpdate = choice === 'all' ? groupTxns : choice === 'future' ? futureTxns : [original];
+                    const isRec = Number(original.installment_total) === 0 || Storage.isRecurringGroup(original.installment_group_id);
                     for (const tx of toUpdate) {
                         // Se editar APENAS esta parcela, respeita a nova data do form.
                         // Se editar todas/futuras, mantém a data individual (uma por mês).
                         const newDate = choice === 'single' ? base.date : tx.date;
+                        // Recorrentes não têm sufixo X/N na descrição
+                        const newDesc = isRec ? baseDesc : `${baseDesc} (${tx.installment_current}/${tx.installment_total})`;
                         await Storage.updateTransaction(tx.id, {
                             ...base,
                             date:        newDate,
-                            description: `${baseDesc} (${tx.installment_current}/${tx.installment_total})`,
+                            description: newDesc,
                         });
                     }
                 } else {
                     await Storage.updateTransaction(this.editingId, base);
                 }
+            } else if (installQty === -1) {
+                // ♾️ Recorrente: gera 60 meses adiante como buffer; usuário encerra quando quiser.
+                // Usa installment_total = 0 como sentinela para "recorrente" (não mostra X/N).
+                const groupId = 'rec_' + Date.now().toString(36);
+                const BUFFER_MONTHS = 60;
+                const txns = Array.from({ length: BUFFER_MONTHS }, (_, i) => ({
+                    ...base,
+                    date:                 this._addMonths(base.date, i),
+                    description:          baseDesc, // sem sufixo "N/M" para recorrentes
+                    installment_group_id: groupId,
+                    installment_current:  i + 1,
+                    installment_total:    0, // 0 = recorrente/sem fim
+                }));
+                await Storage.bulkAddTransactions(txns);
+                // Marca o grupo como recorrente no localStorage (fonte da verdade local)
+                Storage.markRecurringGroup(groupId, true);
             } else if (installQty > 1) {
                 // Cria N transações, uma por mês
                 const groupId = 'inst_' + Date.now().toString(36);
@@ -3585,12 +3667,16 @@ const App = {
                            ${linkedReminder.emoji || '🔔'} ${linkedReminder.name}
                        </span>`
                     : '';
-                // Badge de parcela
-                const installBadge = t.installment_group_id
-                    ? `<span class="inline-flex items-center gap-1 text-xs bg-purple-50 text-purple-500 border border-purple-100 rounded-full px-2 py-0.5 mt-0.5">
-                           📦 ${t.installment_current}/${t.installment_total}
-                       </span>`
-                    : '';
+                // Badge de parcela (parcelada finita) OU de recorrência (♾️)
+                const isRecurring = t.installment_group_id && (Number(t.installment_total) === 0 || Storage.isRecurringGroup(t.installment_group_id));
+                const installBadge = !t.installment_group_id ? ''
+                    : isRecurring
+                        ? `<span class="inline-flex items-center gap-1 text-xs bg-violet-50 text-violet-600 border border-violet-100 rounded-full px-2 py-0.5 mt-0.5">
+                               🔁 Recorrente
+                           </span>`
+                        : `<span class="inline-flex items-center gap-1 text-xs bg-purple-50 text-purple-500 border border-purple-100 rounded-full px-2 py-0.5 mt-0.5">
+                               📦 ${t.installment_current}/${t.installment_total}
+                           </span>`;
                 const _catName    = t.category || '';
                 const catDisplay  = _catName
                     ? (highlight ? this._hlText(_catName, highlight) : this._escHtml(_catName))
@@ -3622,7 +3708,7 @@ const App = {
                         ${this.getInserterBadge(t)}
                     </div>
                     <div class="flex flex-col items-end gap-0.5">
-                        ${t.installment_group_id ? `<div class="text-xs text-gray-400 font-normal">Total ${this.formatCurrency(t.value * t.installment_total)}</div>` : ''}
+                        ${t.installment_group_id && !isRecurring ? `<div class="text-xs text-gray-400 font-normal">Total ${this.formatCurrency(t.value * t.installment_total)}</div>` : ''}
                         <div class="font-bold ${color}">${sign}${this.formatCurrency(t.value)}</div>
                         <button class="text-xs text-gray-300 hover:text-red-400 delete-btn" data-id="${t.id}" data-reminder-id="${t.reminder_id || ''}">✕</button>
                     </div>

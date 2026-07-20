@@ -1108,6 +1108,7 @@
                         <button type="button" class="installment-opt px-3 py-1.5 rounded-xl text-xs font-semibold border-2 border-gray-200 text-gray-500 hover:border-emerald-300 transition-all" data-qty="12">12×</button>
                         <input id="modal-installment-custom" type="number" min="2" max="48" placeholder="Outro"
                             class="w-16 border-2 border-gray-200 rounded-xl px-2 py-1.5 text-xs text-center focus:outline-none focus:border-emerald-500">
+                        <button type="button" class="installment-opt px-3 py-1.5 rounded-xl text-xs font-semibold border-2 border-gray-200 text-gray-500 hover:border-violet-400 transition-all" data-qty="recurring">♾️ Recorrente</button>
                     </div>
                     <p id="modal-installment-preview" class="text-xs text-emerald-600 mt-1.5 hidden"></p>
                 </div>
@@ -1116,6 +1117,16 @@
                     <p class="text-xs text-purple-600 bg-purple-50 border border-purple-200 rounded-xl px-3 py-2">
                         📦 Parcela <span id="modal-installment-info-text" class="font-bold"></span>
                     </p>
+                </div>
+                <!-- Info (quando edita uma parcela RECORRENTE) -->
+                <div id="modal-recurring-info" class="hidden space-y-2">
+                    <p class="text-xs text-violet-700 bg-violet-50 border border-violet-200 rounded-xl px-3 py-2">
+                        🔁 Recorrência sem prazo — <span id="modal-recurring-info-num" class="font-bold"></span>
+                    </p>
+                    <button id="modal-end-recurring-btn" type="button"
+                        class="w-full text-xs font-semibold bg-red-50 text-red-600 border border-red-200 rounded-xl py-2 hover:bg-red-100 transition-colors">
+                        🛑 Encerrar recorrência a partir deste mês
+                    </button>
                 </div>
             </div>
 
