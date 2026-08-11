@@ -1110,6 +1110,17 @@
                             class="w-16 border-2 border-gray-200 rounded-xl px-2 py-1.5 text-xs text-center focus:outline-none focus:border-emerald-500">
                         <button type="button" class="installment-opt px-3 py-1.5 rounded-xl text-xs font-semibold border-2 border-gray-200 text-gray-500 hover:border-violet-400 transition-all" data-qty="recurring">♾️ Recorrente</button>
                     </div>
+                    <!-- Toggle: valor é por parcela ou total? (só quando ≥ 2 parcelas) -->
+                    <div id="modal-installment-mode" class="hidden mt-2 flex gap-1 bg-gray-100 rounded-xl p-1">
+                        <button type="button" data-inst-mode="perInstallment"
+                            class="inst-mode-btn flex-1 text-[11px] font-semibold py-1.5 px-2 rounded-lg transition-all bg-white text-gray-800 shadow-sm">
+                            💰 Valor por parcela
+                        </button>
+                        <button type="button" data-inst-mode="total"
+                            class="inst-mode-btn flex-1 text-[11px] font-semibold py-1.5 px-2 rounded-lg transition-all text-gray-500">
+                            💵 Valor total
+                        </button>
+                    </div>
                     <p id="modal-installment-preview" class="text-xs text-emerald-600 mt-1.5 hidden"></p>
                 </div>
                 <!-- Info (quando edita uma parcela existente) -->

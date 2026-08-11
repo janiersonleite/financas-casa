@@ -43,6 +43,7 @@ const App = {
     _importFinancaId:   null,   // finança escolhida para o import atual
     _financaSelectCallback: null, // callback ao confirmar seleção
     _installmentQty:    1,      // número de parcelas (1 = à vista)
+    _installmentValueMode: 'perInstallment', // 'perInstallment' (padrão) ou 'total'
     _homeSearch:        '',     // texto da pesquisa na home
     _historyMonths:     1,      // período selecionado na aba histórico (1 | 2 | 3 | 6 | 12)
     _historyCategories: new Set(), // categorias selecionadas no filtro do histórico
@@ -697,6 +698,17 @@ const App = {
         document.getElementById('modal-date')?.addEventListener('change', () => {
             if ((this._installmentQty || 1) > 1) this._renderInstallmentPicker();
         });
+        // Toggle "Valor por parcela" / "Valor total"
+        document.querySelectorAll('.inst-mode-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                this._installmentValueMode = btn.dataset.instMode === 'total' ? 'total' : 'perInstallment';
+                this._renderInstallmentPicker();
+            });
+        });
+        // Atualiza preview quando o valor muda
+        document.getElementById('modal-value')?.addEventListener('input', () => {
+            if ((this._installmentQty || 1) > 1 || this._installmentQty === -1) this._renderInstallmentPicker();
+        });
 
         // ── Nova categoria inline no modal de lançamento ──────────────────────
         document.getElementById('modal-new-cat-btn')?.addEventListener('click', () => {
@@ -970,7 +982,6 @@ const App = {
             const bQty    = bQtyRaw === 'recurring' ? -1 : parseInt(bQtyRaw);
             const active  = !customActive && bQty === qty;
             if (active && isRecurring) {
-                // Estado ativo do botão de recorrente — cor violeta para distinguir
                 btn.className = 'installment-opt px-3 py-1.5 rounded-xl text-xs font-semibold border-2 border-violet-500 bg-violet-50 text-violet-700 transition-all';
             } else if (active) {
                 btn.className = 'installment-opt px-3 py-1.5 rounded-xl text-xs font-semibold border-2 border-emerald-500 bg-emerald-50 text-emerald-700 transition-all';
@@ -980,6 +991,20 @@ const App = {
                 btn.className = 'installment-opt px-3 py-1.5 rounded-xl text-xs font-semibold border-2 border-gray-200 text-gray-500 hover:border-emerald-300 transition-all';
             }
         });
+
+        // Toggle Valor por parcela / Valor total — visível só quando há >1 parcelas finitas
+        const modeWrap = document.getElementById('modal-installment-mode');
+        if (modeWrap) {
+            const showMode = qty > 1;
+            modeWrap.classList.toggle('hidden', !showMode);
+            if (showMode) {
+                document.querySelectorAll('.inst-mode-btn').forEach(b => {
+                    const active = b.dataset.instMode === this._installmentValueMode;
+                    b.className = 'inst-mode-btn flex-1 text-[11px] font-semibold py-1.5 px-2 rounded-lg transition-all ' + (active ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500');
+                });
+            }
+        }
+
         const preview = document.getElementById('modal-installment-preview');
         if (!preview) return;
         if (isRecurring) {
@@ -988,12 +1013,27 @@ const App = {
             preview.classList.remove('hidden');
         } else if (qty > 1) {
             const date = document.getElementById('modal-date')?.value;
+            const enteredValue = this._parseMaskedCurrency(document.getElementById('modal-value')?.value || '') || 0;
+            let valueLine = '';
+            if (enteredValue > 0) {
+                if (this._installmentValueMode === 'total') {
+                    const perInstallment = enteredValue / qty;
+                    valueLine = ` · ${qty}× de ${this.formatCurrency(perInstallment)} (total ${this.formatCurrency(enteredValue)})`;
+                } else {
+                    const total = enteredValue * qty;
+                    valueLine = ` · ${qty}× de ${this.formatCurrency(enteredValue)} (total ${this.formatCurrency(total)})`;
+                }
+            }
             if (date) {
                 const lastDate = this._addMonths(date, qty - 1);
                 const [ly, lm] = lastDate.split('-');
                 const lastMonth = new Date(Number(ly), Number(lm) - 1, 1)
                     .toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
-                preview.textContent = `${qty} parcelas — até ${lastMonth}`;
+                preview.textContent = `${qty} parcelas — até ${lastMonth}${valueLine}`;
+                preview.className = 'text-xs text-emerald-600 mt-1.5';
+                preview.classList.remove('hidden');
+            } else if (valueLine) {
+                preview.textContent = valueLine.replace(/^ · /, '');
                 preview.className = 'text-xs text-emerald-600 mt-1.5';
                 preview.classList.remove('hidden');
             }
@@ -1155,6 +1195,7 @@ const App = {
         this.renderCategorySelect(data.category || 'Outros');
         // Seção de parcelas
         this._installmentQty = 1;
+        this._installmentValueMode = 'perInstallment'; // reset ao abrir modal
         const installWrap    = document.getElementById('modal-installment-wrap');
         const pickerSection  = document.getElementById('modal-installment-picker-section');
         const infoSection    = document.getElementById('modal-installment-info');
@@ -1475,9 +1516,15 @@ const App = {
                 Storage.markRecurringGroup(groupId, true);
             } else if (installQty > 1) {
                 // Cria N transações, uma por mês
+                // Se modo = 'total': valor informado é o total → divide por installQty
+                // Se modo = 'perInstallment' (padrão): valor informado é o de cada parcela
+                const perInstallmentValue = this._installmentValueMode === 'total'
+                    ? Math.round((value / installQty) * 100) / 100
+                    : value;
                 const groupId = 'inst_' + Date.now().toString(36);
                 const txns = Array.from({ length: installQty }, (_, i) => ({
                     ...base,
+                    value:                perInstallmentValue,
                     date:                 this._addMonths(base.date, i),
                     description:          `${baseDesc} (${i + 1}/${installQty})`,
                     installment_group_id: groupId,
