@@ -913,14 +913,23 @@ const Storage = {
     // ── Transactions ──────────────────────────────────────────────────────────
     async bulkAddTransactions(transactions) {
         if (this.isCloud) {
-            const base = {
+            const userBase = {
                 user_id:           this.userId(),
                 inserted_by_email: Auth?.user?.email ?? null,
-                ...(this.activeFinancaId ? { financa_id: this.activeFinancaId } : {})
             };
             const payload = transactions.map(t => {
-                const { _rawType, _offline, _constraintFallback, ...clean } = t;
-                return { ...base, ...clean };
+                // Remove TODOS os campos internos (inclui _targetFinancaId)
+                const clean = this._cleanPayload(t);
+                // Se a transação tinha _targetFinancaId, usa como financa_id;
+                // senão, usa a finança ativa (comportamento anterior)
+                const targetFid = t._targetFinancaId !== undefined
+                    ? (t._targetFinancaId || null)
+                    : (this.activeFinancaId || null);
+                return {
+                    ...userBase,
+                    ...(targetFid ? { financa_id: targetFid } : {}),
+                    ...clean,
+                };
             });
             for (let i = 0; i < payload.length; i += 50) {
                 const { error } = await this.db.from('transactions').insert(payload.slice(i, i + 50));
