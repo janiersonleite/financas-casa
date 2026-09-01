@@ -1780,6 +1780,8 @@ const App = {
             btn.style.outline       = active ? '3px solid ' + btn.style.background : '';
             btn.style.outlineOffset = active ? '2px' : '';
         });
+        const noPersonEl = document.getElementById('type-noperson-input');
+        if (noPersonEl) noPersonEl.checked = !!type?.noPerson;
         document.getElementById('type-form-modal').classList.remove('hidden');
         setTimeout(() => document.getElementById('type-name-input').focus(), 100);
     },
@@ -1794,14 +1796,15 @@ const App = {
         const emoji    = document.getElementById('type-emoji-input').value.trim() || '📋';
         const behavior = document.getElementById('type-behavior-input').value;
         const color    = document.getElementById('type-color-input').value;
+        const noPerson = !!document.getElementById('type-noperson-input')?.checked;
         if (!name) { document.getElementById('type-name-input').focus(); return; }
         const btn = document.getElementById('type-form-save');
         btn.disabled = true; btn.textContent = 'Salvando...';
         try {
             if (this.editingTypeId) {
-                await Storage.updateTransactionType(this.editingTypeId, { name, emoji, behavior, color });
+                await Storage.updateTransactionType(this.editingTypeId, { name, emoji, behavior, color, noPerson });
             } else {
-                await Storage.createTransactionType(name, behavior, emoji, color);
+                await Storage.createTransactionType(name, behavior, emoji, color, noPerson);
             }
             this.transactionTypes = await Storage.getTransactionTypes();
             this.closeTypeForm();
@@ -4014,11 +4017,16 @@ const App = {
         const bd   = document.getElementById('person-breakdown');
         const myEmail = (Auth.user?.email || '').toLowerCase();
 
+        // Tipos marcados como "não atribuir a uma pessoa" (ex.: retirada de investimento)
+        // ficam de fora do Resumo por pessoa: não são atribuídos a ninguém, não entram no
+        // valor, no % nem na contagem de lançamentos. Continuam contando nas demais telas.
+        const attributable = txns.filter(t => !Storage.isNoPerson(t.type));
+
         // Group by email (fall back to current user for transactions with no inserter)
         // Usa o BEHAVIOR do tipo (soma / subtrai / neutro) para classificar corretamente.
         // Tipos neutros (ex: investimento, transferência) não contam como gasto nem entrada.
         const byPerson = {};
-        for (const t of txns) {
+        for (const t of attributable) {
             const email = (t.inserted_by_email || myEmail).toLowerCase();
             if (!byPerson[email]) byPerson[email] = { email, income: 0, expense: 0 };
             const beh = Storage.getBehavior(t.type);
@@ -4049,7 +4057,7 @@ const App = {
 
         // Group txns by person for panel
         const txnsByPerson = {};
-        for (const t of txns) {
+        for (const t of attributable) {
             const key = (t.inserted_by_email || myEmail).toLowerCase();
             if (!txnsByPerson[key]) txnsByPerson[key] = [];
             txnsByPerson[key].push(t);
