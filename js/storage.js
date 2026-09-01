@@ -98,7 +98,7 @@ const Storage = {
             for (const row of data) {
                 const localId = row.custom_id || ('ct' + (row.id || '').replace(/\D/g, '').slice(-6));
                 if (!merged.find(t => t._supabaseId === row.id || t.id === localId)) {
-                    merged.push({ id: localId, name: row.name, behavior: row.behavior, emoji: row.emoji, color: row.color, financa_id: fid || null, _supabaseId: row.id });
+                    merged.push({ id: localId, name: row.name, behavior: row.behavior, emoji: row.emoji, color: row.color, noPerson: !!row.no_person, financa_id: fid || null, _supabaseId: row.id });
                 }
             }
             this._saveCustomTypes(merged);
@@ -109,11 +109,10 @@ const Storage = {
         // ID curto (≤10 chars) para caber no VARCHAR(10) da coluna transactions.type
         // NÃO sobrescreve com UUID do Supabase — nosso ID curto é o canônico
         const fid = this.activeFinancaId && this.activeFinancaId !== 'null' ? this.activeFinancaId : null;
-        // noPerson é um campo apenas local (não existe coluna no Supabase) — não vai no payload.
         const t = { id: 'ct' + Date.now().toString(36).slice(-6), name, behavior, emoji, color, noPerson: !!noPerson, financa_id: fid };
         if (this.isCloud) {
             try {
-                const payload = { name, behavior, emoji, color, user_id: this.userId(), custom_id: t.id };
+                const payload = { name, behavior, emoji, color, no_person: !!noPerson, user_id: this.userId(), custom_id: t.id };
                 if (fid) payload.financa_id = fid;
                 const { data } = await this.db.from('transaction_types')
                     .insert(payload).select().single();
@@ -130,8 +129,9 @@ const Storage = {
     async updateTransactionType(id, updates) {
         if (this.isCloud) {
             try {
-                // noPerson é apenas local — remove antes de enviar ao Supabase (coluna inexistente).
+                // Mapeia o campo local `noPerson` para a coluna `no_person` do Supabase.
                 const { noPerson, ...cloudUpdates } = updates;
+                if (noPerson !== undefined) cloudUpdates.no_person = !!noPerson;
                 if (Object.keys(cloudUpdates).length) {
                     const ct = this.getCustomTypes().find(t => t.id === id);
                     const supaId = ct?._supabaseId || null;
