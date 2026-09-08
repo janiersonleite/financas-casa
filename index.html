@@ -1603,11 +1603,25 @@
                         class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300">
                 </div>
             </div>
-            <!-- Dia + Valor -->
+            <!-- Quando notificar: recorrente x data única -->
+            <div>
+                <label class="text-xs text-gray-500 font-medium mb-1 block">Quando notificar</label>
+                <div class="grid grid-cols-2 gap-2">
+                    <button type="button" data-remkind="recorrente" class="remkind-btn py-2.5 px-1 rounded-xl text-xs font-semibold border-2 border-emerald-500 bg-emerald-50 text-emerald-800 transition-all">🔁 Todo mês</button>
+                    <button type="button" data-remkind="pontual" class="remkind-btn py-2.5 px-1 rounded-xl text-xs font-semibold border-2 border-gray-200 text-gray-600 transition-all">📅 Data única</button>
+                </div>
+                <input id="reminder-kind-input" type="hidden" value="recorrente">
+            </div>
+            <!-- Dia (recorrente) / Data (pontual) + Valor -->
             <div class="flex gap-2">
-                <div class="flex-1">
+                <div class="flex-1" id="reminder-day-field">
                     <label class="text-xs text-gray-500 font-medium mb-1 block">Dia do mês *</label>
                     <input id="reminder-day-input" type="number" min="1" max="31" placeholder="Ex: 10"
+                        class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300">
+                </div>
+                <div class="flex-1 hidden" id="reminder-date-field">
+                    <label class="text-xs text-gray-500 font-medium mb-1 block">Data *</label>
+                    <input id="reminder-date-input" type="date"
                         class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300">
                 </div>
                 <div class="flex-1">
@@ -1615,6 +1629,13 @@
                     <input id="reminder-amount-input" type="number" step="0.01" min="0" placeholder="0,00"
                         class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300">
                 </div>
+            </div>
+            <!-- Horário da notificação -->
+            <div>
+                <label class="text-xs text-gray-500 font-medium mb-1 block">Horário da notificação (opcional)</label>
+                <input id="reminder-time-input" type="time"
+                    class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300">
+                <p class="text-[10px] text-gray-400 mt-1">Se definido, a notificação toca nesse horário. No Android/PWA instalado dispara com o app fechado; no iPhone/Safari aparece ao abrir o app.</p>
             </div>
             <!-- Categoria -->
             <div>
@@ -1648,13 +1669,13 @@
                 </select>
             </div>
             <!-- Mês de início -->
-            <div>
+            <div id="reminder-startmonth-field">
                 <label class="text-xs text-gray-500 font-medium mb-1 block">Mês de início</label>
                 <input id="reminder-start-month" type="month" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300">
                 <p class="text-[10px] text-gray-400 mt-1">Defina quando o lembrete começa a contar (pode ser retroativo).</p>
             </div>
             <!-- Duração / Recorrência -->
-            <div>
+            <div id="reminder-duration-field">
                 <label class="text-xs text-gray-500 font-medium mb-1 block">Duração</label>
                 <select id="reminder-duration-input" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300">
                     <option value="0">♾️ Sempre (sem prazo)</option>
@@ -1682,11 +1703,11 @@
 
 <script src="js/config.js?v=20260423j"></script>
 <script src="js/auth.js?v=20260424n"></script>
-<script src="js/storage.js?v=20260901a"></script>
+<script src="js/storage.js?v=20260908a"></script>
 <script src="js/nlp.js?v=20260429c"></script>
 <script src="js/insights.js?v=20260528a"></script>
 <script src="js/ocr.js?v=20260424h"></script>
-<script src="js/app.js?v=20260901a"></script>
+<script src="js/app.js?v=20260908a"></script>
 
 <script>
 // ── Service Worker + PWA ──────────────────────────────────────────────────────

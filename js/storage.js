@@ -847,10 +847,12 @@ const Storage = {
         });
     },
 
-    async createReminder({ name, day, amount, category, type, emoji, financa_id, duration_months, start_month }) {
+    async createReminder({ name, day, amount, category, type, emoji, financa_id, duration_months, start_month, notify_time, notify_date }) {
         const fid = financa_id ?? ((this.activeFinancaId && this.activeFinancaId !== 'null') ? this.activeFinancaId : null);
         const localId = 'rem_' + Date.now().toString(36);
-        const base = { name, day: Number(day), amount: Number(amount) || 0, category: category || '', type: type || 'saida', emoji: emoji || '🔔', active: true };
+        const nTime = (notify_time && /^\d{2}:\d{2}$/.test(notify_time)) ? notify_time : null;
+        const nDate = (notify_date && /^\d{4}-\d{2}-\d{2}$/.test(notify_date)) ? notify_date : null;
+        const base = { name, day: Number(day), amount: Number(amount) || 0, category: category || '', type: type || 'saida', emoji: emoji || '🔔', active: true, notify_time: nTime, notify_date: nDate };
         const durMonths  = Number(duration_months) || 0;
         const startMonth = (start_month && /^\d{4}-\d{2}$/.test(start_month)) ? start_month : '';
         if (this.isCloud) {
@@ -861,11 +863,13 @@ const Storage = {
                     ...(startMonth   ? { start_month: startMonth } : {}) };
                 let data, error;
                 ({ data, error } = await this.db.from('reminders').insert(payloadWithDur).select().single());
-                if (error && /(duration_months|start_month)/i.test(error.message || '')) {
-                    // Uma ou ambas colunas ausentes: insere sem os campos custom
+                if (error && /(duration_months|start_month|notify_time|notify_date)/i.test(error.message || '')) {
+                    // Uma ou mais colunas ausentes: insere sem os campos custom
                     const { user_id, financa_id, ...rest } = payloadWithDur;
                     delete rest.duration_months;
                     delete rest.start_month;
+                    delete rest.notify_time;
+                    delete rest.notify_date;
                     ({ data, error } = await this.db.from('reminders').insert({ ...rest, user_id, ...(fid ? { financa_id } : {}) }).select().single());
                 }
                 if (error) throw error;
@@ -902,7 +906,7 @@ const Storage = {
                 await this.db.from('reminders').update(updates).eq('id', id).eq('user_id', this.userId());
             } catch (_) {
                 // Se erro de coluna ausente, tenta sem os campos customizados
-                const { duration_months, start_month, ...rest } = updates;
+                const { duration_months, start_month, notify_time, notify_date, ...rest } = updates;
                 if (Object.keys(rest).length) {
                     try { await this.db.from('reminders').update(rest).eq('id', id).eq('user_id', this.userId()); } catch (__) {}
                 }
