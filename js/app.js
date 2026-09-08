@@ -2385,16 +2385,15 @@ const App = {
         if (!r) return;
         this._reminderSourceId = id;   // rastreia qual lembrete gerou o modal
 
+        // Data padrão = HOJE (dia em que o pagamento está sendo registrado),
+        // e não a data de vencimento do lembrete — que pode já ter passado.
         const today = new Date().toISOString().slice(0, 10);
-        const day   = String(r.day).padStart(2, '0');
-        const month = new Date().toISOString().slice(0, 7);
-        const date  = `${month}-${day}`;
 
         // Passa todos os dados via objeto para que sobrevivam ao picker de perfil
         this.openModal({
             description: r.name,
             value:       r.amount > 0 ? r.amount : undefined,
-            date:        date <= today ? date : today,
+            date:        today,
             category:    r.category || undefined,
             type:        r.type || 'saida',
         });
