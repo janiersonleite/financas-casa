@@ -1846,6 +1846,25 @@ const App = {
         return diff;
     },
 
+    // Dias até o vencimento considerando lembrete pontual (notify_date) ou recorrente (day).
+    // Pontual pode retornar negativo (data já passou); recorrente sempre >= 0.
+    _reminderDaysUntil(r) {
+        if (r?.notify_date && /^\d{4}-\d{2}-\d{2}$/.test(r.notify_date)) {
+            const today = new Date(); today.setHours(0, 0, 0, 0);
+            const [y, m, d] = r.notify_date.split('-').map(Number);
+            const target = new Date(y, m - 1, d); target.setHours(0, 0, 0, 0);
+            return Math.round((target - today) / 86_400_000);
+        }
+        return this._daysUntilDue(r.day);
+    },
+
+    // "2026-09-21" → "21/09"
+    _formatShortDate(dateStr) {
+        if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr || '';
+        const [, m, d] = dateStr.split('-');
+        return `${d}/${m}`;
+    },
+
     async checkReminderNotifications() {
         if (!('Notification' in window)) return;  // navegador não suporta
 
@@ -1865,11 +1884,15 @@ const App = {
                 r.active !== false &&
                 !this._isReminderExpired(r) &&
                 !this.isReminderPaid(r.id) &&
-                this._daysUntilDue(r.day) === t.offset
+                this._reminderDaysUntil(r) === t.offset
             ),
         })).filter(g => g.reminders.length > 0);
 
         if (!groups.length) return;
+
+        // Horário atual (HH:MM) para respeitar o horário definido no lembrete.
+        const _now = new Date();
+        const nowHHMM = String(_now.getHours()).padStart(2, '0') + ':' + String(_now.getMinutes()).padStart(2, '0');
 
         // Pede permissão se ainda não concedida
         let permission = Notification.permission;
@@ -1906,8 +1929,14 @@ const App = {
             if (!toNotify.length) continue;
 
             for (const r of toNotify) {
+                // No dia do vencimento, se há horário definido, só notifica a partir dele.
+                // (Não marca como notificado, para disparar quando o app reabrir após a hora.)
+                if (group.offset === 0 && r.notify_time && nowHHMM < String(r.notify_time).slice(0, 5)) continue;
+
                 const valor = r.amount > 0 ? ` — ${this.formatCurrency(r.amount)}` : '';
-                const body  = `${r.emoji || '🔔'} ${group.label} (dia ${r.day})${valor}`;
+                const quando = r.notify_date ? this._formatShortDate(r.notify_date) : `dia ${r.day}`;
+                const hora   = r.notify_time ? ` às ${String(r.notify_time).slice(0, 5)}` : '';
+                const body  = `${r.emoji || '🔔'} ${group.label} (${quando}${hora})${valor}`;
                 const title = `${group.badge} ${r.name}`;
 
                 await _notify(title, {
@@ -1926,6 +1955,66 @@ const App = {
             // Persiste para não repetir hoje
             try { localStorage.setItem(group.storKey, JSON.stringify(notified)); } catch {}
         }
+    },
+
+    // Timestamp (ms) da próxima ocorrência de um lembrete com horário definido.
+    // Pontual: a própria data+hora. Recorrente: próximo dia `day` às HH:MM.
+    _nextOccurrenceTs(r) {
+        if (!r?.notify_time || !/^\d{2}:\d{2}/.test(r.notify_time)) return null;
+        const [hh, mm] = r.notify_time.slice(0, 5).split(':').map(Number);
+        if (r.notify_date && /^\d{4}-\d{2}-\d{2}$/.test(r.notify_date)) {
+            const [y, m, d] = r.notify_date.split('-').map(Number);
+            return new Date(y, m - 1, d, hh, mm, 0, 0).getTime();
+        }
+        const now = new Date();
+        let t = new Date(now.getFullYear(), now.getMonth(), Number(r.day), hh, mm, 0, 0);
+        if (t.getTime() <= now.getTime()) {
+            t = new Date(now.getFullYear(), now.getMonth() + 1, Number(r.day), hh, mm, 0, 0);
+        }
+        return t.getTime();
+    },
+
+    // Agenda notificações no horário exato usando a Notification Triggers API.
+    // Best-effort: funciona com o app FECHADO em navegadores que suportam
+    // TimestampTrigger (Chrome/Android, PWA instalado). Onde não há suporte,
+    // a entrega acontece via checkReminderNotifications ao abrir o app.
+    async scheduleReminderTriggers() {
+        try {
+            if (!('Notification' in window) || Notification.permission !== 'granted') return;
+            if (!('serviceWorker' in navigator)) return;
+            if (typeof window.TimestampTrigger === 'undefined') return; // sem suporte → fallback on-open
+            const reg = await navigator.serviceWorker.ready;
+            if (!reg?.showNotification) return;
+
+            const now = Date.now();
+            const MAX_AHEAD = 60 * 24 * 60 * 60 * 1000; // não agenda além de ~60 dias
+
+            for (const r of this.reminders) {
+                if (r.active === false || this._isReminderExpired(r)) continue;
+                if (!r.notify_time) continue; // sem horário → depende do on-open
+                const when = this._nextOccurrenceTs(r);
+                if (!when || when <= now || (when - now) > MAX_AHEAD) continue;
+
+                const tag = `sched_rem_${r.id}`;
+                // Remove agendamento anterior deste lembrete (evita duplicar)
+                try {
+                    const pend = await reg.getNotifications({ tag, includeTriggered: true });
+                    pend.forEach(n => n.close());
+                } catch (_) {}
+
+                const valor = r.amount > 0 ? ` — ${this.formatCurrency(r.amount)}` : '';
+                try {
+                    await reg.showNotification(`🔔 ${r.name}`, {
+                        body:      `${r.emoji || '🔔'} Hora de registrar${valor}`,
+                        icon:      'icon.svg',
+                        badge:     'icon.svg',
+                        tag,
+                        showTrigger: new window.TimestampTrigger(when),
+                        data:      { action: 'open-reminders' },
+                    });
+                } catch (_) {}
+            }
+        } catch (_) {}
     },
 
     // Banner in-app quando Notifications não está disponível/negado
@@ -1992,7 +2081,14 @@ const App = {
             emptyBtn.addEventListener('click', () => this.openRemindersModal());
         }
 
-        const active = this.reminders.filter(r => r.active !== false && !this._isReminderExpired(r));
+        // Lembrete pontual (data única) só aparece no home no mês da sua data;
+        // recorrente aparece em qualquer mês visualizado.
+        const _viewMonth = this.currentMonth || new Date().toISOString().slice(0, 7);
+        const active = this.reminders.filter(r =>
+            r.active !== false &&
+            !this._isReminderExpired(r) &&
+            (!r.notify_date || r.notify_date.slice(0, 7) === _viewMonth)
+        );
         if (!active.length) {
             // Mostra só o botão de acesso vazio
             if (emptyBtn) emptyBtn.classList.remove('hidden');
@@ -2316,10 +2412,31 @@ const App = {
         fModal?.addEventListener('click', e => { if (e.target === fModal) this.closeReminderForm(); });
         document.getElementById('reminder-form-save')?.addEventListener('click',   () => this.saveReminderForm());
 
+        // ── Seletor recorrente x pontual (data única) ──────────────────────────
+        document.querySelectorAll('[data-remkind]').forEach(btn => {
+            btn.addEventListener('click', () => this._setReminderKind(btn.dataset.remkind));
+        });
+
         // ── Áudio no form de lembrete ──────────────────────────────────────────
         document.getElementById('reminder-voice-btn')?.addEventListener('click', () => {
             this._startReminderVoice();
         });
+    },
+
+    // Alterna o formulário entre lembrete recorrente (dia do mês) e pontual (data única)
+    _setReminderKind(kind) {
+        const pontual = kind === 'pontual';
+        const input = document.getElementById('reminder-kind-input');
+        if (input) input.value = kind;
+        document.querySelectorAll('[data-remkind]').forEach(b => {
+            const active = b.dataset.remkind === kind;
+            b.className = `remkind-btn py-2.5 px-1 rounded-xl text-xs font-semibold border-2 transition-all ${active ? 'border-emerald-500 bg-emerald-50 text-emerald-800' : 'border-gray-200 text-gray-600'}`;
+        });
+        document.getElementById('reminder-day-field')?.classList.toggle('hidden', pontual);
+        document.getElementById('reminder-date-field')?.classList.toggle('hidden', !pontual);
+        // Mês de início e Duração só fazem sentido no modo recorrente
+        document.getElementById('reminder-startmonth-field')?.classList.toggle('hidden', pontual);
+        document.getElementById('reminder-duration-field')?.classList.toggle('hidden', pontual);
     },
 
     _startReminderVoice() {
@@ -2470,7 +2587,7 @@ const App = {
                 <span class="text-2xl">${r.emoji || '🔔'}</span>
                 <div class="flex-1 min-w-0">
                     <div class="font-semibold text-gray-800 text-sm truncate">${r.name}${expiredBadge}${installBadge}</div>
-                    <div class="text-xs text-gray-400">Todo dia ${r.day}${cat}${amt}</div>
+                    <div class="text-xs text-gray-400">${r.notify_date ? '📅 ' + this._formatShortDate(r.notify_date) : 'Todo dia ' + r.day}${r.notify_time ? ' às ' + String(r.notify_time).slice(0, 5) : ''}${cat}${amt}</div>
                 </div>
                 <button class="reminder-edit-btn p-1.5 rounded-lg hover:bg-white text-gray-400 hover:text-emerald-600" data-id="${r.id}" title="Editar">✏️</button>
                 <button class="reminder-del-btn  p-1.5 rounded-lg hover:bg-white text-gray-400 hover:text-red-500"  data-id="${r.id}" title="Excluir">🗑️</button>
@@ -2501,6 +2618,12 @@ const App = {
     // Verifica se o lembrete está fora do prazo configurado
     // 0 ou ausência de duration_months => "sempre" (nunca expira)
     _isReminderExpired(r) {
+        // Pontual (data única): expira depois do dia agendado.
+        if (r?.notify_date && /^\d{4}-\d{2}-\d{2}$/.test(r.notify_date)) {
+            const [y, m, d] = r.notify_date.split('-').map(Number);
+            const end = new Date(y, m - 1, d); end.setHours(23, 59, 59, 999);
+            return new Date() > end;
+        }
         const months = Number(r?.duration_months) || 0;
         if (months <= 0) return false; // sempre
         const start = this._reminderStartDate(r);
@@ -2617,6 +2740,14 @@ const App = {
             durCustom.addEventListener('input', () => this._updateReminderDurationInfo());
             durSel._bound = true;
         }
+
+        // Modo (recorrente x pontual) + horário + data única
+        const kind = reminder?.notify_date ? 'pontual' : 'recorrente';
+        this._setReminderKind(kind);
+        const timeInput = document.getElementById('reminder-time-input');
+        if (timeInput) timeInput.value = (reminder?.notify_time && /^\d{2}:\d{2}/.test(reminder.notify_time)) ? reminder.notify_time.slice(0, 5) : '';
+        const dateInput = document.getElementById('reminder-date-input');
+        if (dateInput) dateInput.value = reminder?.notify_date || '';
 
         document.getElementById('reminder-form-modal')?.classList.remove('hidden');
         document.getElementById('reminder-name-input').focus();
@@ -2735,35 +2866,55 @@ const App = {
 
     async saveReminderForm() {
         const name   = document.getElementById('reminder-name-input').value.trim();
-        const day    = parseInt(document.getElementById('reminder-day-input').value);
         const amount = parseFloat(document.getElementById('reminder-amount-input').value) || 0;
         const emoji  = document.getElementById('reminder-emoji-input').value.trim() || '🔔';
         const catRaw   = document.getElementById('reminder-category-input').value;
         const category = catRaw === '__new__' ? '' : catRaw; // ignora opção de nova categoria não finalizada
         const type   = document.getElementById('reminder-type-input').value || 'saida';
-        const duration_months = this._readReminderDurationMonths(); // 0 = sempre
-        // Mês de início (YYYY-MM). Vazio = usa created_at (comportamento antigo).
-        const startRaw    = document.getElementById('reminder-start-month')?.value || '';
-        const start_month = /^\d{4}-\d{2}$/.test(startRaw) ? startRaw : '';
+
+        const kind    = document.getElementById('reminder-kind-input')?.value || 'recorrente';
+        const pontual = kind === 'pontual';
+        const timeRaw     = document.getElementById('reminder-time-input')?.value || '';
+        const notify_time = /^\d{2}:\d{2}/.test(timeRaw) ? timeRaw.slice(0, 5) : null;
 
         if (!name) { document.getElementById('reminder-name-input').focus(); return; }
-        if (!day || day < 1 || day > 31) { this.showToast('⚠️ Dia inválido (1–31)', true); return; }
+
+        // Modo pontual: data única → deriva o "dia do mês" da data e ignora duração/recorrência.
+        // Modo recorrente: dia do mês + duração + mês de início (comportamento existente).
+        let day, notify_date, duration_months, start_month;
+        if (pontual) {
+            const dateRaw = document.getElementById('reminder-date-input')?.value || '';
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(dateRaw)) { this.showToast('⚠️ Escolha uma data', true); return; }
+            notify_date = dateRaw;
+            day = Number(dateRaw.slice(8, 10));
+            duration_months = 0;
+            start_month = '';
+        } else {
+            day = parseInt(document.getElementById('reminder-day-input').value);
+            if (!day || day < 1 || day > 31) { this.showToast('⚠️ Dia inválido (1–31)', true); return; }
+            notify_date = null;
+            duration_months = this._readReminderDurationMonths(); // 0 = sempre
+            const startRaw = document.getElementById('reminder-start-month')?.value || '';
+            start_month = /^\d{4}-\d{2}$/.test(startRaw) ? startRaw : '';
+        }
 
         const btn = document.getElementById('reminder-form-save');
         btn.disabled = true; btn.textContent = 'Salvando...';
         try {
+            const fields = { name, day, amount, emoji, category, type, duration_months, start_month, notify_time, notify_date };
             if (this.editingReminderId) {
-                await Storage.updateReminder(this.editingReminderId, { name, day, amount, emoji, category, type, duration_months, start_month });
+                await Storage.updateReminder(this.editingReminderId, fields);
                 const idx = this.reminders.findIndex(r => r.id === this.editingReminderId);
-                if (idx !== -1) this.reminders[idx] = { ...this.reminders[idx], name, day, amount, emoji, category, type, duration_months, start_month };
+                if (idx !== -1) this.reminders[idx] = { ...this.reminders[idx], ...fields };
             } else {
-                const r = await Storage.createReminder({ name, day, amount, emoji, category, type, duration_months, start_month });
+                const r = await Storage.createReminder(fields);
                 this.reminders.push(r);
             }
             this.reminders.sort((a, b) => a.day - b.day);
             this.closeReminderForm();
             this.renderRemindersList();
             this.renderRemindersHome();
+            this.scheduleReminderTriggers();
             this.showToast(this.editingReminderId ? '✅ Lembrete atualizado!' : '✅ Lembrete criado!');
         } catch (e) {
             this.showToast('❌ Erro: ' + e.message, true);
@@ -5826,6 +5977,9 @@ const App = {
         let perm = Notification.permission;
         if (perm === 'default') perm = await Notification.requestPermission();
         if (perm !== 'granted') return;
+
+        // Com permissão concedida, (re)agenda os gatilhos de horário dos lembretes
+        this.scheduleReminderTriggers();
 
         // Mostra agora e re-mostra toda vez que o app voltar ao foco
         await this._showQuickAddNotification();
