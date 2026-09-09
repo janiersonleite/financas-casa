@@ -62,7 +62,6 @@ const App = {
         this.bindNav();
         this.bindQuickInput();
         this.bindModal();
-        this.bindOCR();
         this.bindVoice();
         this.bindVolumeShortcut();
         this.bindMonthNav();
@@ -111,8 +110,6 @@ const App = {
                 }
             }, 3000);
         }
-        // Verifica se há comprovante compartilhado (PWA share target)
-        if (window.__pendingShared) await this.checkSharedContent();
         // Notificações de lembretes vencendo hoje
         this.checkReminderNotifications();
         // Atalho de URL: ?action=new-transaction (shortcut do PWA)
@@ -1191,7 +1188,7 @@ const App = {
         const cleanDesc = (data.description || '').replace(/\s*\(\d+\/\d+\)\s*$/, '');
         document.getElementById('modal-description').value = cleanDesc;
         document.getElementById('modal-date').value        = data.date || new Date().toISOString().split('T')[0];
-        document.getElementById('modal-notes').value       = data.rawText ? '📎 Processado via OCR' : (data.notes || '');
+        document.getElementById('modal-notes').value       = data.notes || '';
         this.renderModalTypeBtns();
         this.selectModalType(data.type || 'saida');
         this.renderCategorySelect(data.category || 'Outros');
@@ -3103,127 +3100,6 @@ const App = {
         btn.classList.remove('listening');
         btn.innerHTML = '🎤';
         document.getElementById('quick-input').placeholder = 'Ex: "Gastei 50 no mercado" ou "Recebi 200 de freela"';
-    },
-
-    // ─── OCR ──────────────────────────────────────────────────────────────────
-    bindOCR() {
-        const dropzone   = document.getElementById('ocr-dropzone');
-        const fileInput  = document.getElementById('ocr-file');
-        const pasteBtn   = document.getElementById('ocr-paste');
-        const pasteArea  = document.getElementById('ocr-paste-area');
-        const processPaste = document.getElementById('ocr-process-paste');
-
-        dropzone.addEventListener('click', () => fileInput.click());
-        dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('border-emerald-500', 'bg-emerald-50'); });
-        dropzone.addEventListener('dragleave', () => dropzone.classList.remove('border-emerald-500', 'bg-emerald-50'));
-        dropzone.addEventListener('drop', e => {
-            e.preventDefault();
-            dropzone.classList.remove('border-emerald-500', 'bg-emerald-50');
-            if (e.dataTransfer.files[0]) this.runOCR(e.dataTransfer.files[0]);
-        });
-        fileInput.addEventListener('change', e => { if (e.target.files[0]) this.runOCR(e.target.files[0]); });
-        pasteBtn.addEventListener('click', () => pasteArea.classList.toggle('hidden'));
-        processPaste.addEventListener('click', () => {
-            const text = document.getElementById('ocr-text-input').value.trim();
-            if (!text) return;
-            this.showOCRResult(OCR.parseClipboardText(text));
-        });
-        document.addEventListener('paste', e => {
-            if (this.currentTab !== 'receipt') return;
-            for (const item of e.clipboardData.items) {
-                if (item.type.startsWith('image/')) { this.runOCR(item.getAsFile()); return; }
-            }
-        });
-    },
-
-    async runOCR(file) {
-        const preview     = document.getElementById('ocr-preview');
-        const progress    = document.getElementById('ocr-progress');
-        const progressBar = document.getElementById('ocr-progress-bar');
-        const progressTxt = document.getElementById('ocr-progress-text');
-
-        const isPDF = file.type === 'application/pdf' || file.name?.toLowerCase().endsWith('.pdf');
-
-        if (isPDF) {
-            // Mostra ícone de PDF em vez de preview de imagem
-            preview.classList.add('hidden');
-        } else {
-            preview.src = URL.createObjectURL(file);
-            preview.classList.remove('hidden');
-        }
-
-        progress.classList.remove('hidden');
-        document.getElementById('ocr-result').classList.add('hidden');
-
-        const onProgress = pct => {
-            progressBar.style.width = `${pct}%`;
-            progressTxt.textContent = `${pct}%`;
-        };
-
-        try {
-            const result = isPDF
-                ? await OCR.processPDF(file, onProgress)
-                : await OCR.processImage(file, onProgress);
-            progress.classList.add('hidden');
-            this.showOCRResult(result);
-        } catch (err) {
-            progress.classList.add('hidden');
-            this.showToast('❌ ' + err.message, true);
-        }
-    },
-
-    showOCRResult(result) {
-        const box = document.getElementById('ocr-result');
-        box.classList.remove('hidden');
-        document.getElementById('ocr-result-value').textContent = result.value ? this.formatCurrency(result.value) : '—';
-        document.getElementById('ocr-result-date').textContent  = result.date ? this.formatDate(result.date) : '—';
-        document.getElementById('ocr-result-type').textContent  = result.type === 'entrada' ? '💚 Entrada' : '🔴 Saída';
-        document.getElementById('ocr-result-desc').textContent  = result.description || '—';
-        document.getElementById('ocr-use-result').onclick = () => {
-            this.openModal({
-                value:       result.value,
-                date:        result.date,
-                type:        result.type,
-                category:    result.category || 'PIX',
-                description: result.description,
-                rawText:     result.rawText
-            });
-            this.switchTab('home');
-        };
-    },
-
-    // ─── PWA Share Target ─────────────────────────────────────────────────────
-    async checkSharedContent() {
-        if (!('caches' in window)) return;
-        try {
-            const cache   = await caches.open('share-target-v1');
-            const metaRes = await cache.match('shared-meta');
-            if (!metaRes) return;
-
-            const meta = await metaRes.json();
-            this.switchTab('receipt');
-
-            if (meta.kind === 'text') {
-                // Texto compartilhado → processa diretamente
-                const result = OCR.parseClipboardText(meta.text);
-                this.showOCRResult(result);
-            } else if (meta.kind === 'file') {
-                // Imagem compartilhada → roda OCR
-                const fileRes = await cache.match('shared-file');
-                if (fileRes) {
-                    const blob = await fileRes.blob();
-                    const file = new File([blob], meta.name || 'comprovante.jpg', { type: meta.mimeType });
-                    await this.runOCR(file);
-                }
-            }
-
-            // Limpa o cache após processar
-            await cache.delete('shared-meta');
-            await cache.delete('shared-file');
-        } catch (err) {
-            console.error('checkSharedContent error:', err);
-            this.showToast('Erro ao processar comprovante compartilhado', true);
-        }
     },
 
     // ─── Render Home ──────────────────────────────────────────────────────────
@@ -6835,7 +6711,10 @@ const App = {
         btn.disabled = true; btn.textContent = 'Salvando...';
         try {
             if (this.editingCatId) {
+                const oldName = this.categories.find(c => c.id === this.editingCatId)?.name || '';
                 await Storage.updateCategory(this.editingCatId, { name, emoji, keywords, type });
+                // Propaga o novo nome para lançamentos/lembretes existentes (referência por texto)
+                if (oldName && oldName !== name) await Storage.renameCategoryEverywhere(oldName, name);
                 const idx = this.categories.findIndex(c => c.id === this.editingCatId);
                 if (idx !== -1) this.categories[idx] = { ...this.categories[idx], name, emoji, keywords, type };
             } else {
@@ -6843,12 +6722,15 @@ const App = {
                 this.categories.push(cat);
                 this.categories = this._sortCategories(this.categories);
             }
+            const wasEdit = !!this.editingCatId;
             NLP.setCategoryMap(this.categories);
             this.closeCategoryForm();
             this.renderCategoryList();
             this.renderCategorySelect();
             this.renderQuickButtons();
-            this.showToast(this.editingCatId ? '✅ Categoria atualizada!' : '✅ Categoria criada!');
+            // Reflete o novo nome nos lançamentos da aba ativa (Histórico/Resumo)
+            if (wasEdit) await this.renderCurrentTab();
+            this.showToast(wasEdit ? '✅ Categoria atualizada!' : '✅ Categoria criada!');
         } catch (e) {
             const msg = e.message || '';
             if (msg.includes('duplicate key') || msg.includes('unique constraint') || msg.includes('already exists')) {

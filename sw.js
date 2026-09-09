@@ -1,7 +1,6 @@
 // ─── Service Worker — Finanças Casa ──────────────────────────────────────────
-// APP_VERSION: 2026-09-09 12:00  ← atualizar junto com app.js a cada deploy
-const SHARE_CACHE   = 'share-target-v1';
-const RUNTIME_CACHE = 'app-runtime-v20260909b';
+// APP_VERSION: 2026-09-09 20:00  ← atualizar junto com app.js a cada deploy
+const RUNTIME_CACHE = 'app-runtime-v20260909d';
 
 self.addEventListener('install', e => {
     e.waitUntil(
@@ -20,7 +19,7 @@ self.addEventListener('activate', e => {
     e.waitUntil(
         caches.keys()
             .then(keys => Promise.all(
-                keys.filter(k => k !== RUNTIME_CACHE && k !== SHARE_CACHE)
+                keys.filter(k => k !== RUNTIME_CACHE)
                     .map(k => caches.delete(k))
             ))
             .then(() => self.clients.claim())
@@ -29,12 +28,6 @@ self.addEventListener('activate', e => {
 
 self.addEventListener('fetch', event => {
     const url = new URL(event.request.url);
-
-    // ── Share Target (POST /share-target) ────────────────────────────────────
-    if (event.request.method === 'POST' && url.pathname === '/financas-casa/share-target') {
-        event.respondWith(handleShareTarget(event.request));
-        return;
-    }
 
     // Só intercepta GET
     if (event.request.method !== 'GET') return;
@@ -90,29 +83,3 @@ self.addEventListener('notificationclick', event => {
             })
     );
 });
-
-// ── Share Target handler ──────────────────────────────────────────────────────
-async function handleShareTarget(request) {
-    const formData = await request.formData();
-    const title    = formData.get('title') || '';
-    const text     = formData.get('text')  || '';
-    const file     = formData.get('receipt');
-
-    const cache = await caches.open(SHARE_CACHE);
-
-    if (file && file.size > 0) {
-        await cache.put('shared-file', new Response(file, {
-            headers: { 'Content-Type': file.type || 'image/jpeg' }
-        }));
-        await cache.put('shared-meta', new Response(JSON.stringify({
-            kind: 'file', name: file.name, mimeType: file.type || 'image/jpeg', title, text
-        }), { headers: { 'Content-Type': 'application/json' } }));
-    } else if (text) {
-        await cache.delete('shared-file');
-        await cache.put('shared-meta', new Response(JSON.stringify({
-            kind: 'text', text, title
-        }), { headers: { 'Content-Type': 'application/json' } }));
-    }
-
-    return Response.redirect('/financas-casa/?shared=1', 303);
-}
