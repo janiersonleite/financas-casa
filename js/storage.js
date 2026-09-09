@@ -1007,14 +1007,14 @@ const Storage = {
             this._setReminderStartMonth(id, updates.start_month);
         }
         if (this.isCloud) {
-            try {
-                await this.db.from('reminders').update(updates).eq('id', id).eq('user_id', this.userId());
-            } catch (_) {
-                // Se erro de coluna ausente, tenta sem os campos customizados
-                const { duration_months, start_month, notify_time, notify_date, ...rest } = updates;
-                if (Object.keys(rest).length) {
-                    try { await this.db.from('reminders').update(rest).eq('id', id).eq('user_id', this.userId()); } catch (__) {}
-                }
+            // duration_months e start_month são apenas locais (não são colunas do Supabase).
+            // Segurança fica por conta do RLS (não filtra por user_id no cliente); .select()
+            // detecta quando nada foi alterado, evitando "salvar" em silêncio sem efeito.
+            const { duration_months, start_month, ...cloudUpdates } = updates;
+            if (Object.keys(cloudUpdates).length) {
+                const { data, error } = await this.db.from('reminders').update(cloudUpdates).eq('id', id).select();
+                if (error) throw error;
+                if (!data || !data.length) throw new Error('Não foi possível editar este lembrete (sem permissão ou já removido).');
             }
         }
         const list = this._getLocalReminders();
@@ -1024,7 +1024,8 @@ const Storage = {
 
     async deleteReminder(id) {
         if (this.isCloud) {
-            try { await this.db.from('reminders').delete().eq('id', id).eq('user_id', this.userId()); } catch (_) {}
+            // Segurança via RLS (dono ou membro da finança); sem filtro por user_id no cliente.
+            try { await this.db.from('reminders').delete().eq('id', id); } catch (_) {}
         }
         this._setReminderDuration(id, 0);   // remove duração do localStorage
         this._setReminderStartMonth(id, ''); // remove mês de início
