@@ -1,6 +1,6 @@
 // ─── Service Worker — Finanças Casa ──────────────────────────────────────────
-// APP_VERSION: 2026-09-09 18:00  ← atualizar junto com app.js a cada deploy
-const RUNTIME_CACHE = 'app-runtime-v20260909c';
+// APP_VERSION: 2026-09-09 20:00  ← atualizar junto com app.js a cada deploy
+const RUNTIME_CACHE = 'app-runtime-v20260909d';
 
 self.addEventListener('install', e => {
     e.waitUntil(

@@ -6711,7 +6711,10 @@ const App = {
         btn.disabled = true; btn.textContent = 'Salvando...';
         try {
             if (this.editingCatId) {
+                const oldName = this.categories.find(c => c.id === this.editingCatId)?.name || '';
                 await Storage.updateCategory(this.editingCatId, { name, emoji, keywords, type });
+                // Propaga o novo nome para lançamentos/lembretes existentes (referência por texto)
+                if (oldName && oldName !== name) await Storage.renameCategoryEverywhere(oldName, name);
                 const idx = this.categories.findIndex(c => c.id === this.editingCatId);
                 if (idx !== -1) this.categories[idx] = { ...this.categories[idx], name, emoji, keywords, type };
             } else {
@@ -6719,12 +6722,15 @@ const App = {
                 this.categories.push(cat);
                 this.categories = this._sortCategories(this.categories);
             }
+            const wasEdit = !!this.editingCatId;
             NLP.setCategoryMap(this.categories);
             this.closeCategoryForm();
             this.renderCategoryList();
             this.renderCategorySelect();
             this.renderQuickButtons();
-            this.showToast(this.editingCatId ? '✅ Categoria atualizada!' : '✅ Categoria criada!');
+            // Reflete o novo nome nos lançamentos da aba ativa (Histórico/Resumo)
+            if (wasEdit) await this.renderCurrentTab();
+            this.showToast(wasEdit ? '✅ Categoria atualizada!' : '✅ Categoria criada!');
         } catch (e) {
             const msg = e.message || '';
             if (msg.includes('duplicate key') || msg.includes('unique constraint') || msg.includes('already exists')) {

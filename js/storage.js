@@ -783,14 +783,60 @@ const Storage = {
             return;
         }
         if (this.isCloud) {
-            const { error } = await this.db
-                .from('categories').update(updates).eq('id', id).eq('user_id', this.userId());
+            // Segurança via RLS (não filtra por user_id no cliente); .select() detecta
+            // quando nenhuma linha foi alterada, evitando "salvar" em silêncio sem efeito.
+            const { data, error } = await this.db
+                .from('categories').update(updates).eq('id', id).select();
             if (error) throw error;
+            if (!data || !data.length) throw new Error('Não foi possível editar esta categoria (sem permissão ou já removida).');
             return;
         }
         const d = this._localGet();
         const idx = (d.categories || []).findIndex(c => c.id === id);
         if (idx !== -1) { d.categories[idx] = { ...d.categories[idx], ...updates }; this._localSave(d); }
+    },
+
+    // Renomeia a categoria em TODOS os lançamentos e lembretes que a referenciam
+    // (transactions.category e reminders.category são texto, não FK — sem isto, o
+    // rename da categoria não reflete nos dados existentes). Escopo = finança ativa.
+    async renameCategoryEverywhere(oldName, newName) {
+        if (!oldName || !newName || oldName === newName) return;
+        const fid = (this.activeFinancaId && this.activeFinancaId !== 'null') ? this.activeFinancaId : null;
+        if (this.isCloud && this.isOnline) {
+            try {
+                let tq = this.db.from('transactions').update({ category: newName }).eq('category', oldName);
+                tq = fid ? tq.eq('financa_id', fid) : tq.eq('user_id', this.userId()).is('financa_id', null);
+                await tq;
+                let rq = this.db.from('reminders').update({ category: newName }).eq('category', oldName);
+                rq = fid ? rq.eq('financa_id', fid) : rq.eq('user_id', this.userId()).is('financa_id', null);
+                await rq;
+            } catch (e) { console.warn('renameCategoryEverywhere (cloud):', e?.message || e); }
+        }
+        // Atualiza caches locais para refletir imediatamente / offline
+        try {
+            const cache = this._getCachedTx();
+            let changed = false;
+            for (const t of cache) {
+                if (t.category === oldName && (fid ? t.financa_id === fid : !t.financa_id)) { t.category = newName; changed = true; }
+            }
+            if (changed) this._cacheTx(cache);
+        } catch {}
+        try {
+            const d = this._localGet();
+            if (d.transactions) {
+                let ch = false;
+                for (const t of d.transactions) {
+                    if (t.category === oldName && (fid ? t.financa_id === fid : !t.financa_id)) { t.category = newName; ch = true; }
+                }
+                if (ch) this._localSave(d);
+            }
+        } catch {}
+        try {
+            const rem = this._getLocalReminders();
+            let ch = false;
+            for (const r of rem) if (r.category === oldName) { r.category = newName; ch = true; }
+            if (ch) this._saveLocalReminders(rem);
+        } catch {}
     },
 
     async deleteCategory(id) {
