@@ -98,21 +98,22 @@ const Storage = {
             for (const row of data) {
                 const localId = row.custom_id || ('ct' + (row.id || '').replace(/\D/g, '').slice(-6));
                 if (!merged.find(t => t._supabaseId === row.id || t.id === localId)) {
-                    merged.push({ id: localId, name: row.name, behavior: row.behavior, emoji: row.emoji, color: row.color, noPerson: !!row.no_person, financa_id: fid || null, _supabaseId: row.id });
+                    merged.push({ id: localId, name: row.name, behavior: row.behavior, emoji: row.emoji, color: row.color, noPerson: !!row.no_person, investRole: row.invest_role || null, financa_id: fid || null, _supabaseId: row.id });
                 }
             }
             this._saveCustomTypes(merged);
         } catch (_) {}
     },
 
-    async createTransactionType(name, behavior, emoji, color, noPerson = false) {
+    async createTransactionType(name, behavior, emoji, color, noPerson = false, investRole = null) {
         // ID curto (≤10 chars) para caber no VARCHAR(10) da coluna transactions.type
         // NÃO sobrescreve com UUID do Supabase — nosso ID curto é o canônico
         const fid = this.activeFinancaId && this.activeFinancaId !== 'null' ? this.activeFinancaId : null;
-        const t = { id: 'ct' + Date.now().toString(36).slice(-6), name, behavior, emoji, color, noPerson: !!noPerson, financa_id: fid };
+        const role = (investRole === 'aporte' || investRole === 'resgate') ? investRole : null;
+        const t = { id: 'ct' + Date.now().toString(36).slice(-6), name, behavior, emoji, color, noPerson: !!noPerson, investRole: role, financa_id: fid };
         if (this.isCloud) {
             try {
-                const payload = { name, behavior, emoji, color, no_person: !!noPerson, user_id: this.userId(), custom_id: t.id };
+                const payload = { name, behavior, emoji, color, no_person: !!noPerson, invest_role: role, user_id: this.userId(), custom_id: t.id };
                 if (fid) payload.financa_id = fid;
                 const { data } = await this.db.from('transaction_types')
                     .insert(payload).select().single();
@@ -129,9 +130,10 @@ const Storage = {
     async updateTransactionType(id, updates) {
         if (this.isCloud) {
             try {
-                // Mapeia o campo local `noPerson` para a coluna `no_person` do Supabase.
-                const { noPerson, ...cloudUpdates } = updates;
+                // Mapeia campos locais para as colunas do Supabase.
+                const { noPerson, investRole, ...cloudUpdates } = updates;
                 if (noPerson !== undefined) cloudUpdates.no_person = !!noPerson;
+                if (investRole !== undefined) cloudUpdates.invest_role = (investRole === 'aporte' || investRole === 'resgate') ? investRole : null;
                 if (Object.keys(cloudUpdates).length) {
                     const ct = this.getCustomTypes().find(t => t.id === id);
                     const supaId = ct?._supabaseId || null;
@@ -175,6 +177,62 @@ const Storage = {
     isNoPerson(typeId) {
         if (typeId === 'entrada' || typeId === 'saida') return false;
         return !!this.getCustomTypes().find(t => t.id === typeId)?.noPerson;
+    },
+
+    // Papel do tipo na carteira de investimentos: 'aporte' | 'resgate' | null.
+    getInvestRole(typeId) {
+        if (typeId === 'entrada' || typeId === 'saida') return null;
+        const r = this.getCustomTypes().find(t => t.id === typeId)?.investRole;
+        return (r === 'aporte' || r === 'resgate') ? r : null;
+    },
+
+    // ── Meta de aporte mensal (localStorage por finança) ──────────────────────
+    _investGoalKey(fid) { return 'invest_goal_' + (fid || 'personal'); },
+    getInvestGoal() {
+        const fid = (this.activeFinancaId && this.activeFinancaId !== 'null') ? this.activeFinancaId : null;
+        try { return Number(localStorage.getItem(this._investGoalKey(fid))) || 0; } catch { return 0; }
+    },
+    setInvestGoal(value) {
+        const fid = (this.activeFinancaId && this.activeFinancaId !== 'null') ? this.activeFinancaId : null;
+        try {
+            const v = Number(value) || 0;
+            if (v > 0) localStorage.setItem(this._investGoalKey(fid), String(v));
+            else       localStorage.removeItem(this._investGoalKey(fid));
+        } catch {}
+    },
+
+    // Carteira de investimentos (modelo "só aportes e resgates"):
+    // saldo de cada PRODUTO (categoria) = Σ aportes − Σ resgates.
+    // Retorna { products:[{name,invested,aportes,resgates,count}], totalInvested,
+    //           totalAportes, totalResgates, monthAportes } para o mês informado.
+    async getInvestmentPortfolio(month = null) {
+        // Busca só os lançamentos dos tipos de investimento (evita puxar todo o histórico).
+        const investIds = this.getCustomTypes()
+            .filter(t => t.investRole === 'aporte' || t.investRole === 'resgate')
+            .map(t => t.id);
+        if (!investIds.length) {
+            return { products: [], totalInvested: 0, totalAportes: 0, totalResgates: 0, monthAportes: 0 };
+        }
+        const list = await this.getTransactions({ types: investIds });
+        const byProduct = {};
+        let totalAportes = 0, totalResgates = 0, monthAportes = 0;
+        for (const t of list) {
+            const role = this.getInvestRole(t.type);
+            if (!role) continue;
+            const prod = (t.category && t.category.trim()) ? t.category.trim() : 'Sem produto';
+            if (!byProduct[prod]) byProduct[prod] = { name: prod, invested: 0, aportes: 0, resgates: 0, count: 0 };
+            const val = Number(t.value) || 0;
+            byProduct[prod].count++;
+            if (role === 'aporte') {
+                byProduct[prod].invested += val; byProduct[prod].aportes += val; totalAportes += val;
+                if (month && (t.date || '').slice(0, 7) === month) monthAportes += val;
+            } else { // resgate
+                byProduct[prod].invested -= val; byProduct[prod].resgates += val; totalResgates += val;
+            }
+        }
+        const products = Object.values(byProduct).sort((a, b) => b.invested - a.invested);
+        const totalInvested = products.reduce((s, p) => s + p.invested, 0);
+        return { products, totalInvested, totalAportes, totalResgates, monthAportes, transactions: list };
     },
     activeFinancaId: null,
 
@@ -341,6 +399,7 @@ const Storage = {
             list = list.filter(t => t.financa_id === this.activeFinancaId || !t.financa_id);
         }
         if (filters.type)  list = list.filter(t => t.type === filters.type);
+        if (filters.types && filters.types.length) list = list.filter(t => filters.types.includes(t.type));
         if (filters.month) list = list.filter(t => t.date?.startsWith(filters.month));
         return list;
     },
@@ -1076,6 +1135,7 @@ const Storage = {
                     ? list.filter(t => t.financa_id === this.activeFinancaId)
                     : list.filter(t => t.user_id === uid);
                 if (filters.type) list = list.filter(t => t.type === filters.type);
+                if (filters.types && filters.types.length) list = list.filter(t => filters.types.includes(t.type));
                 if (filters.month) {
                     const [y, m] = filters.month.split('-');
                     const from = `${y}-${m}-01`;
@@ -1099,6 +1159,7 @@ const Storage = {
             }
 
             if (filters.type)  q = q.eq('type', filters.type);
+            if (filters.types && filters.types.length) q = q.in('type', filters.types);
             if (filters.month) {
                 const [y, m] = filters.month.split('-');
                 const from   = `${y}-${m}-01`;
