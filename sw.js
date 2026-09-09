@@ -1,7 +1,7 @@
 // ─── Service Worker — Finanças Casa ──────────────────────────────────────────
-// APP_VERSION: 2026-09-09 00:00  ← atualizar junto com app.js a cada deploy
+// APP_VERSION: 2026-09-09 12:00  ← atualizar junto com app.js a cada deploy
 const SHARE_CACHE   = 'share-target-v1';
-const RUNTIME_CACHE = 'app-runtime-v20260909';
+const RUNTIME_CACHE = 'app-runtime-v20260909b';
 
 self.addEventListener('install', e => {
     e.waitUntil(

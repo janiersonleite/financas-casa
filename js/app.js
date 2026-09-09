@@ -564,6 +564,8 @@ const App = {
         document.getElementById('open-categories-btn')?.addEventListener('click', () => this.openCategoryModal());
         // "Lembretes — Ver tudo"
         document.getElementById('reminders-manage-link')?.addEventListener('click', () => this.openRemindersModal());
+        // Aba Investimentos: botão "+ Aporte" no cabeçalho
+        document.getElementById('inv-new-aporte-top')?.addEventListener('click', () => this._newAporte());
     },
 
     async switchTab(tab) {
@@ -4082,9 +4084,6 @@ const App = {
         // ── Person breakdown ───────────────────────────────────────────────────
         this.renderPersonBreakdown(txns);
 
-        // ── Investimentos (carteira por produto) ───────────────────────────────
-        this.renderInvestments();
-
         // ── Category breakdown (accordion) ────────────────────────────────────
         const totalExp = Object.values(catTotals).reduce((s, t) => s + t.expense, 0);
 
@@ -4169,22 +4168,57 @@ const App = {
     },
 
     // ─── Investimentos: carteira por produto + meta de aporte ─────────────────
-    async renderInvestments() {
-        const wrap = document.getElementById('investments-wrap');
-        const bd   = document.getElementById('investments-section');
-        if (!wrap || !bd) return;
+    // Abre o modal de novo lançamento já com um tipo de "aporte" pré-selecionado.
+    _newAporte() {
+        const aporteType = Storage.getCustomTypes().find(t => t.investRole === 'aporte');
+        if (aporteType) {
+            this.openModal({ type: aporteType.id });
+        } else {
+            this.openModal();
+            this.showToast('Marque um tipo como "Aporte" em Gerenciar tipos', false);
+        }
+    },
+
+    // ─── Aba Investimentos ────────────────────────────────────────────────────
+    async renderInvestmentsTab() {
+        const body = document.getElementById('investments-tab-body');
+        if (!body) return;
 
         let portfolio;
         try { portfolio = await Storage.getInvestmentPortfolio(this.currentMonth); }
-        catch { wrap.classList.add('hidden'); return; }
+        catch { body.innerHTML = '<p class="text-center text-gray-400 py-8 text-sm">Não foi possível carregar a carteira.</p>'; return; }
 
-        const goal    = Storage.getInvestGoal();
-        const hasData = portfolio.products.length > 0;
+        const goal = Storage.getInvestGoal();
+        const txns = portfolio.transactions || [];
 
-        // Só exibe a seção se há carteira OU uma meta definida
-        if (!hasData && !goal) { wrap.classList.add('hidden'); return; }
-        wrap.classList.remove('hidden');
+        // Estado vazio: nenhum tipo de investimento configurado / sem lançamentos
+        if (!txns.length && !goal) {
+            body.innerHTML = `
+                <div class="bg-white rounded-2xl border border-gray-100 text-center text-gray-400 py-10 px-6">
+                    <div class="text-4xl mb-3">📈</div>
+                    <p class="text-sm font-semibold text-gray-500">Sua carteira está vazia</p>
+                    <p class="text-xs mt-2 leading-relaxed">Em <b>Gerenciar tipos</b>, marque um tipo como <b>Aporte</b> (ex.: "Investimento", "Inclusão CDB") e outro como <b>Resgate</b>. Depois lance seus aportes usando a <b>categoria</b> como o produto (ex.: "CDB Banco X").</p>
+                    <button id="inv-manage-types" class="mt-4 px-4 py-2 rounded-xl bg-emerald-600 text-white text-sm font-semibold">Gerenciar tipos</button>
+                </div>`;
+            document.getElementById('inv-manage-types')?.addEventListener('click', () => this.openTypesModal());
+            return;
+        }
 
+        // ── Evolução: saldo investido acumulado por mês (últimos 12) ────────────
+        const monthlyNet = {};
+        for (const t of txns) {
+            const ym = (t.date || '').slice(0, 7); if (!ym) continue;
+            const role = Storage.getInvestRole(t.type);
+            const v = Number(t.value) || 0;
+            monthlyNet[ym] = (monthlyNet[ym] || 0) + (role === 'aporte' ? v : -v);
+        }
+        const yms = Object.keys(monthlyNet).sort();
+        let acc = 0; const evoLabels = [], evoData = [];
+        for (const ym of yms) { acc += monthlyNet[ym]; evoLabels.push(this.formatMonthShort(ym)); evoData.push(acc); }
+        const s = Math.max(0, evoLabels.length - 12);
+        const evL = evoLabels.slice(s), evD = evoData.slice(s);
+
+        // ── Carteira por produto ────────────────────────────────────────────────
         const prodRows = portfolio.products.map(p => {
             const icon = this.getCategoryIcon(p.name);
             const pct  = portfolio.totalInvested > 0 ? Math.max(0, (p.invested / portfolio.totalInvested) * 100) : 0;
@@ -4203,15 +4237,33 @@ const App = {
                 </div>
                 ${pct > 0 ? `<div class="w-full bg-gray-100 rounded-full h-1.5 mt-1"><div class="bg-emerald-500 h-1.5 rounded-full" style="width:${pct.toFixed(1)}%"></div></div>` : ''}
             </div>`;
+        }).join('') || '<p class="text-xs text-gray-400 text-center py-2">Nenhum produto ainda.</p>';
+
+        // ── Movimentos recentes (últimos 8) ─────────────────────────────────────
+        const recent = [...txns].sort((a, b) => (b.date || '').localeCompare(a.date || '')).slice(0, 8);
+        const recentRows = recent.map(t => {
+            const isAporte = Storage.getInvestRole(t.type) === 'aporte';
+            const sign  = isAporte ? '+' : '−';
+            const color = isAporte ? 'text-emerald-600' : 'text-amber-600';
+            const dateTxt = t.date ? t.date.slice(8, 10) + '/' + this._monthAbbr(t.date) : '';
+            return `
+            <div class="inv-recent-item flex items-center gap-2 py-2 border-b border-gray-50 last:border-0 cursor-pointer hover:bg-gray-50 rounded-lg px-1" data-id="${t.id}">
+                <span class="text-base flex-shrink-0">${this.getCategoryIcon(t.category)}</span>
+                <div class="flex-1 min-w-0">
+                    <div class="text-sm text-gray-800 truncate">${this._escHtml(t.description || t.category || '—')}</div>
+                    <div class="text-[10px] text-gray-400 truncate">${this._escHtml(t.category || 'Sem produto')}${dateTxt ? ' · ' + dateTxt : ''} · ${isAporte ? 'Aporte' : 'Resgate'}</div>
+                </div>
+                <div class="text-sm font-bold ${color} flex-shrink-0">${sign}${this.formatCurrency(t.value)}</div>
+            </div>`;
         }).join('');
 
-        // Meta de aporte mensal
+        // ── Meta de aporte mensal ───────────────────────────────────────────────
         const metaPct   = goal > 0 ? Math.min(100, (portfolio.monthAportes / goal) * 100) : 0;
         const metaColor = metaPct >= 100 ? 'bg-emerald-500' : 'bg-emerald-400';
         const metaBlock = `
-            <div class="mt-3 pt-3 border-t border-gray-100">
+            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
                 <div class="flex items-center justify-between mb-1">
-                    <span class="text-xs font-semibold text-gray-600">🎯 Meta de aporte do mês</span>
+                    <span class="text-sm font-semibold text-gray-700">🎯 Meta de aporte do mês</span>
                     <button id="invest-goal-edit" class="text-[11px] text-emerald-600 font-semibold">${goal > 0 ? 'Editar' : 'Definir'}</button>
                 </div>
                 ${goal > 0 ? `
@@ -4228,18 +4280,58 @@ const App = {
                 </div>
             </div>`;
 
-        bd.innerHTML = `
-            <div class="flex items-center justify-between mb-3">
-                <p class="text-sm font-semibold text-gray-700">📈 Investimentos</p>
-                <div class="text-right">
-                    <div class="text-[10px] text-gray-400 uppercase">Total investido</div>
-                    <div class="text-base font-bold ${portfolio.totalInvested >= 0 ? 'text-emerald-600' : 'text-red-600'}">${this.formatCurrency(portfolio.totalInvested)}</div>
-                </div>
-            </div>
-            ${hasData ? prodRows : '<p class="text-xs text-gray-400 text-center py-2">Nenhum lançamento de investimento ainda. Marque um tipo como Aporte/Resgate em "Gerenciar tipos".</p>'}
-            ${metaBlock}`;
+        const tile = (label, value, color) => `
+            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-3 text-center">
+                <div class="text-[10px] text-gray-400 uppercase tracking-wide">${label}</div>
+                <div class="text-sm font-bold ${color} mt-0.5">${this.formatCurrency(value)}</div>
+            </div>`;
 
-        // Bind editor da meta
+        body.innerHTML = `
+            <!-- Total investido -->
+            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 text-center">
+                <div class="text-[11px] text-gray-400 uppercase tracking-wide">Total investido</div>
+                <div class="text-2xl font-extrabold ${portfolio.totalInvested >= 0 ? 'text-emerald-600' : 'text-red-600'} mt-1">${this.formatCurrency(portfolio.totalInvested)}</div>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+                ${tile('Total aportado', portfolio.totalAportes, 'text-emerald-600')}
+                ${tile('Total resgatado', portfolio.totalResgates, 'text-amber-600')}
+            </div>
+            ${metaBlock}
+            ${evD.length > 1 ? `
+            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+                <p class="text-sm font-semibold text-gray-700 mb-2">Evolução da carteira</p>
+                <canvas id="invest-evo-chart" height="160"></canvas>
+            </div>` : ''}
+            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+                <p class="text-sm font-semibold text-gray-700 mb-2">Carteira por produto</p>
+                ${prodRows}
+            </div>
+            ${recentRows ? `
+            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+                <p class="text-sm font-semibold text-gray-700 mb-2">Movimentos recentes</p>
+                ${recentRows}
+            </div>` : ''}
+            <button id="inv-new-aporte" class="w-full py-3 rounded-2xl bg-emerald-600 text-white text-sm font-bold hover:bg-emerald-700 transition-colors">+ Novo aporte</button>`;
+
+        // ── Gráfico de evolução ─────────────────────────────────────────────────
+        if (evD.length > 1 && window.Chart) {
+            if (this.investChart) this.investChart.destroy();
+            this.investChart = new Chart(document.getElementById('invest-evo-chart'), {
+                type: 'line',
+                data: { labels: evL, datasets: [{ label: 'Investido', data: evD, borderColor: '#10b981', backgroundColor: '#10b98122', fill: true, tension: 0.3, pointRadius: 2 }] },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true, ticks: { font: { size: 10 }, callback: v => v >= 1000 ? 'R$' + (v / 1000).toFixed(0) + 'k' : 'R$' + v } },
+                        x: { ticks: { font: { size: 10 } } }
+                    }
+                }
+            });
+        }
+
+        // ── Binds ────────────────────────────────────────────────────────────────
+        document.getElementById('inv-new-aporte')?.addEventListener('click', () => this._newAporte());
         document.getElementById('invest-goal-edit')?.addEventListener('click', () => {
             document.getElementById('invest-goal-editor')?.classList.toggle('hidden');
         });
@@ -4247,7 +4339,13 @@ const App = {
             const v = parseFloat(document.getElementById('invest-goal-input').value) || 0;
             Storage.setInvestGoal(v);
             this.showToast(v > 0 ? '🎯 Meta de aporte salva!' : 'Meta de aporte removida');
-            this.renderInvestments();
+            this.renderInvestmentsTab();
+        });
+        body.querySelectorAll('.inv-recent-item').forEach(el => {
+            el.addEventListener('click', () => {
+                const t = (portfolio.transactions || []).find(x => x.id === el.dataset.id);
+                if (t) this.openModal(t);
+            });
         });
     },
 
@@ -6289,9 +6387,10 @@ const App = {
     },
 
     async renderCurrentTab() {
-        if      (this.currentTab === 'home')    await this.renderHome();
-        else if (this.currentTab === 'history') await this.renderHistory();
-        else if (this.currentTab === 'summary') await this.renderSummary();
+        if      (this.currentTab === 'home')        await this.renderHome();
+        else if (this.currentTab === 'history')     await this.renderHistory();
+        else if (this.currentTab === 'summary')     await this.renderSummary();
+        else if (this.currentTab === 'investments') await this.renderInvestmentsTab();
     },
 
     // ─── Helpers ──────────────────────────────────────────────────────────────

@@ -232,7 +232,7 @@ const Storage = {
         }
         const products = Object.values(byProduct).sort((a, b) => b.invested - a.invested);
         const totalInvested = products.reduce((s, p) => s + p.invested, 0);
-        return { products, totalInvested, totalAportes, totalResgates, monthAportes };
+        return { products, totalInvested, totalAportes, totalResgates, monthAportes, transactions: list };
     },
     activeFinancaId: null,
 
