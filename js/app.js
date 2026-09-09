@@ -1782,6 +1782,8 @@ const App = {
         });
         const noPersonEl = document.getElementById('type-noperson-input');
         if (noPersonEl) noPersonEl.checked = !!type?.noPerson;
+        const investRoleEl = document.getElementById('type-invest-role-input');
+        if (investRoleEl) investRoleEl.value = type?.investRole || '';
         document.getElementById('type-form-modal').classList.remove('hidden');
         setTimeout(() => document.getElementById('type-name-input').focus(), 100);
     },
@@ -1797,14 +1799,16 @@ const App = {
         const behavior = document.getElementById('type-behavior-input').value;
         const color    = document.getElementById('type-color-input').value;
         const noPerson = !!document.getElementById('type-noperson-input')?.checked;
+        const investRoleRaw = document.getElementById('type-invest-role-input')?.value || '';
+        const investRole = (investRoleRaw === 'aporte' || investRoleRaw === 'resgate') ? investRoleRaw : null;
         if (!name) { document.getElementById('type-name-input').focus(); return; }
         const btn = document.getElementById('type-form-save');
         btn.disabled = true; btn.textContent = 'Salvando...';
         try {
             if (this.editingTypeId) {
-                await Storage.updateTransactionType(this.editingTypeId, { name, emoji, behavior, color, noPerson });
+                await Storage.updateTransactionType(this.editingTypeId, { name, emoji, behavior, color, noPerson, investRole });
             } else {
-                await Storage.createTransactionType(name, behavior, emoji, color, noPerson);
+                await Storage.createTransactionType(name, behavior, emoji, color, noPerson, investRole);
             }
             this.transactionTypes = await Storage.getTransactionTypes();
             this.closeTypeForm();
@@ -4078,6 +4082,9 @@ const App = {
         // ── Person breakdown ───────────────────────────────────────────────────
         this.renderPersonBreakdown(txns);
 
+        // ── Investimentos (carteira por produto) ───────────────────────────────
+        this.renderInvestments();
+
         // ── Category breakdown (accordion) ────────────────────────────────────
         const totalExp = Object.values(catTotals).reduce((s, t) => s + t.expense, 0);
 
@@ -4158,6 +4165,89 @@ const App = {
                 panel.classList.toggle('hidden', open);
                 chevron.style.transform = open ? '' : 'rotate(180deg)';
             });
+        });
+    },
+
+    // ─── Investimentos: carteira por produto + meta de aporte ─────────────────
+    async renderInvestments() {
+        const wrap = document.getElementById('investments-wrap');
+        const bd   = document.getElementById('investments-section');
+        if (!wrap || !bd) return;
+
+        let portfolio;
+        try { portfolio = await Storage.getInvestmentPortfolio(this.currentMonth); }
+        catch { wrap.classList.add('hidden'); return; }
+
+        const goal    = Storage.getInvestGoal();
+        const hasData = portfolio.products.length > 0;
+
+        // Só exibe a seção se há carteira OU uma meta definida
+        if (!hasData && !goal) { wrap.classList.add('hidden'); return; }
+        wrap.classList.remove('hidden');
+
+        const prodRows = portfolio.products.map(p => {
+            const icon = this.getCategoryIcon(p.name);
+            const pct  = portfolio.totalInvested > 0 ? Math.max(0, (p.invested / portfolio.totalInvested) * 100) : 0;
+            const resgTxt = p.resgates > 0 ? ` · resgates ${this.formatCurrency(p.resgates)}` : '';
+            return `
+            <div class="py-2 border-b border-gray-50 last:border-0">
+                <div class="flex items-center justify-between gap-2">
+                    <div class="flex items-center gap-2 min-w-0">
+                        <span class="text-base flex-shrink-0">${icon}</span>
+                        <div class="min-w-0">
+                            <div class="text-sm font-medium text-gray-800 truncate">${this._escHtml(p.name)}</div>
+                            <div class="text-[10px] text-gray-400 truncate">${p.count} mov. · aportes ${this.formatCurrency(p.aportes)}${resgTxt}</div>
+                        </div>
+                    </div>
+                    <div class="text-sm font-bold ${p.invested >= 0 ? 'text-emerald-600' : 'text-red-600'} flex-shrink-0">${this.formatCurrency(p.invested)}</div>
+                </div>
+                ${pct > 0 ? `<div class="w-full bg-gray-100 rounded-full h-1.5 mt-1"><div class="bg-emerald-500 h-1.5 rounded-full" style="width:${pct.toFixed(1)}%"></div></div>` : ''}
+            </div>`;
+        }).join('');
+
+        // Meta de aporte mensal
+        const metaPct   = goal > 0 ? Math.min(100, (portfolio.monthAportes / goal) * 100) : 0;
+        const metaColor = metaPct >= 100 ? 'bg-emerald-500' : 'bg-emerald-400';
+        const metaBlock = `
+            <div class="mt-3 pt-3 border-t border-gray-100">
+                <div class="flex items-center justify-between mb-1">
+                    <span class="text-xs font-semibold text-gray-600">🎯 Meta de aporte do mês</span>
+                    <button id="invest-goal-edit" class="text-[11px] text-emerald-600 font-semibold">${goal > 0 ? 'Editar' : 'Definir'}</button>
+                </div>
+                ${goal > 0 ? `
+                    <div class="flex items-center justify-between text-xs text-gray-500 mb-1">
+                        <span>${this.formatCurrency(portfolio.monthAportes)} de ${this.formatCurrency(goal)}</span>
+                        <span class="font-semibold ${metaPct >= 100 ? 'text-emerald-600' : 'text-gray-600'}">${metaPct.toFixed(0)}%</span>
+                    </div>
+                    <div class="w-full bg-gray-100 rounded-full h-2"><div class="${metaColor} h-2 rounded-full" style="width:${metaPct}%"></div></div>
+                ` : `<p class="text-[11px] text-gray-400">Defina quanto quer aportar por mês para acompanhar o progresso.</p>`}
+                <div id="invest-goal-editor" class="hidden mt-2 flex gap-2">
+                    <input id="invest-goal-input" type="number" step="0.01" min="0" placeholder="Ex: 500" value="${goal > 0 ? goal : ''}"
+                        class="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300">
+                    <button id="invest-goal-save" class="px-4 py-2 rounded-xl bg-emerald-600 text-white text-sm font-semibold">OK</button>
+                </div>
+            </div>`;
+
+        bd.innerHTML = `
+            <div class="flex items-center justify-between mb-3">
+                <p class="text-sm font-semibold text-gray-700">📈 Investimentos</p>
+                <div class="text-right">
+                    <div class="text-[10px] text-gray-400 uppercase">Total investido</div>
+                    <div class="text-base font-bold ${portfolio.totalInvested >= 0 ? 'text-emerald-600' : 'text-red-600'}">${this.formatCurrency(portfolio.totalInvested)}</div>
+                </div>
+            </div>
+            ${hasData ? prodRows : '<p class="text-xs text-gray-400 text-center py-2">Nenhum lançamento de investimento ainda. Marque um tipo como Aporte/Resgate em "Gerenciar tipos".</p>'}
+            ${metaBlock}`;
+
+        // Bind editor da meta
+        document.getElementById('invest-goal-edit')?.addEventListener('click', () => {
+            document.getElementById('invest-goal-editor')?.classList.toggle('hidden');
+        });
+        document.getElementById('invest-goal-save')?.addEventListener('click', () => {
+            const v = parseFloat(document.getElementById('invest-goal-input').value) || 0;
+            Storage.setInvestGoal(v);
+            this.showToast(v > 0 ? '🎯 Meta de aporte salva!' : 'Meta de aporte removida');
+            this.renderInvestments();
         });
     },
 
