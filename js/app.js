@@ -6071,8 +6071,8 @@ const App = {
             const reg = await navigator.serviceWorker.ready;
             await reg.showNotification('💰 Minhas Carteiras', {
                 body:               'Toque para adicionar um novo lançamento',
-                icon:               '/financas-casa/icon.svg',
-                badge:              '/financas-casa/icon.svg',
+                icon:               'icon.svg',
+                badge:              'icon.svg',
                 tag:                'quick-add',
                 renotify:           false,
                 silent:             true,

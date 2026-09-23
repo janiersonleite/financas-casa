@@ -1,11 +1,11 @@
 // ─── Service Worker — Finanças Casa ──────────────────────────────────────────
-// APP_VERSION: 2026-09-09 22:00  ← atualizar junto com app.js a cada deploy
-const RUNTIME_CACHE = 'app-runtime-v20260909e';
+// APP_VERSION: 2026-09-23 12:00  ← atualizar junto com app.js a cada deploy
+const RUNTIME_CACHE = 'app-runtime-v20260923a';
 
 self.addEventListener('install', e => {
     e.waitUntil(
         caches.open(RUNTIME_CACHE)
-            .then(c => c.addAll(['/financas-casa/', '/financas-casa/index.html']))
+            .then(c => c.addAll([self.registration.scope, self.registration.scope + 'index.html']))
             .then(() => self.skipWaiting())
     );
 });
@@ -46,7 +46,7 @@ self.addEventListener('fetch', event => {
                 return response;
             })
             .catch(() => caches.match(event.request)
-                .then(cached => cached || caches.match('/financas-casa/index.html'))
+                .then(cached => cached || caches.match(self.registration.scope + 'index.html'))
             )
     );
 });
@@ -60,9 +60,10 @@ self.addEventListener('notificationclick', event => {
                           (event.notification.tag || '').startsWith('reminder_');
     const isNewTxn      = action === 'new-transaction' || event.notification.tag === 'quick-add';
 
-    const target = isNewTxn    ? '/financas-casa/?action=new-transaction'
-                 : isReminder  ? '/financas-casa/?action=open-reminders'
-                 :               '/financas-casa/';
+    const base = self.registration.scope; // URL base do app (agnóstico ao domínio/caminho)
+    const target = isNewTxn    ? base + '?action=new-transaction'
+                 : isReminder  ? base + '?action=open-reminders'
+                 :               base;
 
     const postMsg = isNewTxn   ? { action: 'new-transaction' }
                   : isReminder ? { action: 'open-reminders'  }
@@ -73,7 +74,7 @@ self.addEventListener('notificationclick', event => {
             .then(list => {
                 // App já aberto → manda mensagem e foca
                 for (const client of list) {
-                    if (client.url.includes('financas-casa')) {
+                    if (client.url.startsWith(base)) {
                         if (postMsg) client.postMessage(postMsg);
                         return client.focus();
                     }
