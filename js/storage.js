@@ -201,6 +201,21 @@ const Storage = {
         } catch {}
     },
 
+    // ── Chave PIX para aporte (localStorage por finança) ──────────────────────
+    _pixKeyKey(fid) { return 'invest_pix_' + (fid || 'personal'); },
+    getPixKey() {
+        const fid = (this.activeFinancaId && this.activeFinancaId !== 'null') ? this.activeFinancaId : null;
+        try { return localStorage.getItem(this._pixKeyKey(fid)) || ''; } catch { return ''; }
+    },
+    setPixKey(key) {
+        const fid = (this.activeFinancaId && this.activeFinancaId !== 'null') ? this.activeFinancaId : null;
+        try {
+            const v = (key || '').trim();
+            if (v) localStorage.setItem(this._pixKeyKey(fid), v);
+            else   localStorage.removeItem(this._pixKeyKey(fid));
+        } catch {}
+    },
+
     // Carteira de investimentos (modelo "só aportes e resgates"):
     // saldo de cada PRODUTO (categoria) = Σ aportes − Σ resgates.
     // Retorna { products:[{name,invested,aportes,resgates,count}], totalInvested,
