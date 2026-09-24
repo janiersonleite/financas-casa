@@ -202,17 +202,25 @@ const Storage = {
     },
 
     // ── Chave PIX para aporte (localStorage por finança) ──────────────────────
+    // Guarda a chave + nome do titular + banco (informado pelo usuário).
     _pixKeyKey(fid) { return 'invest_pix_' + (fid || 'personal'); },
-    getPixKey() {
-        const fid = (this.activeFinancaId && this.activeFinancaId !== 'null') ? this.activeFinancaId : null;
-        try { return localStorage.getItem(this._pixKeyKey(fid)) || ''; } catch { return ''; }
-    },
-    setPixKey(key) {
+    getPixInfo() {
         const fid = (this.activeFinancaId && this.activeFinancaId !== 'null') ? this.activeFinancaId : null;
         try {
-            const v = (key || '').trim();
-            if (v) localStorage.setItem(this._pixKeyKey(fid), v);
-            else   localStorage.removeItem(this._pixKeyKey(fid));
+            const raw = localStorage.getItem(this._pixKeyKey(fid));
+            if (!raw) return { key: '', name: '', bank: '' };
+            // Compat.: versão antiga guardava só a string da chave
+            if (raw[0] !== '{') return { key: raw, name: '', bank: '' };
+            const o = JSON.parse(raw);
+            return { key: o.key || '', name: o.name || '', bank: o.bank || '' };
+        } catch { return { key: '', name: '', bank: '' }; }
+    },
+    setPixInfo({ key, name, bank } = {}) {
+        const fid = (this.activeFinancaId && this.activeFinancaId !== 'null') ? this.activeFinancaId : null;
+        try {
+            const k = (key || '').trim(), n = (name || '').trim(), b = (bank || '').trim();
+            if (k || n || b) localStorage.setItem(this._pixKeyKey(fid), JSON.stringify({ key: k, name: n, bank: b }));
+            else             localStorage.removeItem(this._pixKeyKey(fid));
         } catch {}
     },
 

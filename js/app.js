@@ -4070,41 +4070,64 @@ const App = {
 
     // HTML do card "Chave PIX para aporte" (usado na aba Investir)
     _pixCardHtml() {
-        const key  = Storage.getPixKey();
-        const type = key ? this._pixKeyType(key) : '';
+        const info = Storage.getPixInfo();
+        const type = info.key ? this._pixKeyType(info.key) : '';
+        const has  = !!info.key;
+        const detalhe = (info.name || info.bank)
+            ? `${info.name ? '👤 ' + this._escHtml(info.name) : ''}${info.name && info.bank ? ' · ' : ''}${info.bank ? '🏦 ' + this._escHtml(info.bank) : ''}`
+            : (type ? 'Tipo: ' + type : '');
         return `
             <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
                 <div class="flex items-center justify-between mb-1">
                     <span class="text-sm font-semibold text-gray-700">🔑 Chave PIX para aporte</span>
-                    ${key ? '<button id="inv-pix-copy" class="text-[11px] text-emerald-600 font-semibold">📋 Copiar</button>' : ''}
+                    ${has ? `<div class="flex items-center gap-3">
+                        <button id="inv-pix-copy" class="text-[11px] text-emerald-600 font-semibold">📋 Copiar</button>
+                        <button id="inv-pix-edit" class="text-[11px] text-gray-400 font-semibold">Editar</button>
+                    </div>` : ''}
                 </div>
-                <p class="text-[11px] text-gray-400 mb-2">Salve a chave PIX da conta onde você deposita os aportes. Toque em Copiar na hora de transferir.</p>
-                <div class="flex gap-2">
-                    <input id="inv-pix-input" type="text" placeholder="CPF, e-mail, telefone ou chave aleatória" value="${this._escHtml(key)}"
-                        class="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300">
-                    <button id="inv-pix-save" class="px-4 py-2 rounded-xl bg-emerald-600 text-white text-sm font-semibold">Salvar</button>
+                ${has ? `
+                <div class="bg-emerald-50 border border-emerald-100 rounded-xl p-3">
+                    <div class="text-sm font-mono text-gray-800 break-all">${this._escHtml(info.key)}</div>
+                    ${detalhe ? `<div class="text-[11px] text-gray-500 mt-1">${detalhe}</div>` : ''}
+                </div>` : ''}
+                <div id="inv-pix-editor" class="${has ? 'hidden ' : ''}mt-2 space-y-2">
+                    <p class="text-[11px] text-gray-400">Salve a chave PIX da conta onde você deposita os aportes. O nome e o banco são opcionais (o app não consulta esses dados automaticamente).</p>
+                    <input id="inv-pix-key" type="text" placeholder="Chave PIX (CPF, e-mail, telefone ou aleatória)" value="${this._escHtml(info.key)}"
+                        class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300">
+                    <div class="flex gap-2">
+                        <input id="inv-pix-name" type="text" placeholder="Nome do titular (opcional)" value="${this._escHtml(info.name)}"
+                            class="flex-1 min-w-0 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300">
+                        <input id="inv-pix-bank" type="text" placeholder="Banco (opcional)" value="${this._escHtml(info.bank)}"
+                            class="flex-1 min-w-0 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300">
+                    </div>
+                    <button id="inv-pix-save" class="w-full py-2 rounded-xl bg-emerald-600 text-white text-sm font-semibold">Salvar chave PIX</button>
                 </div>
-                ${key ? `<div class="text-[11px] text-gray-400 mt-1">Tipo detectado: ${type}</div>` : ''}
             </div>`;
     },
 
-    // Liga os botões do card de chave PIX (salvar / copiar)
+    // Liga os botões do card de chave PIX (salvar / copiar / editar)
     _bindInvestPix() {
         document.getElementById('inv-pix-save')?.addEventListener('click', () => {
-            const v = document.getElementById('inv-pix-input').value.trim();
-            Storage.setPixKey(v);
-            this.showToast(v ? '🔑 Chave PIX salva!' : 'Chave PIX removida');
+            const key  = document.getElementById('inv-pix-key')?.value.trim() || '';
+            const name = document.getElementById('inv-pix-name')?.value.trim() || '';
+            const bank = document.getElementById('inv-pix-bank')?.value.trim() || '';
+            Storage.setPixInfo({ key, name, bank });
+            this.showToast(key ? '🔑 Chave PIX salva!' : 'Chave PIX removida');
             this.renderInvestmentsTab();
         });
+        document.getElementById('inv-pix-edit')?.addEventListener('click', () => {
+            document.getElementById('inv-pix-editor')?.classList.toggle('hidden');
+        });
         document.getElementById('inv-pix-copy')?.addEventListener('click', async () => {
-            const key = Storage.getPixKey();
+            const key = Storage.getPixInfo().key;
             if (!key) return;
             try {
                 await navigator.clipboard.writeText(key);
                 this.showToast('📋 Chave PIX copiada!');
             } catch (_) {
-                const inp = document.getElementById('inv-pix-input');
-                if (inp) { inp.focus(); inp.select(); try { document.execCommand('copy'); } catch (__) {} this.showToast('📋 Chave PIX copiada!'); }
+                const inp = document.getElementById('inv-pix-key');
+                if (inp) { inp.focus(); inp.select(); try { document.execCommand('copy'); } catch (__) {} }
+                this.showToast('📋 Chave PIX copiada!');
             }
         });
     },
