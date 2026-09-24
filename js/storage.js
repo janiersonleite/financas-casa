@@ -201,6 +201,29 @@ const Storage = {
         } catch {}
     },
 
+    // ── Chave PIX para aporte (localStorage por finança) ──────────────────────
+    // Guarda a chave + nome do titular + banco (informado pelo usuário).
+    _pixKeyKey(fid) { return 'invest_pix_' + (fid || 'personal'); },
+    getPixInfo() {
+        const fid = (this.activeFinancaId && this.activeFinancaId !== 'null') ? this.activeFinancaId : null;
+        try {
+            const raw = localStorage.getItem(this._pixKeyKey(fid));
+            if (!raw) return { key: '', name: '', bank: '' };
+            // Compat.: versão antiga guardava só a string da chave
+            if (raw[0] !== '{') return { key: raw, name: '', bank: '' };
+            const o = JSON.parse(raw);
+            return { key: o.key || '', name: o.name || '', bank: o.bank || '' };
+        } catch { return { key: '', name: '', bank: '' }; }
+    },
+    setPixInfo({ key, name, bank } = {}) {
+        const fid = (this.activeFinancaId && this.activeFinancaId !== 'null') ? this.activeFinancaId : null;
+        try {
+            const k = (key || '').trim(), n = (name || '').trim(), b = (bank || '').trim();
+            if (k || n || b) localStorage.setItem(this._pixKeyKey(fid), JSON.stringify({ key: k, name: n, bank: b }));
+            else             localStorage.removeItem(this._pixKeyKey(fid));
+        } catch {}
+    },
+
     // Carteira de investimentos (modelo "só aportes e resgates"):
     // saldo de cada PRODUTO (categoria) = Σ aportes − Σ resgates.
     // Retorna { products:[{name,invested,aportes,resgates,count}], totalInvested,

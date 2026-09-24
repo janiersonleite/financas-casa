@@ -2,8 +2,8 @@
   "name": "Minhas Carteiras",
   "short_name": "Carteiras",
   "description": "Controle financeiro pessoal e familiar",
-  "start_url": "/financas-casa/",
-  "scope": "/financas-casa/",
+  "start_url": "./",
+  "scope": "./",
   "display": "standalone",
   "background_color": "#f3f4f6",
   "theme_color": "#3b82f6",
@@ -20,14 +20,14 @@
       "name": "Novo Lançamento",
       "short_name": "Novo",
       "description": "Abrir tela de novo lançamento",
-      "url": "/financas-casa/?action=new-transaction",
+      "url": "./?action=new-transaction",
       "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }]
     },
     {
       "name": "Início",
       "short_name": "Início",
       "description": "Ir para a tela inicial",
-      "url": "/financas-casa/",
+      "url": "./",
       "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }]
     }
   ]

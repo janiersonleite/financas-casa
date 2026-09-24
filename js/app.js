@@ -4055,6 +4055,83 @@ const App = {
         }
     },
 
+    // Detecta o tipo da chave PIX (só para exibir um rótulo amigável)
+    _pixKeyType(key) {
+        const k = (key || '').trim();
+        if (!k) return '';
+        if (/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(k)) return 'e-mail';
+        if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(k)) return 'chave aleatória';
+        if (k.startsWith('+') || /[()\-\s]/.test(k)) return 'telefone';   // formatação de telefone
+        if (/^\d{11}$/.test(k)) return 'CPF';
+        if (/^\d{14}$/.test(k)) return 'CNPJ';
+        if (/^\d{10,13}$/.test(k)) return 'telefone';
+        return 'chave';
+    },
+
+    // HTML do card "Chave PIX para aporte" (usado na aba Investir)
+    _pixCardHtml() {
+        const info = Storage.getPixInfo();
+        const type = info.key ? this._pixKeyType(info.key) : '';
+        const has  = !!info.key;
+        const detalhe = (info.name || info.bank)
+            ? `${info.name ? '👤 ' + this._escHtml(info.name) : ''}${info.name && info.bank ? ' · ' : ''}${info.bank ? '🏦 ' + this._escHtml(info.bank) : ''}`
+            : (type ? 'Tipo: ' + type : '');
+        return `
+            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+                <div class="flex items-center justify-between mb-1">
+                    <span class="text-sm font-semibold text-gray-700">🔑 Chave PIX para aporte</span>
+                    ${has ? `<div class="flex items-center gap-3">
+                        <button id="inv-pix-copy" class="text-[11px] text-emerald-600 font-semibold">📋 Copiar</button>
+                        <button id="inv-pix-edit" class="text-[11px] text-gray-400 font-semibold">Editar</button>
+                    </div>` : ''}
+                </div>
+                ${has ? `
+                <div class="bg-emerald-50 border border-emerald-100 rounded-xl p-3">
+                    <div class="text-sm font-mono text-gray-800 break-all">${this._escHtml(info.key)}</div>
+                    ${detalhe ? `<div class="text-[11px] text-gray-500 mt-1">${detalhe}</div>` : ''}
+                </div>` : ''}
+                <div id="inv-pix-editor" class="${has ? 'hidden ' : ''}mt-2 space-y-2">
+                    <p class="text-[11px] text-gray-400">Salve a chave PIX da conta onde você deposita os aportes. O nome e o banco são opcionais (o app não consulta esses dados automaticamente).</p>
+                    <input id="inv-pix-key" type="text" placeholder="Chave PIX (CPF, e-mail, telefone ou aleatória)" value="${this._escHtml(info.key)}"
+                        class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300">
+                    <div class="flex gap-2">
+                        <input id="inv-pix-name" type="text" placeholder="Nome do titular (opcional)" value="${this._escHtml(info.name)}"
+                            class="flex-1 min-w-0 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300">
+                        <input id="inv-pix-bank" type="text" placeholder="Banco (opcional)" value="${this._escHtml(info.bank)}"
+                            class="flex-1 min-w-0 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300">
+                    </div>
+                    <button id="inv-pix-save" class="w-full py-2 rounded-xl bg-emerald-600 text-white text-sm font-semibold">Salvar chave PIX</button>
+                </div>
+            </div>`;
+    },
+
+    // Liga os botões do card de chave PIX (salvar / copiar / editar)
+    _bindInvestPix() {
+        document.getElementById('inv-pix-save')?.addEventListener('click', () => {
+            const key  = document.getElementById('inv-pix-key')?.value.trim() || '';
+            const name = document.getElementById('inv-pix-name')?.value.trim() || '';
+            const bank = document.getElementById('inv-pix-bank')?.value.trim() || '';
+            Storage.setPixInfo({ key, name, bank });
+            this.showToast(key ? '🔑 Chave PIX salva!' : 'Chave PIX removida');
+            this.renderInvestmentsTab();
+        });
+        document.getElementById('inv-pix-edit')?.addEventListener('click', () => {
+            document.getElementById('inv-pix-editor')?.classList.toggle('hidden');
+        });
+        document.getElementById('inv-pix-copy')?.addEventListener('click', async () => {
+            const key = Storage.getPixInfo().key;
+            if (!key) return;
+            try {
+                await navigator.clipboard.writeText(key);
+                this.showToast('📋 Chave PIX copiada!');
+            } catch (_) {
+                const inp = document.getElementById('inv-pix-key');
+                if (inp) { inp.focus(); inp.select(); try { document.execCommand('copy'); } catch (__) {} }
+                this.showToast('📋 Chave PIX copiada!');
+            }
+        });
+    },
+
     // ─── Aba Investimentos ────────────────────────────────────────────────────
     async renderInvestmentsTab() {
         const body = document.getElementById('investments-tab-body');
@@ -4067,6 +4144,9 @@ const App = {
         const goal = Storage.getInvestGoal();
         const txns = portfolio.transactions || [];
 
+        // Card da chave PIX para aporte (usado no estado vazio e no normal)
+        const pixCard = this._pixCardHtml();
+
         // Estado vazio: nenhum tipo de investimento configurado / sem lançamentos
         if (!txns.length && !goal) {
             body.innerHTML = `
@@ -4075,8 +4155,10 @@ const App = {
                     <p class="text-sm font-semibold text-gray-500">Sua carteira está vazia</p>
                     <p class="text-xs mt-2 leading-relaxed">Em <b>Gerenciar tipos</b>, marque um tipo como <b>Aporte</b> (ex.: "Investimento", "Inclusão CDB") e outro como <b>Resgate</b>. Depois lance seus aportes usando a <b>categoria</b> como o produto (ex.: "CDB Banco X").</p>
                     <button id="inv-manage-types" class="mt-4 px-4 py-2 rounded-xl bg-emerald-600 text-white text-sm font-semibold">Gerenciar tipos</button>
-                </div>`;
+                </div>
+                ${pixCard}`;
             document.getElementById('inv-manage-types')?.addEventListener('click', () => this.openTypesModal());
+            this._bindInvestPix();
             return;
         }
 
@@ -4173,6 +4255,7 @@ const App = {
                 ${tile('Total resgatado', portfolio.totalResgates, 'text-amber-600')}
             </div>
             ${metaBlock}
+            ${pixCard}
             ${evD.length > 1 ? `
             <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
                 <p class="text-sm font-semibold text-gray-700 mb-2">Evolução da carteira</p>
@@ -4207,6 +4290,7 @@ const App = {
         }
 
         // ── Binds ────────────────────────────────────────────────────────────────
+        this._bindInvestPix();
         document.getElementById('inv-new-aporte')?.addEventListener('click', () => this._newAporte());
         document.getElementById('invest-goal-edit')?.addEventListener('click', () => {
             document.getElementById('invest-goal-editor')?.classList.toggle('hidden');
@@ -6071,8 +6155,8 @@ const App = {
             const reg = await navigator.serviceWorker.ready;
             await reg.showNotification('💰 Minhas Carteiras', {
                 body:               'Toque para adicionar um novo lançamento',
-                icon:               '/financas-casa/icon.svg',
-                badge:              '/financas-casa/icon.svg',
+                icon:               'icon.svg',
+                badge:              'icon.svg',
                 tag:                'quick-add',
                 renotify:           false,
                 silent:             true,
