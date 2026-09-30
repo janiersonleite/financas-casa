@@ -749,6 +749,7 @@ const App = {
         // Detecta quando o usuário escolhe a categoria manualmente
         document.getElementById('modal-category')?.addEventListener('change', () => {
             this._catUserPicked = true;
+            this._syncTypeToCategory(); // categoria de entrada/saída ajusta o tipo do lançamento
             const badge = document.getElementById('cat-learned-badge');
             if (badge) badge.classList.add('hidden'), badge.classList.remove('inline-flex');
             // Correção manual: aprende imediatamente com peso 2 (sobrepõe sugestão errada mais rápido)
@@ -1192,6 +1193,9 @@ const App = {
         this.renderModalTypeBtns();
         this.selectModalType(data.type || 'saida');
         this.renderCategorySelect(data.category || 'Outros');
+        // Novo lançamento: se a categoria pré-selecionada tem direção (entrada/saída),
+        // o tipo acompanha — evita abrir uma categoria de Entrada como Saída.
+        if (!this.editingId) this._syncTypeToCategory();
         // Seção de parcelas
         this._installmentQty = 1;
         this._installmentValueMode = 'perInstallment'; // reset ao abrir modal
@@ -1643,6 +1647,22 @@ const App = {
         });
         document.getElementById('modal-type').value = typeId;
         this.updateModalColors(typeId);
+    },
+
+    // Ajusta o tipo (Entrada/Saída) conforme a direção configurada na categoria escolhida.
+    // Só resolve conflito direto Entrada↔Saída: preserva Cartão, tipos customizados (CDB)
+    // e categorias sem direção definida (type 'both', ex.: PIX, Outros).
+    _syncTypeToCategory() {
+        const sel = document.getElementById('modal-category');
+        if (!sel) return;
+        const cats = (this._modalCategories?.length) ? this._modalCategories : this.categories;
+        const cat  = cats.find(c => c.name === sel.value);
+        if (!cat) return;
+        const catType = cat.type;
+        if (catType !== 'entrada' && catType !== 'saida') return; // 'both' → não força direção
+        const current = document.getElementById('modal-type')?.value;
+        const isDirectional = current === 'entrada' || current === 'saida';
+        if (isDirectional && current !== catType) this.selectModalType(catType);
     },
 
     bindTypesUI() {
