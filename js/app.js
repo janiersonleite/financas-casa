@@ -6817,6 +6817,7 @@ const App = {
         const btn = document.getElementById('cat-form-save');
         btn.disabled = true; btn.textContent = 'Salvando...';
         try {
+            let keptId = this.editingCatId;
             if (this.editingCatId) {
                 const oldName = this.categories.find(c => c.id === this.editingCatId)?.name || '';
                 await Storage.updateCategory(this.editingCatId, { name, emoji, keywords, type });
@@ -6826,10 +6827,14 @@ const App = {
                 if (idx !== -1) this.categories[idx] = { ...this.categories[idx], name, emoji, keywords, type };
             } else {
                 const cat = await Storage.createCategory(name, emoji, keywords, type);
+                keptId = cat.id;
                 this.categories.push(cat);
                 this.categories = this._sortCategories(this.categories);
             }
             const wasEdit = !!this.editingCatId;
+            // Palavra-chave é exclusiva: remove estas keywords das OUTRAS categorias,
+            // para que digitar/falar o termo caia sempre nesta categoria escolhida.
+            const movedFrom = await this._dedupeKeywords(keptId, keywords);
             NLP.setCategoryMap(this.categories);
             this.closeCategoryForm();
             this.renderCategoryList();
@@ -6838,6 +6843,9 @@ const App = {
             // Reflete o novo nome nos lançamentos da aba ativa (Histórico/Resumo)
             if (wasEdit) await this.renderCurrentTab();
             this.showToast(wasEdit ? '✅ Categoria atualizada!' : '✅ Categoria criada!');
+            if (movedFrom.length) {
+                this.showToast(`🔤 Palavra-chave movida (removida de: ${movedFrom.join(', ')})`);
+            }
         } catch (e) {
             const msg = e.message || '';
             if (msg.includes('duplicate key') || msg.includes('unique constraint') || msg.includes('already exists')) {
@@ -6848,6 +6856,34 @@ const App = {
         } finally {
             btn.disabled = false; btn.textContent = 'Salvar';
         }
+    },
+
+    // Remove as `keywords` de todas as categorias EXCETO `keptId`, garantindo que
+    // cada termo pertença a uma única categoria (evita que a mesma palavra-chave
+    // caia numa categoria padrão/antiga). Persiste no banco e no cache local.
+    // Retorna os nomes das categorias das quais alguma keyword foi removida.
+    async _dedupeKeywords(keptId, keywords) {
+        const norm = s => (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+        const toRemove = new Set((keywords || []).map(norm).filter(Boolean));
+        if (!toRemove.size) return [];
+        const moved = [];
+        for (const cat of [...this.categories]) {
+            if (!cat || cat.id === keptId) continue;
+            const kws = Array.isArray(cat.keywords) ? cat.keywords : [];
+            const filtered = kws.filter(k => !toRemove.has(norm(k)));
+            if (filtered.length === kws.length) continue; // nada a remover aqui
+            try {
+                await Storage.updateCategory(cat.id, { keywords: filtered });
+                const idx = this.categories.findIndex(c => c.id === cat.id);
+                if (idx !== -1) this.categories[idx] = { ...this.categories[idx], keywords: filtered };
+                moved.push(cat.name);
+            } catch (e) {
+                // Sem permissão para editar (categoria de sistema ou de outro membro):
+                // ignora — a prioridade no NLP (keywords do usuário primeiro) cobre o caso.
+                console.warn('dedupe keyword falhou em', cat?.name, e?.message);
+            }
+        }
+        return moved;
     },
 
     getInserterBadge(t) {
