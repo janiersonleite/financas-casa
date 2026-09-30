@@ -823,6 +823,9 @@ const App = {
 
                 if (suggested && suggested !== 'Outros') {
                     catSel.value = suggested;
+                    // Categoria preenchida automaticamente (aprendizado/NLP) não dispara 'change',
+                    // então sincroniza o tipo (Entrada/Saída) conforme a direção da categoria.
+                    this._syncTypeToCategory();
                     if (badge) {
                         if (source === 'recent' || source === 'learned') {
                             badge.classList.remove('hidden');
