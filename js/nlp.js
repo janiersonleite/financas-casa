@@ -4,13 +4,45 @@ const NLP = {
 
     setCategoryMap(categoriesArray) {
         this.dynamicCategories = {};
+        this.userCategoryKeywords = []; // [{ name, keywords(dbOnly), isDefault }] p/ prioridade
         for (const cat of categoriesArray) {
             // Keywords do banco + keywords estáticos (mesclados, sem duplicatas)
             const dbKw     = cat.keywords || [];
             const staticKw = this.categories[cat.name] || [];
             const merged   = [...new Set([...dbKw, ...staticKw])];
             this.dynamicCategories[cat.name] = merged;
+            // Guarda só as palavras-chave que o usuário definiu (do banco), para que
+            // tenham prioridade sobre os keywords estáticos embutidos.
+            if (dbKw.length) {
+                const isDefault = typeof cat.id === 'string' && cat.id.startsWith('d-');
+                this.userCategoryKeywords.push({ name: cat.name, keywords: dbKw, isDefault });
+            }
         }
+        // Categorias CUSTOM (criadas pelo usuário) vêm antes das padrão: assim, se o
+        // usuário move/adiciona um keyword (ex.: "gasolina") para uma categoria própria,
+        // ela vence a categoria padrão que herda esse mesmo keyword.
+        this.userCategoryKeywords.sort((a, b) =>
+            (a.isDefault === b.isDefault) ? 0 : (a.isDefault ? 1 : -1));
+    },
+
+    // Procura o texto nas palavras-chave que o USUÁRIO definiu (banco), respeitando a
+    // prioridade custom > padrão. Retorna o nome da categoria ou null.
+    _matchUserKeywords(norm) {
+        if (!this.userCategoryKeywords || !this.userCategoryKeywords.length) return null;
+        for (const { name, keywords } of this.userCategoryKeywords) {
+            if (name === 'Outros') continue;
+            for (const kw of keywords) {
+                const kwNorm = (kw || '').toLowerCase().normalize('NFD')
+                    .replace(/[̀-ͯ]/g, '')
+                    .replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                if (!kwNorm) continue;
+                const re = kwNorm.length <= 3
+                    ? new RegExp(`\\b${kwNorm}\\b`, 'i')
+                    : new RegExp(`\\b${kwNorm}`, 'i');
+                if (re.test(norm)) return name;
+            }
+        }
+        return null;
     },
 
     setLearnedMap(map) {
@@ -522,6 +554,9 @@ const NLP = {
         //    Categoria do usuario ("Feira") vence keyword estatico ("feira"=>Alimentacao)
         const byName = this._matchCategoryByName(norm, Object.keys(cats));
         if (byName) return byName;
+        // 0.5. Palavras-chave definidas pelo usu\u00e1rio (custom > padr\u00e3o) vencem as est\u00e1ticas
+        const byUserKw = this._matchUserKeywords(norm);
+        if (byUserKw) return byUserKw;
         for (const [cat, keywords] of Object.entries(cats)) {
             if (cat === 'Outros') continue;
             for (const kw of keywords) {
@@ -544,6 +579,10 @@ const NLP = {
         // 0. Nome exato de categoria — PRIORIDADE ABSOLUTA
         const byName = this._matchCategoryByName(norm, Object.keys(cats));
         if (byName) return byName;
+
+        // 0.5. Palavras-chave definidas pelo usuário (custom > padrão) vencem as estáticas
+        const byUserKw = this._matchUserKeywords(norm);
+        if (byUserKw) return byUserKw;
 
         // 1. Keywords estáticos / do banco — PRIORIDADE ALTA
         //    São curados e específicos: 'frango' = Alimentação, sem ambiguidade.
