@@ -303,6 +303,49 @@ const Cofrinhos = {
 
     _catName(c) { return (this._catById[c.category_id] || {}).name || ''; },
 
+    // Carteira (finança) ativa: é nela que os cofrinhos são criados e listados.
+    // Mesmos rótulos e cores do cartão "Carteira ativa" do modal de lançamento.
+    _carteira() {
+        const f = App.activeFinanca;
+        const type = f?.type || 'individual';
+        const labels = { individual: '👤 Individual', familiar: '👨‍👩‍👧 Familiar', compartilhada: '🤝 Compartilhada' };
+        const cfg = {
+            familiar:      { bg: 'linear-gradient(135deg,#9333ea,#6b21a8)', border: '#7c3aed', soft: 'text-purple-200' },
+            compartilhada: { bg: 'linear-gradient(135deg,#0d9488,#0f766e)', border: '#0d9488', soft: 'text-teal-200' },
+            individual:    { bg: 'linear-gradient(135deg,#059669,#065f46)', border: '#059669', soft: 'text-emerald-200' }
+        };
+        return { name: f?.name || 'Pessoal', emoji: f?.emoji || '💰', type, label: labels[type] || labels.individual, ...(cfg[type] || cfg.individual) };
+    },
+
+    _carteiraCardHtml() {
+        const w = this._carteira();
+        return `
+            <button id="cof-carteira" type="button" aria-label="Carteira ativa: ${this._esc(w.name)}. Tocar para trocar"
+                class="w-full flex items-center gap-3 rounded-2xl px-4 py-3 text-left shadow-md transition-all active:scale-95 border-2"
+                style="background:${w.bg};border-color:${w.border}">
+                <span class="text-3xl flex-shrink-0 leading-none">${this._esc(w.emoji)}</span>
+                <div class="flex-1 min-w-0">
+                    <p class="text-[10px] font-bold uppercase tracking-widest leading-none mb-1 ${w.soft}">● Carteira ativa</p>
+                    <p class="text-base font-extrabold text-white truncate leading-tight">${this._esc(w.name)}</p>
+                    <p class="text-xs ${w.soft} mt-0.5">${w.label}${w.type === 'compartilhada' ? ' · membros veem e editam' : ''}</p>
+                </div>
+                <span class="text-white/60 text-xs flex-shrink-0">trocar ▼</span>
+            </button>`;
+    },
+
+    // Faixa do formulário: deixa claro em qual carteira o cofrinho será criado
+    _renderFormCarteira(editing) {
+        const el = document.getElementById('cof-form-carteira');
+        if (!el) return;
+        const w = this._carteira();
+        el.style.background = w.bg;
+        el.innerHTML = `<span class="text-xl leading-none flex-shrink-0">${this._esc(w.emoji)}</span>
+            <div class="min-w-0 flex-1">
+                <p class="text-[10px] font-bold uppercase tracking-widest leading-none mb-0.5 ${w.soft}">${editing ? 'Carteira do cofrinho' : 'Será criado na carteira'}</p>
+                <p class="text-sm font-extrabold text-white truncate leading-tight">${this._esc(w.name)} <span class="font-normal ${w.soft}">· ${w.label}</span></p>
+            </div>`;
+    },
+
     // ─── Cálculos ─────────────────────────────────────────────────────────────
     _stats(c) {
         let ini = 0, dep = 0, ret = 0;
@@ -540,13 +583,13 @@ const Cofrinhos = {
 
         body.innerHTML = `
             ${this._bannerHtml(d.mode)}
+            ${this._carteiraCardHtml()}
             <div class="flex justify-end">
                 <button id="cof-cats-btn" type="button" class="text-xs font-semibold text-gray-600 bg-white border border-gray-200 rounded-full px-3 py-1.5 hover:bg-gray-50">🏷️ Categorias${d.cats.length ? ' (' + d.cats.length + ')' : ''}</button>
             </div>
             <div id="cof-summary"></div>
             ${controls}
-            <div id="cof-list" class="space-y-3"></div>
-            <button id="cof-new" class="w-full py-3 rounded-2xl bg-emerald-600 text-white text-sm font-bold hover:bg-emerald-700 transition-colors">+ Novo cofrinho</button>`;
+            <div id="cof-list" class="space-y-3"></div>`;
 
         const sort = document.getElementById('cof-sort'), cat = document.getElementById('cof-cat');
         if (sort) sort.value = this._ui.sort;
@@ -554,7 +597,7 @@ const Cofrinhos = {
         document.getElementById('cof-search')?.addEventListener('input', e => { this._ui.q = e.target.value; this._renderList(); });
         sort?.addEventListener('change', e => { this._ui.sort = e.target.value; this._renderList(); });
         cat?.addEventListener('change',  e => { this._ui.cat  = e.target.value; this._renderList(); });
-        document.getElementById('cof-new')?.addEventListener('click', () => this.openForm());
+        document.getElementById('cof-carteira')?.addEventListener('click', () => App.openFinancaModal());
         document.getElementById('cof-cats-btn')?.addEventListener('click', () => this.openCats());
         document.getElementById('cof-list')?.addEventListener('click', e => {
             const act = e.target.closest('[data-act]');
@@ -611,7 +654,7 @@ const Cofrinhos = {
                 <div class="bg-white rounded-2xl border border-gray-100 text-center text-gray-400 py-10 px-6">
                     <div class="text-4xl mb-3">🐷</div>
                     <p class="text-sm font-semibold text-gray-500">Nenhum cofrinho ainda</p>
-                    <p class="text-xs mt-2 leading-relaxed">Crie um cofrinho para juntar dinheiro para um objetivo — carro, viagem, reserva — e acompanhe o progresso. Ele fica separado dos seus lançamentos do mês.</p>
+                    <p class="text-xs mt-2 leading-relaxed">Toque em <b>+ Cofrinho</b> no topo para juntar dinheiro para um objetivo — carro, viagem, reserva — e acompanhar o progresso. Ele fica separado dos seus lançamentos do mês.</p>
                 </div>`;
             return;
         }
@@ -908,6 +951,7 @@ const Cofrinhos = {
         const c = id ? this._data.cofrinhos.find(x => x.id === id) : null;
         this._form = { emoji: c?.emoji || '🐷', color: this._safeColor(c?.color) };
         document.getElementById('cof-form-title').textContent = c ? 'Editar cofrinho' : 'Novo cofrinho';
+        this._renderFormCarteira(!!c);
         document.getElementById('cof-name').value     = c?.name || '';
         document.getElementById('cof-target').value   = c ? App._toMaskedCurrency(c.target_amount) : '';
         document.getElementById('cof-initial').value  = '';

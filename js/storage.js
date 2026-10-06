@@ -688,6 +688,9 @@ const Storage = {
         { id: 'd-salary',    name: 'Salário',     emoji: '💰', keywords: ['salário','salario','holerite','freela','freelance','vencimento','remuneração'], type: 'entrada', sort_order: 9 },
         { id: 'd-other',     name: 'Outros',      emoji: '📦', keywords: [], type: 'both', sort_order: 99 }
     ],
+    // Cópia das categorias padrão: fallback quando a carteira ainda não tem nenhuma
+    // (nome sem "_" é o que getCategories/loadCategories usam).
+    get defaultCategories() { return [...this._defaultCategories]; },
 
     // ── Helpers para overrides de categorias padrão ──────────────────────────
     _isDefaultId(id) {
