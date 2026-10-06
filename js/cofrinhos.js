@@ -2,7 +2,7 @@
 // Dinheiro guardado para objetivos (carro, viagem, reserva...), com depósitos,
 // retiradas e extrato. É independente dos lançamentos: NÃO altera o saldo do mês.
 // Dados: tabelas `cofrinhos`, `cofrinho_movs` e `cofrinho_categories`
-// (supabase/migrations/20261006000001_* e 20261006000002_*).
+// (supabase/migrations/20261006000001_*, 20261006000002_* e 20261006000003_* [PIX]).
 // Escopo: finança ativa (compartilhada = todos os membros) ou pessoal.
 const Cofrinhos = {
     // Cores do objetivo: mesmas do conjunto categórico validado do app (dataviz).
@@ -60,8 +60,54 @@ const Cofrinhos = {
     },
     // Qual migração falta: a de categorias (tabela cofrinho_categories / coluna category_id) ou a base.
     _missingFile(e) {
-        return /cofrinho_categories|category_id/i.test((e && e.message) || '')
+        const m = (e && e.message) || '';
+        if (/pix_(key|name|bank)/i.test(m)) return '20261006000003_add_pix_to_cofrinhos.sql';
+        return /cofrinho_categories|category_id/i.test(m)
             ? '20261006000002_create_cofrinho_categories.sql' : '20261006000001_create_cofrinhos.sql';
+    },
+
+    // ─── Chave PIX do cofrinho (opcional) ─────────────────────────────────────
+    // Só envia as colunas de PIX quando há o que gravar (ou o que limpar): quem não usa
+    // PIX continua salvando normalmente mesmo sem a migração 3 aplicada.
+    _pixFields(f, prev = null) {
+        const key = (f.pixKey || '').trim(), name = this._normName(f.pixName), bank = this._normName(f.pixBank);
+        const had = prev && (prev.pix_key || prev.pix_name || prev.pix_bank);
+        if (!key && !name && !bank && !had) return {};
+        return { pix_key: key || null, pix_name: name || null, pix_bank: bank || null };
+    },
+
+    // Copia texto; o botão mostra "✅ Copiado" (um toast ficaria atrás dos modais).
+    async _copy(text, btn) {
+        let ok = false;
+        try { await navigator.clipboard.writeText(text); ok = true; }
+        catch {
+            const ta = document.createElement('textarea');
+            ta.value = text; ta.setAttribute('readonly', ''); ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0';
+            document.body.appendChild(ta); ta.select();
+            try { ok = document.execCommand('copy'); } catch {}
+            ta.remove();
+        }
+        if (btn) {
+            const old = btn.dataset.label || (btn.dataset.label = btn.textContent);
+            btn.textContent = ok ? '✅ Copiado' : '⚠️ Não foi possível copiar';
+            clearTimeout(btn._t); btn._t = setTimeout(() => { btn.textContent = old; }, 2000);
+        }
+        return ok;
+    },
+
+    // Bloco "Depositar por PIX" (detalhe e tela de depósito); vazio sem chave
+    _pixBlockHtml(c, copyAttr) {
+        if (!c.pix_key) return '';
+        const type = App._pixKeyType ? App._pixKeyType(c.pix_key) : '';
+        const who = [c.pix_name, c.pix_bank].filter(Boolean).map(x => this._esc(x)).join(' · ');
+        return `
+            <div class="flex items-center justify-between gap-2 mb-1">
+                <p class="text-sm font-semibold text-gray-700">🔑 Depositar por PIX</p>
+                ${type ? `<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">${this._esc(type)}</span>` : ''}
+            </div>
+            <p class="font-mono text-sm text-gray-800 break-all">${this._esc(c.pix_key)}</p>
+            ${who ? `<p class="text-xs text-gray-500 mt-1">${who}</p>` : ''}
+            <button type="button" ${copyAttr} class="mt-2 w-full py-2 rounded-xl border border-gray-200 text-xs font-semibold text-gray-600 hover:bg-gray-50">📋 Copiar chave</button>`;
     },
     _assertWritable() {
         if (Storage.isCloud && !Storage.isOnline) throw new Error('Sem conexão. Tente novamente quando estiver online.');
@@ -147,7 +193,8 @@ const Cofrinhos = {
         const fid = this._fid();
         const row = {
             name: f.name, emoji: f.emoji, color: f.color, category_id: f.categoryId || null,
-            target_amount: this._round(f.target), start_date: f.start, target_date: f.targetDate || null
+            target_amount: this._round(f.target), start_date: f.start, target_date: f.targetDate || null,
+            ...this._pixFields(f)
         };
         let created;
         if (!Storage.isCloud) {
@@ -493,6 +540,11 @@ const Cofrinhos = {
         document.getElementById('cof-mov-close')?.addEventListener('click', () => this.closeMov());
         document.getElementById('cof-mov-cancel')?.addEventListener('click', () => this.closeMov());
         document.getElementById('cof-mov-save')?.addEventListener('click', () => this.saveMov());
+        document.getElementById('cof-mov-pix')?.addEventListener('click', e => {
+            const b = e.target.closest('#cof-mov-pix-copy'); if (!b) return;
+            const c = this._data.cofrinhos.find(x => x.id === this._mov?.id);
+            if (c?.pix_key) this._copy(c.pix_key, b);
+        });
         document.getElementById('cof-mov-amount')?.addEventListener('keydown', e => { if (e.key === 'Enter') this.saveMov(); });
     },
 
@@ -723,6 +775,10 @@ const Cofrinhos = {
         if (a === 'edit') return this.openForm(id);
         if (a === 'dep' || a === 'ret') return this.openMov(id, a === 'dep' ? 'deposito' : 'retirada');
         if (a === 'plan') { this._planPeriod = btn.dataset.p; return this._renderDetail(); }
+        if (a === 'copy-pix') {
+            const c = this._data.cofrinhos.find(x => x.id === id);
+            return c?.pix_key && this._copy(c.pix_key, btn);
+        }
         if (a === 'del') return this._deleteCofrinho(id);
         if (a === 'del-mov') return this._deleteMov(btn.dataset.id);
     },
@@ -871,6 +927,8 @@ const Cofrinhos = {
                 <button type="button" data-dact="dep" ${canWrite ? '' : 'disabled'} class="flex-1 py-3 rounded-xl bg-emerald-600 text-white text-sm font-bold hover:bg-emerald-700 disabled:opacity-40">+ Depositar</button>
             </div>
 
+            ${c.pix_key ? `<div class="rounded-2xl border border-gray-100 p-4">${this._pixBlockHtml(c, 'data-dact="copy-pix"')}</div>` : ''}
+
             <div class="rounded-2xl border border-gray-100 p-4">
                 <p class="text-sm font-semibold text-gray-700 mb-2">Quanto guardar</p>
                 ${planHtml}
@@ -956,6 +1014,10 @@ const Cofrinhos = {
         document.getElementById('cof-target').value   = c ? App._toMaskedCurrency(c.target_amount) : '';
         document.getElementById('cof-initial').value  = '';
         document.getElementById('cof-initial-wrap').classList.toggle('hidden', !!c); // saldo inicial só na criação
+        document.getElementById('cof-pix-key').value  = c?.pix_key  || '';
+        document.getElementById('cof-pix-name').value = c?.pix_name || '';
+        document.getElementById('cof-pix-bank').value = c?.pix_bank || '';
+        document.getElementById('cof-pix-details').open = !!(c?.pix_key || c?.pix_name || c?.pix_bank);
         this._fillCatSelect(c?.category_id || '');
         document.getElementById('cof-cat-new-row').classList.add('hidden');
         document.getElementById('cof-start').value    = c?.start_date || this._today();
@@ -989,12 +1051,24 @@ const Cofrinhos = {
         const hasTd  = document.getElementById('cof-has-target').checked;
         const tdate  = hasTd ? document.getElementById('cof-target-date').value : '';
         const categoryId = document.getElementById('cof-category').value || null;
+        const pix = {
+            pixKey:  document.getElementById('cof-pix-key').value.trim(),
+            pixName: document.getElementById('cof-pix-name').value,
+            pixBank: document.getElementById('cof-pix-bank').value
+        };
 
         if (!name)          return this._formError('Informe o nome do objetivo.');
         if (!(target > 0))  return this._formError('Informe o valor da meta.');
         if (!start)         return this._formError('Informe a data de início.');
         if (hasTd && !tdate) return this._formError('Informe a data-alvo ou desmarque a opção.');
         if (tdate && tdate < start) return this._formError('A data-alvo deve ser igual ou posterior à data de início.');
+        if ((pix.pixName.trim() || pix.pixBank.trim()) && !pix.pixKey) {
+            document.getElementById('cof-pix-details').open = true;
+            return this._formError('Informe a chave PIX ou limpe o nome e o banco.');
+        }
+        if (pix.pixKey.length > 100) { document.getElementById('cof-pix-details').open = true; return this._formError('A chave PIX deve ter até 100 caracteres.'); }
+        if (this._normName(pix.pixName).length > 80) return this._formError('O nome do titular deve ter até 80 caracteres.');
+        if (this._normName(pix.pixBank).length > 60) return this._formError('O banco deve ter até 60 caracteres.');
         this._formError('');
 
         const btn = document.getElementById('cof-form-save');
@@ -1002,20 +1076,24 @@ const Cofrinhos = {
         try {
             const editing = !!this._editId;
             if (editing) {
+                const prev = this._data.cofrinhos.find(x => x.id === this._editId);
                 await this.updateCofrinho(this._editId, {
                     name, emoji: this._form.emoji, color: this._form.color, category_id: categoryId,
-                    target_amount: this._round(target), start_date: start, target_date: tdate || null
+                    target_amount: this._round(target), start_date: start, target_date: tdate || null,
+                    ...this._pixFields(pix, prev)
                 });
             } else {
-                await this.createCofrinho({ name, emoji: this._form.emoji, color: this._form.color, categoryId, target, initial, start, targetDate: tdate });
+                await this.createCofrinho({ name, emoji: this._form.emoji, color: this._form.color, categoryId, target, initial, start, targetDate: tdate, ...pix });
             }
             this.closeForm();
             App.showToast(editing ? '✅ Cofrinho atualizado!' : '✅ Cofrinho criado!');
             await App.renderInvestmentsTab();
         } catch (e) {
-            this._formError(this._isMissingTable(e)
-                ? 'Cofrinhos ainda não foram habilitados no banco (migração pendente).'
-                : (e.message || 'Não foi possível salvar.'));
+            const file = this._isMissingTable(e) ? this._missingFile(e) : null;
+            this._formError(!file ? (e.message || 'Não foi possível salvar.')
+                : /pix/.test(file) ? 'A chave PIX ainda não foi habilitada no banco (migração pendente: ' + file + '). Deixe os campos de PIX vazios para salvar sem ela.'
+                : /categories/.test(file) ? 'As categorias ainda não foram habilitadas no banco (migração pendente: ' + file + ').'
+                : 'Cofrinhos ainda não foram habilitados no banco (migração pendente: ' + file + ').');
         } finally {
             btn.disabled = false; btn.textContent = 'Salvar';
         }
@@ -1152,6 +1230,9 @@ const Cofrinhos = {
         document.getElementById('cof-mov-hint').textContent = isRet
             ? `Guardado agora: ${this._money(s.saved)} (máximo para retirar)`
             : (s.done ? `Guardado agora: ${this._money(s.saved)} · meta já atingida` : `Guardado agora: ${this._money(s.saved)} · faltam ${this._money(s.remaining)}`);
+        const pixBox = document.getElementById('cof-mov-pix');
+        pixBox.innerHTML = !isRet && c.pix_key ? this._pixBlockHtml(c, 'id="cof-mov-pix-copy"') : '';
+        pixBox.classList.toggle('hidden', isRet || !c.pix_key);
         document.getElementById('cof-mov-amount').value = '';
         document.getElementById('cof-mov-date').value   = this._today();
         document.getElementById('cof-mov-note').value   = '';

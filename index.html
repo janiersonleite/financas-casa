@@ -1403,6 +1403,31 @@
             </div>
         </div>
 
+        <!-- Chave PIX para depositar neste cofrinho (opcional) -->
+        <details id="cof-pix-details" class="rounded-xl border-2 border-gray-200 px-4 py-3">
+            <summary class="cursor-pointer text-sm font-semibold text-gray-700">🔑 Chave PIX para depositar <span class="font-normal text-gray-400">(opcional)</span></summary>
+            <div class="space-y-3 mt-3">
+                <div>
+                    <label for="cof-pix-key" class="block text-xs font-semibold text-gray-500 mb-1.5 uppercase">Chave PIX</label>
+                    <input id="cof-pix-key" type="text" maxlength="100" placeholder="CPF, e-mail, telefone ou chave aleatória" autocomplete="off" autocapitalize="off" spellcheck="false"
+                        class="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-emerald-500">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label for="cof-pix-name" class="block text-xs font-semibold text-gray-500 mb-1.5 uppercase">Titular</label>
+                        <input id="cof-pix-name" type="text" maxlength="80" placeholder="Opcional" autocomplete="off"
+                            class="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-emerald-500">
+                    </div>
+                    <div>
+                        <label for="cof-pix-bank" class="block text-xs font-semibold text-gray-500 mb-1.5 uppercase">Banco</label>
+                        <input id="cof-pix-bank" type="text" maxlength="60" placeholder="Opcional" autocomplete="off"
+                            class="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-emerald-500">
+                    </div>
+                </div>
+                <p class="text-[11px] text-gray-400">Aparece no cofrinho e na tela de depósito para copiar. Fica visível para quem tem acesso à carteira. O app não consulta titular nem banco automaticamente.</p>
+            </div>
+        </details>
+
         <p id="cof-form-error" class="hidden text-xs text-red-600 font-medium" role="alert"></p>
 
         <div class="flex gap-3 pb-2">
@@ -1438,6 +1463,7 @@
             <button id="cof-mov-close" type="button" aria-label="Fechar" class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-gray-200 flex-shrink-0">✕</button>
         </div>
         <p id="cof-mov-hint" class="text-xs text-gray-500 -mt-2"></p>
+        <div id="cof-mov-pix" class="hidden rounded-2xl border border-gray-100 bg-gray-50 p-3"></div>
 
         <div>
             <label for="cof-mov-amount" class="block text-xs font-semibold text-gray-500 mb-1.5 uppercase">Valor (R$)</label>
@@ -1766,7 +1792,7 @@
 <script src="js/storage.js?v=20261006a"></script>
 <script src="js/nlp.js?v=20260930d"></script>
 <script src="js/insights.js?v=20260528a"></script>
-<script src="js/cofrinhos.js?v=20261006c"></script>
+<script src="js/cofrinhos.js?v=20261006d"></script>
 <script src="js/app.js?v=20261006a"></script>
 
 <script>
