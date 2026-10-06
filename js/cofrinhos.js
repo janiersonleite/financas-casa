@@ -652,6 +652,12 @@ const Cofrinhos = {
         document.getElementById('cof-carteira')?.addEventListener('click', () => App.openFinancaModal());
         document.getElementById('cof-cats-btn')?.addEventListener('click', () => this.openCats());
         document.getElementById('cof-list')?.addEventListener('click', e => {
+            const pix = e.target.closest('[data-pix]');
+            if (pix) {
+                const c = this._data.cofrinhos.find(x => x.id === pix.dataset.pix);
+                if (c?.pix_key) this._copy(c.pix_key, pix);
+                return;
+            }
             const act = e.target.closest('[data-act]');
             if (act) { if (!act.disabled) this.openMov(act.dataset.id, act.dataset.act); return; }
             const card = e.target.closest('[data-card]');
@@ -718,6 +724,23 @@ const Cofrinhos = {
         list.innerHTML = rows.map(({ c, s }) => this._cardHtml(c, s, canWrite)).join('');
     },
 
+    // Chave PIX no cartão da lista: chave + (tipo · titular · banco) e botão de copiar
+    _cardPixHtml(c) {
+        if (!c.pix_key) return '';
+        const type = App._pixKeyType ? App._pixKeyType(c.pix_key) : '';
+        const sub = ['PIX', type, c.pix_name, c.pix_bank].filter(Boolean).map(x => this._esc(x)).join(' · ');
+        return `
+            <div class="mt-3 flex items-center gap-2 rounded-xl bg-gray-50 border border-gray-100 px-3 py-2">
+                <span class="text-base leading-none flex-shrink-0">🔑</span>
+                <div class="flex-1 min-w-0">
+                    <div class="font-mono text-xs text-gray-800 break-all leading-snug">${this._esc(c.pix_key)}</div>
+                    <div class="text-[10px] text-gray-400 break-words">${sub}</div>
+                </div>
+                <button type="button" data-pix="${c.id}" aria-label="Copiar chave PIX de ${this._esc(c.name)}"
+                    class="flex-shrink-0 px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-[11px] font-semibold text-gray-600 hover:bg-gray-50">Copiar</button>
+            </div>`;
+    },
+
     _deadlineTxt(c, s) {
         if (!c.target_date) return '';
         const late = !s.done && c.target_date < this._today();
@@ -746,6 +769,7 @@ const Cofrinhos = {
                 <span class="font-semibold">${this._pctTxt(s.pct)}</span>
                 <span>${s.done ? 'Meta atingida' : 'Faltam ' + this._money(s.remaining)}</span>
             </div>
+            ${this._cardPixHtml(c)}
             <div class="flex gap-2 mt-3">
                 <button data-act="retirada" data-id="${c.id}" ${canWrite && s.saved > 0 ? '' : 'disabled'}
                     class="flex-1 py-2 rounded-xl border border-gray-200 text-xs font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-40">− Retirar</button>
