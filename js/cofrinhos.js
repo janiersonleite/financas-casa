@@ -1,20 +1,24 @@
 // ─── Cofrinhos — objetivos de poupança (aba Investir) ───────────────────────
 // Dinheiro guardado para objetivos (carro, viagem, reserva...), com depósitos,
 // retiradas e extrato. É independente dos lançamentos: NÃO altera o saldo do mês.
-// Dados: tabelas `cofrinhos` e `cofrinho_movs` (supabase/migrations/20261006000001_*).
+// Dados: tabelas `cofrinhos`, `cofrinho_movs` e `cofrinho_categories`
+// (supabase/migrations/20261006000001_* e 20261006000002_*).
 // Escopo: finança ativa (compartilhada = todos os membros) ou pessoal.
 const Cofrinhos = {
     // Cores do objetivo: mesmas do conjunto categórico validado do app (dataviz).
     COLORS: ['#1baf7a', '#2a78d6', '#eb6834', '#eda100', '#e87ba4', '#4a3aa7', '#008300', '#e34948'],
     EMOJIS: ['🐷', '🚗', '🏠', '✈️', '🎓', '💍', '🎁', '🛡️', '💻', '🏖️', '🏍️', '👶'],
-    CATEGORIES: ['Pessoal', 'Educação', 'Viagem', 'Casa', 'Carro', 'Reserva'],
+    // Sugestões de categoria (um toque para criar); as categorias reais são editáveis.
+    SUGGESTED_CATEGORIES: ['Pessoal', 'Educação', 'Viagem', 'Casa', 'Carro', 'Reserva'],
     // Séries do gráfico (par validado: ΔE CVD 24.7, contraste ≥ 3:1)
     SERIES: { dep: '#2a78d6', ret: '#eb6834' },
     MONTHS: ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'],
     KIND_LABEL: { inicial: 'Saldo inicial', deposito: 'Depósito', retirada: 'Retirada' },
 
     view: 'carteira',               // 'carteira' | 'cofrinhos' (subvisão da aba Investir)
-    _data: { cofrinhos: [], movs: [], mode: 'cloud' },
+    _data: { cofrinhos: [], movs: [], cats: [], mode: 'cloud' },
+    _catById: {},                   // categorias por id
+    _catEditId: null,               // categoria em edição no gerenciador
     _movsBy: {},                    // movs agrupadas por cofrinho_id (mais recentes primeiro)
     _ui: { q: '', sort: 'recent', cat: '' },
     _detailId: null,
@@ -52,7 +56,12 @@ const Cofrinhos = {
     _cacheKey() { return 'cofrinhos_cache_' + (this._fid() || 'personal'); },
     _isMissingTable(e) {
         const m = (((e && e.message) || '') + ' ' + ((e && e.code) || '')).toLowerCase();
-        return /pgrst205|42p01|schema cache|does not exist/.test(m);
+        return /pgrst205|pgrst204|42p01|42703|schema cache|does not exist/.test(m);
+    },
+    // Qual migração falta: a de categorias (tabela cofrinho_categories / coluna category_id) ou a base.
+    _missingFile(e) {
+        return /cofrinho_categories|category_id/i.test((e && e.message) || '')
+            ? '20261006000002_create_cofrinho_categories.sql' : '20261006000001_create_cofrinhos.sql';
     },
     _assertWritable() {
         if (Storage.isCloud && !Storage.isOnline) throw new Error('Sem conexão. Tente novamente quando estiver online.');
@@ -65,7 +74,8 @@ const Cofrinhos = {
             const d = Storage._localGet();
             const cofrinhos = (d.cofrinhos || []).filter(c => (fid ? c.financa_id === fid : !c.financa_id));
             const ids = new Set(cofrinhos.map(c => c.id));
-            return { cofrinhos, movs: (d.cofrinho_movs || []).filter(m => ids.has(m.cofrinho_id)), mode: 'local' };
+            const cats = (d.cofrinho_cats || []).filter(k => (fid ? k.financa_id === fid : !k.financa_id));
+            return { cofrinhos, movs: (d.cofrinho_movs || []).filter(m => ids.has(m.cofrinho_id)), cats, mode: 'local' };
         }
         if (!Storage.isOnline) return this._fromCache('offline');
         try {
@@ -73,14 +83,24 @@ const Cofrinhos = {
             q = fid ? q.eq('financa_id', fid) : q.eq('user_id', Storage.userId()).is('financa_id', null);
             const { data: cofrinhos, error } = await q.order('created_at', { ascending: true });
             if (error) throw error;
+            const cats = await this._loadCats();
             const movs = cofrinhos.length ? await this._loadMovs(cofrinhos.map(c => c.id)) : [];
-            try { localStorage.setItem(this._cacheKey(), JSON.stringify({ cofrinhos, movs })); } catch {}
-            return { cofrinhos, movs, mode: 'cloud' };
+            try { localStorage.setItem(this._cacheKey(), JSON.stringify({ cofrinhos, movs, cats })); } catch {}
+            return { cofrinhos, movs, cats, mode: 'cloud' };
         } catch (e) {
-            if (this._isMissingTable(e)) return { cofrinhos: [], movs: [], mode: 'missing' };
+            if (this._isMissingTable(e)) return { cofrinhos: [], movs: [], cats: [], mode: 'missing', missingFile: this._missingFile(e) };
             console.warn('Cofrinhos.load:', e?.message || e);
             return this._fromCache('error');
         }
+    },
+
+    async _loadCats() {
+        const fid = this._fid();
+        let q = Storage.db.from('cofrinho_categories').select('*');
+        q = fid ? q.eq('financa_id', fid) : q.eq('user_id', Storage.userId()).is('financa_id', null);
+        const { data, error } = await q.order('name', { ascending: true });
+        if (error) throw error;
+        return data || [];
     },
 
     // O saldo é a soma do extrato, então NÃO pode ser cortado: o Supabase limita cada
@@ -105,13 +125,15 @@ const Cofrinhos = {
     _fromCache(mode) {
         try {
             const c = JSON.parse(localStorage.getItem(this._cacheKey()) || 'null');
-            if (c) return { cofrinhos: c.cofrinhos || [], movs: c.movs || [], mode };
+            if (c) return { cofrinhos: c.cofrinhos || [], movs: c.movs || [], cats: c.cats || [], mode };
         } catch {}
-        return { cofrinhos: [], movs: [], mode: mode + '-empty' };
+        return { cofrinhos: [], movs: [], cats: [], mode: mode + '-empty' };
     },
 
     _setData(data) {
+        data.cats = [...(data.cats || [])].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt-BR'));
         this._data = data;
+        this._catById = Object.fromEntries(data.cats.map(k => [k.id, k]));
         this._movsBy = {};
         for (const m of data.movs) (this._movsBy[m.cofrinho_id] = this._movsBy[m.cofrinho_id] || []).push(m);
         for (const id in this._movsBy) {
@@ -124,7 +146,7 @@ const Cofrinhos = {
         this._assertWritable();
         const fid = this._fid();
         const row = {
-            name: f.name, emoji: f.emoji, color: f.color, category: f.category || null,
+            name: f.name, emoji: f.emoji, color: f.color, category_id: f.categoryId || null,
             target_amount: this._round(f.target), start_date: f.start, target_date: f.targetDate || null
         };
         let created;
@@ -212,6 +234,75 @@ const Cofrinhos = {
         if (!data || !data.length) throw new Error('Não foi possível excluir esta movimentação.');
     },
 
+    // ─── Categorias (criar / renomear / excluir) ──────────────────────────────
+    _normName(s) { return (s || '').trim().replace(/\s+/g, ' '); },
+    _dupCat(name, exceptId = null) {
+        const n = this._normName(name).toLowerCase();
+        return this._data.cats.some(k => k.id !== exceptId && this._normName(k.name).toLowerCase() === n);
+    },
+    _checkCatName(name, exceptId = null) {
+        const n = this._normName(name);
+        if (!n) throw new Error('Informe o nome da categoria.');
+        if (n.length > 40) throw new Error('Use até 40 caracteres.');
+        if (this._dupCat(n, exceptId)) throw new Error('Já existe uma categoria com esse nome.');
+        return n;
+    },
+    _catError(e) {
+        return (e && (e.code === '23505' || /duplicate key|unique/i.test(e.message || '')))
+            ? new Error('Já existe uma categoria com esse nome.') : e;
+    },
+
+    async createCategory(name) {
+        this._assertWritable();
+        const n = this._checkCatName(name);
+        const fid = this._fid();
+        if (!Storage.isCloud) {
+            const d = Storage._localGet();
+            const k = { id: this._uid(), financa_id: fid, user_id: 'local', name: n, created_at: new Date().toISOString() };
+            d.cofrinho_cats = [...(d.cofrinho_cats || []), k];
+            Storage._localSave(d);
+            return k;
+        }
+        const { data, error } = await Storage.db.from('cofrinho_categories')
+            .insert({ name: n, financa_id: fid, user_id: Storage.userId() }).select().single();
+        if (error) throw this._catError(error);
+        return data;
+    },
+
+    async renameCategory(id, name) {
+        this._assertWritable();
+        const n = this._checkCatName(name, id);
+        if (!Storage.isCloud) {
+            const d = Storage._localGet();
+            const i = (d.cofrinho_cats || []).findIndex(k => k.id === id);
+            if (i === -1) throw new Error('Categoria não encontrada.');
+            d.cofrinho_cats[i] = { ...d.cofrinho_cats[i], name: n };
+            Storage._localSave(d);
+            return n;
+        }
+        const { data, error } = await Storage.db.from('cofrinho_categories').update({ name: n }).eq('id', id).select();
+        if (error) throw this._catError(error);
+        if (!data || !data.length) throw new Error('Não foi possível renomear (sem permissão ou categoria já removida).');
+        return n;
+    },
+
+    // Os cofrinhos da categoria excluída ficam "sem categoria" (FK on delete set null).
+    async deleteCategory(id) {
+        this._assertWritable();
+        if (!Storage.isCloud) {
+            const d = Storage._localGet();
+            d.cofrinho_cats = (d.cofrinho_cats || []).filter(k => k.id !== id);
+            d.cofrinhos = (d.cofrinhos || []).map(c => (c.category_id === id ? { ...c, category_id: null } : c));
+            Storage._localSave(d);
+            return;
+        }
+        const { data, error } = await Storage.db.from('cofrinho_categories').delete().eq('id', id).select();
+        if (error) throw error;
+        if (!data || !data.length) throw new Error('Não foi possível excluir (sem permissão ou categoria já removida).');
+    },
+
+    _catName(c) { return (this._catById[c.category_id] || {}).name || ''; },
+
     // ─── Cálculos ─────────────────────────────────────────────────────────────
     _stats(c) {
         let ini = 0, dep = 0, ret = 0;
@@ -253,10 +344,10 @@ const Cofrinhos = {
         if (this._addMonths(today, months) > end) months--;
         months = Math.max(0, months);
         const rest = Math.round((end - this._addMonths(today, months)) / 86400000);
-        const per = n => this._ceil(remaining / Math.max(1, n));
+        const nDay = days, nWeek = Math.max(1, Math.floor(days / 7)), nMonth = Math.max(1, months);
         return {
-            day: per(days), week: per(Math.floor(days / 7)), month: per(months),
-            months, weeks: Math.floor(rest / 7), days: rest % 7
+            day: this._ceil(remaining / nDay), week: this._ceil(remaining / nWeek), month: this._ceil(remaining / nMonth),
+            nDay, nWeek, nMonth, months, weeks: Math.floor(rest / 7), days: rest % 7
         };
     },
 
@@ -312,6 +403,30 @@ const Cofrinhos = {
         document.getElementById('cof-form-close')?.addEventListener('click', () => this.closeForm());
         document.getElementById('cof-form-cancel')?.addEventListener('click', () => this.closeForm());
         document.getElementById('cof-form-save')?.addEventListener('click', () => this.saveForm());
+        document.getElementById('cof-cat-add')?.addEventListener('click', () => {
+            const row = document.getElementById('cof-cat-new-row');
+            row.classList.toggle('hidden');
+            if (!row.classList.contains('hidden')) document.getElementById('cof-cat-new')?.focus();
+        });
+        document.getElementById('cof-cat-new-ok')?.addEventListener('click', () => this._addCatInline());
+        document.getElementById('cof-cat-new')?.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); this._addCatInline(); } });
+        document.getElementById('cof-cat-manage')?.addEventListener('click', () => this.openCats());
+
+        // Gerenciador de categorias
+        const cm = document.getElementById('cofrinho-cats-modal');
+        cm?.addEventListener('click', e => {
+            if (e.target === cm) return this.closeCats();
+            const b = e.target.closest('[data-cact]');
+            if (b) this._onCatsAction(b);
+        });
+        document.getElementById('cof-cats-close')?.addEventListener('click', () => this.closeCats());
+        document.getElementById('cof-cat-add-btn')?.addEventListener('click', () => this._onCatsAction({ dataset: { cact: 'add' } }));
+        cm?.addEventListener('keydown', e => {
+            if (e.key === 'Enter' && e.target.id === 'cof-cat-add-input') { e.preventDefault(); this._onCatsAction({ dataset: { cact: 'add' } }); }
+            else if (e.key === 'Enter' && e.target.id === 'cof-cat-edit-input') { e.preventDefault(); this._onCatsAction({ dataset: { cact: 'save', id: this._catEditId } }); }
+            else if (e.key === 'Escape' && this._catEditId) { this._catEditId = null; this._renderCats(); }
+        });
+        cm?.addEventListener('input', () => this._catsError(''));
         document.getElementById('cof-has-target')?.addEventListener('change', e => {
             document.getElementById('cof-target-date')?.classList.toggle('hidden', !e.target.checked);
         });
@@ -385,21 +500,23 @@ const Cofrinhos = {
     _renderShell(body) {
         const d = this._data;
         if (d.mode === 'missing') {
+            const isCat = /categories/.test(d.missingFile || '');
             body.innerHTML = `
                 <div id="cof-missing" class="bg-white rounded-2xl border border-amber-200 p-5 text-center">
                     <div class="text-3xl mb-2">🛠️</div>
-                    <p class="text-sm font-semibold text-gray-700">Cofrinhos ainda não foram habilitados no banco</p>
-                    <p class="text-xs text-gray-500 mt-2 leading-relaxed">Falta aplicar uma vez a migração <code class="bg-gray-100 px-1 rounded">20261006000001_create_cofrinhos.sql</code> (pasta <code class="bg-gray-100 px-1 rounded">supabase/migrations</code>) no SQL Editor do Supabase.</p>
+                    <p class="text-sm font-semibold text-gray-700">${isCat ? 'As categorias dos cofrinhos ainda não foram habilitadas no banco' : 'Cofrinhos ainda não foram habilitados no banco'}</p>
+                    <p class="text-xs text-gray-500 mt-2 leading-relaxed">Falta aplicar uma vez a migração <code class="bg-gray-100 px-1 rounded">${this._esc(d.missingFile || '20261006000001_create_cofrinhos.sql')}</code> (pasta <code class="bg-gray-100 px-1 rounded">supabase/migrations</code>) no SQL Editor do Supabase.</p>
                     <button id="cof-retry" class="mt-4 px-4 py-2 rounded-xl bg-emerald-600 text-white text-sm font-semibold">Já apliquei, tentar de novo</button>
                 </div>`;
             document.getElementById('cof-retry')?.addEventListener('click', () => App.renderInvestmentsTab());
             return;
         }
 
-        const cats = [...new Set(d.cofrinhos.map(c => (c.category || '').trim()).filter(Boolean))]
-            .sort((a, b) => a.localeCompare(b, 'pt-BR'));
-        if (this._ui.cat && this._ui.cat !== '__none__' && !cats.includes(this._ui.cat)) this._ui.cat = '';
-        const hasNone = d.cofrinhos.some(c => !(c.category || '').trim());
+        // Só categorias em uso aparecem no filtro (as vazias só poluiriam a lista)
+        const usedIds = new Set(d.cofrinhos.map(c => c.category_id).filter(Boolean));
+        const cats = d.cats.filter(k => usedIds.has(k.id));
+        if (this._ui.cat && this._ui.cat !== '__none__' && !usedIds.has(this._ui.cat)) this._ui.cat = '';
+        const hasNone = d.cofrinhos.some(c => !c.category_id);
         const sel = 'border border-gray-200 rounded-xl px-3 py-2 text-xs bg-white focus:outline-none focus:border-emerald-500';
 
         const controls = d.cofrinhos.length >= 2 ? `
@@ -415,7 +532,7 @@ const Cofrinhos = {
                     </select>
                     <select id="cof-cat" class="${sel} flex-1" aria-label="Filtrar por categoria">
                         <option value="">Todas as categorias</option>
-                        ${cats.map(c => `<option value="${this._esc(c)}">${this._esc(c)}</option>`).join('')}
+                        ${cats.map(k => `<option value="${this._esc(k.id)}">${this._esc(k.name)}</option>`).join('')}
                         ${hasNone && cats.length ? '<option value="__none__">Sem categoria</option>' : ''}
                     </select>
                 </div>
@@ -423,6 +540,9 @@ const Cofrinhos = {
 
         body.innerHTML = `
             ${this._bannerHtml(d.mode)}
+            <div class="flex justify-end">
+                <button id="cof-cats-btn" type="button" class="text-xs font-semibold text-gray-600 bg-white border border-gray-200 rounded-full px-3 py-1.5 hover:bg-gray-50">🏷️ Categorias${d.cats.length ? ' (' + d.cats.length + ')' : ''}</button>
+            </div>
             <div id="cof-summary"></div>
             ${controls}
             <div id="cof-list" class="space-y-3"></div>
@@ -435,6 +555,7 @@ const Cofrinhos = {
         sort?.addEventListener('change', e => { this._ui.sort = e.target.value; this._renderList(); });
         cat?.addEventListener('change',  e => { this._ui.cat  = e.target.value; this._renderList(); });
         document.getElementById('cof-new')?.addEventListener('click', () => this.openForm());
+        document.getElementById('cof-cats-btn')?.addEventListener('click', () => this.openCats());
         document.getElementById('cof-list')?.addEventListener('click', e => {
             const act = e.target.closest('[data-act]');
             if (act) { if (!act.disabled) this.openMov(act.dataset.id, act.dataset.act); return; }
@@ -447,10 +568,9 @@ const Cofrinhos = {
     _filtered() {
         const q = this._ui.q.trim().toLowerCase();
         const rows = this._data.cofrinhos.map(c => ({ c, s: this._stats(c) })).filter(({ c }) => {
-            if (q && !(c.name || '').toLowerCase().includes(q) && !(c.category || '').toLowerCase().includes(q)) return false;
-            const cat = (c.category || '').trim();
-            if (this._ui.cat === '__none__') return !cat;
-            return !this._ui.cat || cat === this._ui.cat;
+            if (q && !(c.name || '').toLowerCase().includes(q) && !this._catName(c).toLowerCase().includes(q)) return false;
+            if (this._ui.cat === '__none__') return !c.category_id;
+            return !this._ui.cat || c.category_id === this._ui.cat;
         });
         const by = {
             recent:   (a, b) => (b.c.created_at || '').localeCompare(a.c.created_at || ''),
@@ -512,7 +632,7 @@ const Cofrinhos = {
     _cardHtml(c, s, canWrite) {
         const color = this._safeColor(c.color);
         const w = Math.max(0, Math.min(100, s.pct));
-        const meta = [c.category ? this._esc(c.category) : '', this._deadlineTxt(c, s)].filter(Boolean).join(' · ');
+        const meta = [this._esc(this._catName(c)), this._deadlineTxt(c, s)].filter(Boolean).join(' · ');
         return `
         <div data-card="${c.id}" class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 cursor-pointer">
             <div class="flex items-start gap-3">
@@ -619,6 +739,12 @@ const Cofrinhos = {
             planHtml = `<p class="text-sm text-gray-700">O prazo termina <b>hoje</b> e ainda faltam <b>${this._money(s.remaining)}</b>.</p>`;
         } else {
             const periods = [['day', 'Por dia'], ['week', 'Por semana'], ['month', 'Por mês']];
+            const k = this._planPeriod;
+            const unit = { day: 'por dia', week: 'por semana', month: 'por mês' }[k];
+            const n = plan[{ day: 'nDay', week: 'nWeek', month: 'nMonth' }[k]];
+            const deps = n === 1
+                ? `1 depósito ${{ day: 'diário', week: 'semanal', month: 'mensal' }[k]}`
+                : `${n} depósitos ${{ day: 'diários', week: 'semanais', month: 'mensais' }[k]}`;
             const left = [
                 plan.months ? `${plan.months} ${plan.months === 1 ? 'mês' : 'meses'}` : '',
                 plan.weeks  ? `${plan.weeks} ${plan.weeks === 1 ? 'semana' : 'semanas'}` : '',
@@ -626,11 +752,13 @@ const Cofrinhos = {
             ].filter(Boolean).join(' · ') || 'menos de 1 dia';
             planHtml = `
                 <div class="flex gap-2 mb-3">
-                    ${periods.map(([k, label]) => `<button type="button" data-dact="plan" data-p="${k}"
-                        class="flex-1 py-1.5 rounded-xl text-xs font-semibold border ${this._planPeriod === k ? 'bg-emerald-600 text-white border-emerald-600' : 'border-gray-200 text-gray-600'}">${label}</button>`).join('')}
+                    ${periods.map(([key, label]) => `<button type="button" data-dact="plan" data-p="${key}"
+                        class="flex-1 py-1.5 rounded-xl text-xs font-semibold border ${k === key ? 'bg-emerald-600 text-white border-emerald-600' : 'border-gray-200 text-gray-600'}">${label}</button>`).join('')}
                 </div>
-                <div class="text-2xl font-extrabold text-gray-800">${this._money(plan[this._planPeriod])}</div>
-                <p class="text-[11px] text-gray-400 mt-1">Para atingir a meta em ${App.formatDate(c.target_date)} · restam ${left} (valores aproximados)</p>`;
+                <p class="text-sm text-gray-600">Para bater a meta, guarde</p>
+                <div class="text-2xl font-extrabold text-gray-800">${this._money(plan[k])} <span class="text-base font-bold text-gray-500">${unit}</span></div>
+                <p class="text-xs text-gray-600 mt-1">${deps} · total que falta ${this._money(s.remaining)}</p>
+                <p class="text-[11px] text-gray-400 mt-1">Até ${App.formatDate(c.target_date)} · restam ${left} (valores aproximados)</p>`;
         }
 
         // ── Extrato ──
@@ -664,7 +792,7 @@ const Cofrinhos = {
             : '<p class="text-xs text-gray-400 text-center py-4">Sem depósitos ou retiradas nos últimos 6 meses.</p>';
 
         const swatch = bg => `<span class="inline-block w-2 h-2 rounded-full mr-1.5" style="background:${bg}"></span>`;
-        const meta = [c.category ? this._esc(c.category) : '', this._deadlineTxt(c, s), 'início ' + App.formatDate(c.start_date)].filter(Boolean).join(' · ');
+        const meta = [this._esc(this._catName(c)), this._deadlineTxt(c, s), 'início ' + App.formatDate(c.start_date)].filter(Boolean).join(' · ');
 
         wrap.innerHTML = `
             <div class="flex items-start gap-3">
@@ -784,15 +912,13 @@ const Cofrinhos = {
         document.getElementById('cof-target').value   = c ? App._toMaskedCurrency(c.target_amount) : '';
         document.getElementById('cof-initial').value  = '';
         document.getElementById('cof-initial-wrap').classList.toggle('hidden', !!c); // saldo inicial só na criação
-        document.getElementById('cof-category').value = c?.category || '';
+        this._fillCatSelect(c?.category_id || '');
+        document.getElementById('cof-cat-new-row').classList.add('hidden');
         document.getElementById('cof-start').value    = c?.start_date || this._today();
         document.getElementById('cof-has-target').checked = !!c?.target_date;
         const td = document.getElementById('cof-target-date');
         td.value = c?.target_date || '';
         td.classList.toggle('hidden', !c?.target_date);
-        const used = this._data.cofrinhos.map(x => (x.category || '').trim()).filter(Boolean);
-        document.getElementById('cof-cat-list').innerHTML =
-            [...new Set([...used, ...this.CATEGORIES])].map(x => `<option value="${this._esc(x)}"></option>`).join('');
         this._formError('');
         this._renderPickers();
         document.getElementById('cofrinho-form-modal').classList.remove('hidden');
@@ -818,7 +944,7 @@ const Cofrinhos = {
         const start  = document.getElementById('cof-start').value;
         const hasTd  = document.getElementById('cof-has-target').checked;
         const tdate  = hasTd ? document.getElementById('cof-target-date').value : '';
-        const category = document.getElementById('cof-category').value.trim();
+        const categoryId = document.getElementById('cof-category').value || null;
 
         if (!name)          return this._formError('Informe o nome do objetivo.');
         if (!(target > 0))  return this._formError('Informe o valor da meta.');
@@ -833,11 +959,11 @@ const Cofrinhos = {
             const editing = !!this._editId;
             if (editing) {
                 await this.updateCofrinho(this._editId, {
-                    name, emoji: this._form.emoji, color: this._form.color, category: category || null,
+                    name, emoji: this._form.emoji, color: this._form.color, category_id: categoryId,
                     target_amount: this._round(target), start_date: start, target_date: tdate || null
                 });
             } else {
-                await this.createCofrinho({ name, emoji: this._form.emoji, color: this._form.color, category, target, initial, start, targetDate: tdate });
+                await this.createCofrinho({ name, emoji: this._form.emoji, color: this._form.color, categoryId, target, initial, start, targetDate: tdate });
             }
             this.closeForm();
             App.showToast(editing ? '✅ Cofrinho atualizado!' : '✅ Cofrinho criado!');
@@ -849,6 +975,127 @@ const Cofrinhos = {
         } finally {
             btn.disabled = false; btn.textContent = 'Salvar';
         }
+    },
+
+    // Preenche o <select> de categoria do formulário (mantém a seleção quando possível)
+    _fillCatSelect(selectedId) {
+        const sel = document.getElementById('cof-category');
+        if (!sel) return;
+        sel.innerHTML = '<option value="">Sem categoria</option>' +
+            this._data.cats.map(k => `<option value="${this._esc(k.id)}">${this._esc(k.name)}</option>`).join('');
+        sel.value = this._catById[selectedId] ? selectedId : '';
+    },
+
+    // "+" ao lado da categoria: cria uma categoria sem sair do formulário
+    async _addCatInline() {
+        const input = document.getElementById('cof-cat-new');
+        try {
+            const k = await this.createCategory(input.value);
+            this._data.cats.push(k);
+            this._setData({ ...this._data, cats: this._data.cats });
+            this._fillCatSelect(k.id);
+            input.value = '';
+            document.getElementById('cof-cat-new-row').classList.add('hidden');
+            this._formError('');
+            this._afterCatsChanged();
+        } catch (e) { this._formError(e.message || 'Não foi possível criar a categoria.'); }
+    },
+
+    // ─── Gerenciador de categorias ────────────────────────────────────────────
+    openCats() {
+        this._catEditId = null;
+        this._catsError('');
+        document.getElementById('cof-cat-add-input').value = '';
+        this._renderCats();
+        document.getElementById('cofrinho-cats-modal').classList.remove('hidden');
+    },
+
+    closeCats() {
+        document.getElementById('cofrinho-cats-modal')?.classList.add('hidden');
+        this._catEditId = null;
+    },
+
+    _catsError(msg) {
+        const el = document.getElementById('cof-cats-error');
+        if (!el) return;
+        el.textContent = msg || '';
+        el.classList.toggle('hidden', !msg);
+    },
+
+    _renderCats() {
+        const wrap = document.getElementById('cof-cats-list');
+        if (!wrap) return;
+        const counts = {};
+        for (const c of this._data.cofrinhos) if (c.category_id) counts[c.category_id] = (counts[c.category_id] || 0) + 1;
+        const canWrite = !(Storage.isCloud && !Storage.isOnline);
+        const rows = this._data.cats.map(k => {
+            const n = counts[k.id] || 0;
+            if (this._catEditId === k.id) {
+                return `<div class="flex items-center gap-2 py-2 border-b border-gray-50 last:border-0">
+                    <input id="cof-cat-edit-input" type="text" maxlength="40" value="${this._esc(k.name)}" aria-label="Novo nome da categoria"
+                        class="flex-1 min-w-0 border-2 border-emerald-500 rounded-xl px-3 py-2 text-sm focus:outline-none">
+                    <button type="button" data-cact="save" data-id="${k.id}" class="px-3 py-2 rounded-xl bg-emerald-600 text-white text-xs font-semibold">Salvar</button>
+                    <button type="button" data-cact="cancel" aria-label="Cancelar" class="px-2 py-2 rounded-xl border border-gray-200 text-xs text-gray-500">✕</button>
+                </div>`;
+            }
+            return `<div class="flex items-center gap-2 py-2 border-b border-gray-50 last:border-0">
+                <div class="flex-1 min-w-0">
+                    <div class="text-sm text-gray-800 truncate">${this._esc(k.name)}</div>
+                    <div class="text-[10px] text-gray-400">${n === 0 ? 'nenhum cofrinho' : n === 1 ? '1 cofrinho' : n + ' cofrinhos'}</div>
+                </div>
+                ${canWrite ? `<button type="button" data-cact="edit" data-id="${k.id}" aria-label="Renomear ${this._esc(k.name)}" class="px-2 py-1 text-sm">✏️</button>
+                <button type="button" data-cact="del" data-id="${k.id}" aria-label="Excluir ${this._esc(k.name)}" class="px-2 py-1 text-sm">🗑️</button>` : ''}
+            </div>`;
+        }).join('') || '<p class="text-xs text-gray-400 text-center py-3">Nenhuma categoria ainda. Crie uma acima ou toque numa sugestão.</p>';
+
+        const sugg = this.SUGGESTED_CATEGORIES.filter(n => !this._dupCat(n));
+        const suggHtml = canWrite && sugg.length ? `
+            <div class="pt-1">
+                <p class="text-[11px] text-gray-400 mb-1.5">Sugestões</p>
+                <div class="flex flex-wrap gap-2">${sugg.map(n => `<button type="button" data-cact="sug" data-name="${this._esc(n)}"
+                    class="px-3 py-1.5 rounded-full border border-dashed border-gray-300 text-xs text-gray-600 hover:bg-gray-50">+ ${this._esc(n)}</button>`).join('')}</div>
+            </div>` : '';
+        wrap.innerHTML = rows + suggHtml;
+        if (this._catEditId) setTimeout(() => { const i = document.getElementById('cof-cat-edit-input'); i?.focus(); i?.select(); }, 30);
+    },
+
+    async _onCatsAction(btn) {
+        const a = btn.dataset.cact, id = btn.dataset.id;
+        try {
+            if (a === 'edit')   { this._catEditId = id; this._catsError(''); return this._renderCats(); }
+            if (a === 'cancel') { this._catEditId = null; this._catsError(''); return this._renderCats(); }
+            if (a === 'add' || a === 'sug') {
+                const input = document.getElementById('cof-cat-add-input');
+                const k = await this.createCategory(a === 'sug' ? btn.dataset.name : input.value);
+                this._data.cats.push(k);
+                if (a === 'add') input.value = '';
+            } else if (a === 'save') {
+                const name = await this.renameCategory(id, document.getElementById('cof-cat-edit-input').value);
+                const k = this._catById[id]; if (k) k.name = name;
+                this._catEditId = null;
+            } else if (a === 'del') {
+                const k = this._catById[id];
+                const n = this._data.cofrinhos.filter(c => c.category_id === id).length;
+                if (!k || !confirm(`Excluir a categoria "${k.name}"?` + (n ? ` ${n === 1 ? 'O cofrinho dela ficará' : 'Os ' + n + ' cofrinhos dela ficarão'} sem categoria.` : ''))) return;
+                await this.deleteCategory(id);
+                this._data.cats = this._data.cats.filter(x => x.id !== id);
+                this._data.cofrinhos = this._data.cofrinhos.map(c => (c.category_id === id ? { ...c, category_id: null } : c));
+                if (this._ui.cat === id) this._ui.cat = '';
+            }
+            this._catsError('');
+            this._setData({ ...this._data });
+            this._renderCats();
+            this._afterCatsChanged();
+        } catch (e) { this._catsError(e.message || 'Não foi possível salvar a categoria.'); }
+    },
+
+    // Atualiza o que depende das categorias (formulário aberto, lista e detalhe)
+    _afterCatsChanged() {
+        const form = document.getElementById('cofrinho-form-modal');
+        if (form && !form.classList.contains('hidden')) {
+            this._fillCatSelect(document.getElementById('cof-category').value);
+        }
+        App.renderInvestmentsTab();
     },
 
     // ─── Depósito / retirada ──────────────────────────────────────────────────

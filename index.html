@@ -1368,10 +1368,21 @@
         </div>
 
         <div>
-            <label for="cof-category" class="block text-xs font-semibold text-gray-500 mb-1.5 uppercase">Categoria <span class="normal-case font-normal text-gray-400">(opcional)</span></label>
-            <input id="cof-category" type="text" list="cof-cat-list" maxlength="40" placeholder="Ex: Pessoal, Viagem..." autocomplete="off"
-                class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-emerald-500">
-            <datalist id="cof-cat-list"></datalist>
+            <div class="flex items-center justify-between mb-1.5">
+                <label for="cof-category" class="block text-xs font-semibold text-gray-500 uppercase">Categoria <span class="normal-case font-normal text-gray-400">(opcional)</span></label>
+                <button id="cof-cat-manage" type="button" class="text-[11px] font-semibold text-emerald-700">Gerenciar categorias</button>
+            </div>
+            <div class="flex gap-2">
+                <select id="cof-category"
+                    class="flex-1 min-w-0 bg-white border-2 border-gray-200 rounded-xl px-3 py-3 text-sm text-gray-800 focus:outline-none focus:border-emerald-500"></select>
+                <button id="cof-cat-add" type="button" aria-label="Nova categoria"
+                    class="w-12 rounded-xl border-2 border-dashed border-gray-300 text-xl text-gray-400 hover:border-emerald-400 hover:text-emerald-600">+</button>
+            </div>
+            <div id="cof-cat-new-row" class="hidden flex gap-2 mt-2">
+                <input id="cof-cat-new" type="text" maxlength="40" placeholder="Nome da nova categoria" autocomplete="off"
+                    class="flex-1 min-w-0 border-2 border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-emerald-500">
+                <button id="cof-cat-new-ok" type="button" class="px-4 rounded-xl bg-emerald-600 text-white text-sm font-semibold">Criar</button>
+            </div>
         </div>
 
         <div class="grid grid-cols-2 gap-3">
@@ -1395,6 +1406,24 @@
             <button id="cof-form-cancel" type="button" class="flex-1 py-3 rounded-xl border-2 border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50">Cancelar</button>
             <button id="cof-form-save" type="button" class="flex-1 py-3 rounded-xl bg-emerald-600 text-white text-sm font-bold hover:bg-emerald-700">Salvar</button>
         </div>
+    </div>
+</div>
+
+<!-- Gerenciar categorias dos cofrinhos -->
+<div id="cofrinho-cats-modal" class="hidden fixed inset-0 bg-black/50 z-[75] flex items-end justify-center">
+    <div class="bg-white w-full max-w-md rounded-t-3xl shadow-xl p-4 space-y-3" style="max-height:88vh;overflow-y:auto">
+        <div class="flex items-center justify-between">
+            <h3 class="font-bold text-lg text-gray-800">Categorias dos cofrinhos</h3>
+            <button id="cof-cats-close" type="button" aria-label="Fechar" class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-gray-200">✕</button>
+        </div>
+        <div class="flex gap-2">
+            <input id="cof-cat-add-input" type="text" maxlength="40" placeholder="Nova categoria (ex: Viagem)" autocomplete="off" aria-label="Nova categoria"
+                class="flex-1 min-w-0 border-2 border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-emerald-500">
+            <button id="cof-cat-add-btn" type="button" class="px-4 rounded-xl bg-emerald-600 text-white text-sm font-semibold">Adicionar</button>
+        </div>
+        <p id="cof-cats-error" class="hidden text-xs text-red-600 font-medium" role="alert"></p>
+        <div id="cof-cats-list"></div>
+        <p class="text-[11px] text-gray-400 pb-2">Ao excluir uma categoria, os cofrinhos dela ficam sem categoria — nenhum cofrinho é apagado.</p>
     </div>
 </div>
 
@@ -1734,7 +1763,7 @@
 <script src="js/storage.js?v=20260924b"></script>
 <script src="js/nlp.js?v=20260930d"></script>
 <script src="js/insights.js?v=20260528a"></script>
-<script src="js/cofrinhos.js?v=20261006a"></script>
+<script src="js/cofrinhos.js?v=20261006b"></script>
 <script src="js/app.js?v=20261006a"></script>
 
 <script>
