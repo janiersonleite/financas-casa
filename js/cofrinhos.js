@@ -44,6 +44,13 @@ const Cofrinhos = {
     _money(v) { return App.formatCurrency(this._round(v)); },
     _esc(s)   { return App._escHtml(s); },
     _safeColor(c) { return /^#[0-9a-fA-F]{6}$/.test(c || '') ? c : this.COLORS[0]; },
+    // Cor inicial de um cofrinho novo: a menos usada da paleta (empate = ordem da paleta),
+    // para que os cofrinhos novos já nasçam diferentes entre si.
+    _nextColor() {
+        const used = {};
+        for (const c of this._data.cofrinhos) { const k = this._safeColor(c.color).toLowerCase(); used[k] = (used[k] || 0) + 1; }
+        return [...this.COLORS].sort((a, b) => (used[a.toLowerCase()] || 0) - (used[b.toLowerCase()] || 0))[0];
+    },
     _pctTxt(p) { return p >= 1000 ? '999%+' : (p > 0 && p < 10 ? p.toFixed(1) : Math.round(p)) + '%'; },
     _uid() {
         return (window.crypto && crypto.randomUUID) ? crypto.randomUUID()
@@ -730,11 +737,11 @@ const Cofrinhos = {
         const type = App._pixKeyType ? App._pixKeyType(c.pix_key) : '';
         const sub = ['PIX', type, c.pix_name, c.pix_bank].filter(Boolean).map(x => this._esc(x)).join(' · ');
         return `
-            <div class="mt-3 flex items-center gap-2 rounded-xl bg-gray-50 border border-gray-100 px-3 py-2">
+            <div class="mt-3 flex items-center gap-2 rounded-xl px-3 py-2" style="background:#ffffffd9;border:1px solid ${this._safeColor(c.color)}33">
                 <span class="text-base leading-none flex-shrink-0">🔑</span>
                 <div class="flex-1 min-w-0">
                     <div class="font-mono text-xs text-gray-800 break-all leading-snug">${this._esc(c.pix_key)}</div>
-                    <div class="text-[10px] text-gray-400 break-words">${sub}</div>
+                    <div class="text-[10px] text-gray-500 break-words">${sub}</div>
                 </div>
                 <button type="button" data-pix="${c.id}" aria-label="Copiar chave PIX de ${this._esc(c.name)}"
                     class="flex-shrink-0 px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-[11px] font-semibold text-gray-600 hover:bg-gray-50">Copiar</button>
@@ -752,19 +759,20 @@ const Cofrinhos = {
         const w = Math.max(0, Math.min(100, s.pct));
         const meta = [this._esc(this._catName(c)), this._deadlineTxt(c, s)].filter(Boolean).join(' · ');
         return `
-        <div data-card="${c.id}" class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 cursor-pointer">
+        <div data-card="${c.id}" class="rounded-2xl border p-4 cursor-pointer"
+            style="background:${color}1f;background:color-mix(in srgb,${color} 14%,#fff);border-color:${color}55;box-shadow:inset 5px 0 0 ${color},0 1px 2px rgba(0,0,0,.06)">
             <div class="flex items-start gap-3">
-                <div class="w-11 h-11 rounded-2xl flex items-center justify-center text-2xl flex-shrink-0" style="background:${color}26">${this._esc(c.emoji || '🐷')}</div>
+                <div class="w-11 h-11 rounded-2xl flex items-center justify-center text-2xl flex-shrink-0" style="background:#ffffffd9;border:1px solid ${color}40">${this._esc(c.emoji || '🐷')}</div>
                 <div class="flex-1 min-w-0">
                     <div class="font-semibold text-gray-800 truncate">${this._esc(c.name)}</div>
-                    <div class="text-[11px] text-gray-400 truncate">${s.done ? '<span class="font-semibold text-emerald-700">🎉 Concluído</span>' + (meta ? ' · ' : '') : ''}${meta || (s.done ? '' : '&nbsp;')}</div>
+                    <div class="text-[11px] text-gray-500 truncate">${s.done ? '<span class="font-semibold text-emerald-700">🎉 Concluído</span>' + (meta ? ' · ' : '') : ''}${meta || (s.done ? '' : '&nbsp;')}</div>
                 </div>
                 <div class="text-right flex-shrink-0">
                     <div class="text-sm font-bold text-gray-800">${this._money(s.saved)}</div>
-                    <div class="text-[11px] text-gray-400">de ${this._money(s.target)}</div>
+                    <div class="text-[11px] text-gray-500">de ${this._money(s.target)}</div>
                 </div>
             </div>
-            <div class="h-2 rounded-full mt-3" style="background:${color}26"><div class="h-2 rounded-full" style="width:${w.toFixed(1)}%;background:${color}"></div></div>
+            <div class="h-2 rounded-full mt-3" style="background:#ffffffb3"><div class="h-2 rounded-full" style="width:${w.toFixed(1)}%;background:${color}"></div></div>
             <div class="flex justify-between text-[11px] text-gray-500 mt-1">
                 <span class="font-semibold">${this._pctTxt(s.pct)}</span>
                 <span>${s.done ? 'Meta atingida' : 'Faltam ' + this._money(s.remaining)}</span>
@@ -772,7 +780,7 @@ const Cofrinhos = {
             ${this._cardPixHtml(c)}
             <div class="flex gap-2 mt-3">
                 <button data-act="retirada" data-id="${c.id}" ${canWrite && s.saved > 0 ? '' : 'disabled'}
-                    class="flex-1 py-2 rounded-xl border border-gray-200 text-xs font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-40">− Retirar</button>
+                    class="flex-1 py-2 rounded-xl border border-gray-200 bg-white/80 text-xs font-semibold text-gray-600 hover:bg-white disabled:opacity-40">− Retirar</button>
                 <button data-act="deposito" data-id="${c.id}" ${canWrite ? '' : 'disabled'}
                     class="flex-1 py-2 rounded-xl bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 disabled:opacity-40">+ Depositar</button>
             </div>
@@ -1031,7 +1039,7 @@ const Cofrinhos = {
     openForm(id = null) {
         this._editId = id;
         const c = id ? this._data.cofrinhos.find(x => x.id === id) : null;
-        this._form = { emoji: c?.emoji || '🐷', color: this._safeColor(c?.color) };
+        this._form = { emoji: c?.emoji || '🐷', color: c ? this._safeColor(c.color) : this._nextColor() };
         document.getElementById('cof-form-title').textContent = c ? 'Editar cofrinho' : 'Novo cofrinho';
         this._renderFormCarteira(!!c);
         document.getElementById('cof-name').value     = c?.name || '';
