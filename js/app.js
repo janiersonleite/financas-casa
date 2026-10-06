@@ -561,8 +561,12 @@ const App = {
         document.getElementById('open-categories-btn')?.addEventListener('click', () => this.openCategoryModal());
         // "Lembretes — Ver tudo"
         document.getElementById('reminders-manage-link')?.addEventListener('click', () => this.openRemindersModal());
-        // Aba Investimentos: botão "+ Aporte" no cabeçalho
-        document.getElementById('inv-new-aporte-top')?.addEventListener('click', () => this._newAporte());
+        // Aba Investimentos: botão do cabeçalho ("+ Aporte" na Carteira, "+ Cofrinho" nos Cofrinhos)
+        document.getElementById('inv-new-aporte-top')?.addEventListener('click', () => {
+            if (Cofrinhos.view === 'cofrinhos') Cofrinhos.openForm();
+            else this._newAporte();
+        });
+        Cofrinhos.bind();
     },
 
     async switchTab(tab) {
@@ -4159,6 +4163,10 @@ const App = {
     async renderInvestmentsTab() {
         const body = document.getElementById('investments-tab-body');
         if (!body) return;
+
+        // Subvisão "Cofrinhos" (objetivos de poupança) — módulo js/cofrinhos.js
+        Cofrinhos.syncChrome();
+        if (Cofrinhos.view === 'cofrinhos') { await Cofrinhos.render(body); return; }
 
         let portfolio;
         try { portfolio = await Storage.getInvestmentPortfolio(this.currentMonth); }

@@ -657,6 +657,15 @@
             <button id="inv-new-aporte-top" class="bg-white/15 hover:bg-white/25 rounded-xl px-3 py-2 text-sm font-semibold transition-colors">+ Aporte</button>
         </div>
     </div>
+    <!-- Alternância: Carteira (lançamentos) | Cofrinhos (objetivos de poupança) -->
+    <div class="px-4 pt-4">
+        <div class="flex bg-gray-100 rounded-2xl p-1 gap-1" role="tablist">
+            <button id="inv-seg-carteira" type="button" role="tab" aria-selected="true"
+                class="flex-1 py-2 rounded-xl text-sm font-semibold bg-white text-emerald-700 shadow-sm transition-colors">📈 Carteira</button>
+            <button id="inv-seg-cofrinhos" type="button" role="tab" aria-selected="false"
+                class="flex-1 py-2 rounded-xl text-sm font-semibold text-gray-500 transition-colors">🐷 Cofrinhos</button>
+        </div>
+    </div>
     <div id="investments-tab-body" class="px-4 pt-4 space-y-4"></div>
 </div>
 
@@ -1314,6 +1323,175 @@
     </div>
 </div>
 
+<!-- ═══════════════════ COFRINHOS (aba Investir) ═══════════════════ -->
+<!-- Detalhe do cofrinho (conteúdo montado por js/cofrinhos.js) -->
+<div id="cofrinho-detail-modal" class="hidden fixed inset-0 bg-black/50 z-[60] flex items-end justify-center">
+    <div class="bg-white w-full max-w-md rounded-t-3xl shadow-xl flex flex-col" style="max-height:92vh">
+        <div id="cof-detail-body" class="overflow-y-auto p-4 space-y-4"></div>
+    </div>
+</div>
+
+<!-- Criar / editar cofrinho -->
+<div id="cofrinho-form-modal" class="hidden fixed inset-0 bg-black/50 z-[70] flex items-end justify-center">
+    <div class="bg-white w-full max-w-md rounded-t-3xl shadow-xl p-4 space-y-4" style="max-height:92vh;overflow-y:auto">
+        <div class="flex items-center justify-between">
+            <h3 id="cof-form-title" class="font-bold text-lg text-gray-800">Novo cofrinho</h3>
+            <button id="cof-form-close" type="button" aria-label="Fechar" class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-gray-200">✕</button>
+        </div>
+
+        <!-- Carteira onde o cofrinho fica (preenchida por js/cofrinhos.js) -->
+        <div id="cof-form-carteira" class="flex items-center gap-2.5 rounded-xl px-3 py-2"></div>
+
+        <div>
+            <label for="cof-name" class="block text-xs font-semibold text-gray-500 mb-1.5 uppercase">Nome do objetivo</label>
+            <input id="cof-name" type="text" maxlength="80" placeholder="Ex: Carro, Viagem, Reserva..."
+                class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-emerald-500">
+        </div>
+
+        <div>
+            <label class="block text-xs font-semibold text-gray-500 mb-1.5 uppercase">Ícone</label>
+            <div id="cof-emoji-row" class="flex flex-wrap gap-2"></div>
+        </div>
+        <div>
+            <label class="block text-xs font-semibold text-gray-500 mb-1.5 uppercase">Cor</label>
+            <div id="cof-color-row" class="flex flex-wrap gap-3 px-1 py-1"></div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+            <div>
+                <label for="cof-target" class="block text-xs font-semibold text-gray-500 mb-1.5 uppercase">Valor da meta (R$)</label>
+                <input id="cof-target" type="text" inputmode="numeric" placeholder="0,00" autocomplete="off"
+                    class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-emerald-500">
+            </div>
+            <div id="cof-initial-wrap">
+                <label for="cof-initial" class="block text-xs font-semibold text-gray-500 mb-1.5 uppercase">Já guardado (R$)</label>
+                <input id="cof-initial" type="text" inputmode="numeric" placeholder="0,00" autocomplete="off"
+                    class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-emerald-500">
+            </div>
+        </div>
+
+        <div>
+            <div class="flex items-center justify-between mb-1.5">
+                <label for="cof-category" class="block text-xs font-semibold text-gray-500 uppercase">Categoria <span class="normal-case font-normal text-gray-400">(opcional)</span></label>
+                <button id="cof-cat-manage" type="button" class="text-[11px] font-semibold text-emerald-700">Gerenciar categorias</button>
+            </div>
+            <div class="flex gap-2">
+                <select id="cof-category"
+                    class="flex-1 min-w-0 bg-white border-2 border-gray-200 rounded-xl px-3 py-3 text-sm text-gray-800 focus:outline-none focus:border-emerald-500"></select>
+                <button id="cof-cat-add" type="button" aria-label="Nova categoria"
+                    class="w-12 rounded-xl border-2 border-dashed border-gray-300 text-xl text-gray-400 hover:border-emerald-400 hover:text-emerald-600">+</button>
+            </div>
+            <div id="cof-cat-new-row" class="hidden flex gap-2 mt-2">
+                <input id="cof-cat-new" type="text" maxlength="40" placeholder="Nome da nova categoria" autocomplete="off"
+                    class="flex-1 min-w-0 border-2 border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-emerald-500">
+                <button id="cof-cat-new-ok" type="button" class="px-4 rounded-xl bg-emerald-600 text-white text-sm font-semibold">Criar</button>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+            <div>
+                <label for="cof-start" class="block text-xs font-semibold text-gray-500 mb-1.5 uppercase">Data de início</label>
+                <input id="cof-start" type="date"
+                    class="w-full bg-white border-2 border-gray-200 rounded-xl px-3 py-3 text-sm text-gray-800 focus:outline-none focus:border-emerald-500">
+            </div>
+            <div>
+                <label class="flex items-center gap-2 text-xs font-semibold text-gray-500 mb-1.5 uppercase cursor-pointer">
+                    <input id="cof-has-target" type="checkbox" class="w-4 h-4 accent-emerald-600"> Data-alvo
+                </label>
+                <input id="cof-target-date" type="date" aria-label="Data-alvo"
+                    class="hidden w-full bg-white border-2 border-gray-200 rounded-xl px-3 py-3 text-sm text-gray-800 focus:outline-none focus:border-emerald-500">
+            </div>
+        </div>
+
+        <!-- Chave PIX para depositar neste cofrinho (opcional) -->
+        <details id="cof-pix-details" class="rounded-xl border-2 border-gray-200 px-4 py-3">
+            <summary class="cursor-pointer text-sm font-semibold text-gray-700">🔑 Chave PIX para depositar <span class="font-normal text-gray-400">(opcional)</span></summary>
+            <div class="space-y-3 mt-3">
+                <div>
+                    <label for="cof-pix-key" class="block text-xs font-semibold text-gray-500 mb-1.5 uppercase">Chave PIX</label>
+                    <input id="cof-pix-key" type="text" maxlength="100" placeholder="CPF, e-mail, telefone ou chave aleatória" autocomplete="off" autocapitalize="off" spellcheck="false"
+                        class="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-emerald-500">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label for="cof-pix-name" class="block text-xs font-semibold text-gray-500 mb-1.5 uppercase">Titular</label>
+                        <input id="cof-pix-name" type="text" maxlength="80" placeholder="Opcional" autocomplete="off"
+                            class="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-emerald-500">
+                    </div>
+                    <div>
+                        <label for="cof-pix-bank" class="block text-xs font-semibold text-gray-500 mb-1.5 uppercase">Banco</label>
+                        <input id="cof-pix-bank" type="text" maxlength="60" placeholder="Opcional" autocomplete="off"
+                            class="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-emerald-500">
+                    </div>
+                </div>
+                <p class="text-[11px] text-gray-400">Aparece no cofrinho e na tela de depósito para copiar. Fica visível para quem tem acesso à carteira. O app não consulta titular nem banco automaticamente.</p>
+            </div>
+        </details>
+
+        <p id="cof-form-error" class="hidden text-xs text-red-600 font-medium" role="alert"></p>
+
+        <div class="flex gap-3 pb-2">
+            <button id="cof-form-cancel" type="button" class="flex-1 py-3 rounded-xl border-2 border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50">Cancelar</button>
+            <button id="cof-form-save" type="button" class="flex-1 py-3 rounded-xl bg-emerald-600 text-white text-sm font-bold hover:bg-emerald-700">Salvar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Gerenciar categorias dos cofrinhos -->
+<div id="cofrinho-cats-modal" class="hidden fixed inset-0 bg-black/50 z-[75] flex items-end justify-center">
+    <div class="bg-white w-full max-w-md rounded-t-3xl shadow-xl p-4 space-y-3" style="max-height:88vh;overflow-y:auto">
+        <div class="flex items-center justify-between">
+            <h3 class="font-bold text-lg text-gray-800">Categorias dos cofrinhos</h3>
+            <button id="cof-cats-close" type="button" aria-label="Fechar" class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-gray-200">✕</button>
+        </div>
+        <div class="flex gap-2">
+            <input id="cof-cat-add-input" type="text" maxlength="40" placeholder="Nova categoria (ex: Viagem)" autocomplete="off" aria-label="Nova categoria"
+                class="flex-1 min-w-0 border-2 border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-emerald-500">
+            <button id="cof-cat-add-btn" type="button" class="px-4 rounded-xl bg-emerald-600 text-white text-sm font-semibold">Adicionar</button>
+        </div>
+        <p id="cof-cats-error" class="hidden text-xs text-red-600 font-medium" role="alert"></p>
+        <div id="cof-cats-list"></div>
+        <p class="text-[11px] text-gray-400 pb-2">Ao excluir uma categoria, os cofrinhos dela ficam sem categoria — nenhum cofrinho é apagado.</p>
+    </div>
+</div>
+
+<!-- Depositar / retirar -->
+<div id="cofrinho-mov-modal" class="hidden fixed inset-0 bg-black/50 z-[70] flex items-end justify-center">
+    <div class="bg-white w-full max-w-md rounded-t-3xl shadow-xl p-4 space-y-4" style="max-height:92vh;overflow-y:auto">
+        <div class="flex items-center justify-between gap-3">
+            <h3 id="cof-mov-title" class="font-bold text-lg text-gray-800 truncate">Depositar</h3>
+            <button id="cof-mov-close" type="button" aria-label="Fechar" class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-gray-200 flex-shrink-0">✕</button>
+        </div>
+        <p id="cof-mov-hint" class="text-xs text-gray-500 -mt-2"></p>
+        <div id="cof-mov-pix" class="hidden rounded-2xl border border-gray-100 bg-gray-50 p-3"></div>
+
+        <div>
+            <label for="cof-mov-amount" class="block text-xs font-semibold text-gray-500 mb-1.5 uppercase">Valor (R$)</label>
+            <input id="cof-mov-amount" type="text" inputmode="numeric" placeholder="0,00" autocomplete="off"
+                class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-lg font-bold text-gray-800 focus:outline-none focus:border-emerald-500">
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+            <div>
+                <label for="cof-mov-date" class="block text-xs font-semibold text-gray-500 mb-1.5 uppercase">Data</label>
+                <input id="cof-mov-date" type="date"
+                    class="w-full bg-white border-2 border-gray-200 rounded-xl px-3 py-3 text-sm text-gray-800 focus:outline-none focus:border-emerald-500">
+            </div>
+            <div>
+                <label for="cof-mov-note" class="block text-xs font-semibold text-gray-500 mb-1.5 uppercase">Observação</label>
+                <input id="cof-mov-note" type="text" maxlength="120" placeholder="Opcional" autocomplete="off"
+                    class="w-full border-2 border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:border-emerald-500">
+            </div>
+        </div>
+
+        <p id="cof-mov-error" class="hidden text-xs text-red-600 font-medium" role="alert"></p>
+
+        <div class="flex gap-3 pb-2">
+            <button id="cof-mov-cancel" type="button" class="flex-1 py-3 rounded-xl border-2 border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50">Cancelar</button>
+            <button id="cof-mov-save" type="button" class="flex-1 py-3 rounded-xl bg-emerald-600 text-white text-sm font-bold hover:bg-emerald-700">Depositar</button>
+        </div>
+    </div>
+</div>
+
 <!-- ═══════════════════ TYPES MANAGEMENT MODAL ═══════════════════ -->
 <div id="types-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-end justify-center">
     <div class="bg-white w-full max-w-md rounded-t-3xl shadow-xl p-4 space-y-3" style="max-height:85vh;overflow-y:auto">
@@ -1611,10 +1789,11 @@
 
 <script src="js/config.js?v=20260423j"></script>
 <script src="js/auth.js?v=20260424n"></script>
-<script src="js/storage.js?v=20260924b"></script>
+<script src="js/storage.js?v=20261006a"></script>
 <script src="js/nlp.js?v=20260930d"></script>
 <script src="js/insights.js?v=20260528a"></script>
-<script src="js/app.js?v=20260930d"></script>
+<script src="js/cofrinhos.js?v=20261006f"></script>
+<script src="js/app.js?v=20261006a"></script>
 
 <script>
 // ── Service Worker + PWA ──────────────────────────────────────────────────────
