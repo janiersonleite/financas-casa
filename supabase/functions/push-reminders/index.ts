@@ -3,8 +3,11 @@
 // a autenticação é o cabeçalho x-cron-secret.
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import webpush from 'npm:web-push@3.6.7';
-import { processBatch, type Deps, type QueueRow, type Sub } from './handler.ts';
+import { processAll, type Deps, type QueueRow, type Sub } from './handler.ts';
 
+declare const EdgeRuntime: { waitUntil(p: Promise<unknown>): void } | undefined;
+
+const MAX_CHAIN = 40;   // no máximo 40 execuções encadeadas por minuto (≈ 20 mil avisos)
 const env = (k: string) => Deno.env.get(k) ?? '';
 const json = (body: unknown, status = 200) =>
     new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
@@ -48,6 +51,20 @@ Deno.serve(async (req) => {
         async cleanup() { await sb.rpc('cleanup_push_queue'); },
     };
 
-    try { return json(await processBatch(deps)); }
-    catch (e) { return json({ error: String((e as Error)?.message ?? e) }, 500); }
+    // Cada execução tem limite de CPU: se o lote veio cheio, esta execução dispara outra (encadeada),
+    // que continua de onde parou. Se algo falhar, o agendador do próximo minuto retoma.
+    const depth = Number(req.headers.get('x-chain-depth') ?? '0') || 0;
+    try {
+        const run = await processAll(deps, { cleanup: depth === 0 && new Date().getUTCMinutes() === 0 }); // limpeza 1x por hora
+        if (run.more && depth < MAX_CHAIN) {
+            const slug = new URL(req.url).pathname.split('/').filter(Boolean).pop();
+            const next = fetch(`${env('SUPABASE_URL')}/functions/v1/${slug}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-cron-secret': secret, 'x-chain-depth': String(depth + 1) },
+                body: '{}',
+            }).then(r => r.body?.cancel()).catch(() => {});
+            if (typeof EdgeRuntime !== 'undefined') EdgeRuntime.waitUntil(next);
+        }
+        return json({ ...run, depth });
+    } catch (e) { return json({ error: String((e as Error)?.message ?? e) }, 500); }
 });

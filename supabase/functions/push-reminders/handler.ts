@@ -19,7 +19,7 @@ export interface Summary { claimed: number; ok: number; noSubscription: number; 
 
 const MAX_ATTEMPTS = 3;            // tem de bater com claim_due_push (attempts < 3)
 const TTL_SECONDS = 3 * 60 * 60;   // se o aparelho estiver desligado, descarta após 3 h
-const CHUNK = 10;                  // envios em paralelo
+const CHUNK = 20;                  // envios em paralelo
 
 const isGone = (e: unknown) => { const c = (e as { statusCode?: number })?.statusCode; return c === 404 || c === 410; };
 
@@ -27,6 +27,7 @@ export function buildPayload(r: QueueRow): string {
     return JSON.stringify({ title: r.title, body: r.body, tag: r.tag, action: r.action || 'open-reminders', reminderId: r.reminder_id });
 }
 
+/** Processa UM lote (reserva até `limit` avisos e envia). Não faz limpeza. */
 export async function processBatch(deps: Deps, limit = 200): Promise<Summary> {
     const out: Summary = { claimed: 0, ok: 0, noSubscription: 0, retry: 0, failed: 0, removedSubscriptions: 0 };
     const rows = await deps.claim(limit);
@@ -67,6 +68,31 @@ export async function processBatch(deps: Deps, limit = 200): Promise<Summary> {
             })));
         }
     }
-    await deps.cleanup().catch(() => {});
     return out;
+}
+
+export interface RunOptions {
+    batchSize?: number;   // avisos reservados por lote (o SQL limita a 500)
+    maxBatches?: number;  // lotes por execução (cada execução tem limite de CPU)
+    budgetMs?: number;    // para de abrir lotes novos depois deste tempo
+    cleanup?: boolean;    // limpeza da fila (feita só de vez em quando)
+    now?: () => number;
+}
+export interface RunSummary extends Summary { batches: number; /** o último lote veio cheio → ainda pode haver avisos vencidos */ more: boolean }
+
+/** Processa lotes em sequência até esvaziar a fila, esgotar `maxBatches` ou o tempo. */
+export async function processAll(deps: Deps, opts: RunOptions = {}): Promise<RunSummary> {
+    const batchSize = opts.batchSize ?? 250, maxBatches = opts.maxBatches ?? 2, budget = opts.budgetMs ?? 30_000;
+    const now = opts.now ?? Date.now, start = now();
+    const total: RunSummary = { claimed: 0, ok: 0, noSubscription: 0, retry: 0, failed: 0, removedSubscriptions: 0, batches: 0, more: false };
+    for (let i = 0; i < maxBatches; i++) {
+        const s = await processBatch(deps, batchSize);
+        total.batches++;
+        total.claimed += s.claimed; total.ok += s.ok; total.noSubscription += s.noSubscription;
+        total.retry += s.retry; total.failed += s.failed; total.removedSubscriptions += s.removedSubscriptions;
+        total.more = s.claimed >= batchSize;
+        if (!total.more || now() - start > budget) break;
+    }
+    if (opts.cleanup) await deps.cleanup().catch(() => {});
+    return total;
 }

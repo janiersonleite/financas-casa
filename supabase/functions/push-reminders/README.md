@@ -7,8 +7,9 @@ instalado, desktop). Sem custo extra: roda no plano gratuito do Supabase.
 ## Passo a passo (uma vez só)
 
 ### 1) Banco
-No **SQL Editor** do Supabase, rode o arquivo
-`supabase/migrations/20261007000001_push_notifications.sql` (pode rodar mais de uma vez).
+No **SQL Editor** do Supabase, rode, nesta ordem, os arquivos (podem rodar mais de uma vez):
+1. `supabase/migrations/20261007000001_push_notifications.sql`
+2. `supabase/migrations/20261007000002_push_scale_hardening.sql` (limites por usuário, limpeza em blocos e índices)
 
 ### 2) Chaves VAPID
 No seu computador (precisa do Node):
@@ -39,6 +40,8 @@ Dashboard → **Edge Functions → Secrets** (ou `supabase secrets set ...`):
 `SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY` já existem automaticamente.
 
 ### 4) Publicar a função
+(O nome da função define o endereço usado no passo 5: use o mesmo nome nos dois lugares, por exemplo `push-reminders` ou o que o painel gerar.)
+
 Com a CLI do Supabase (`supabase login` + `supabase link --project-ref dvjjolhalgjooqnravqu`):
 
 ```bash
@@ -68,6 +71,13 @@ select cron.schedule(
 
 Para parar: `select cron.unschedule('push-reminders');`
 
+**Recomendado — limpar o histórico do próprio agendador** (o `pg_cron` não apaga sozinho; sem isso são ~43 mil linhas por mês):
+
+```sql
+select cron.schedule('limpar-historico-cron', '0 3 * * *',
+  $$ delete from cron.job_run_details where end_time < now() - interval '7 days'; $$);
+```
+
 ### 6) Conferir no app
 Abra o app (instalado na tela inicial) → **Lembretes** → **Ativar avisos neste aparelho** →
 **Enviar teste**. Feche o app: em 1–2 minutos chega "✅ Avisos funcionando!".
@@ -92,6 +102,18 @@ select user_id, left(endpoint, 50) as endpoint, last_seen_at from public.push_su
 - `500 vapid_public_key ausente` → falta o passo 2.
 - `result = no_subscription` → o aparelho não está cadastrado (ative de novo no app).
 - Assinaturas que o serviço de push informa como expiradas (404/410) são removidas sozinhas.
+
+## Escala (muitos usuários)
+- O agendador é **1 chamada por minuto**, com 1 ou 100 mil usuários. Não vale restringir o horário
+  (08–20h): economiza pouco e perderia lembretes marcados fora da janela.
+- Cada execução reserva até 250 avisos por lote (2 lotes). Se o último lote vier cheio, ela **dispara outra
+  execução encadeada** (até 40 por minuto, ≈ 20 mil avisos/minuto), porque cada execução tem limite de CPU.
+- Lembretes **sem horário** avisam numa janela de 08:30 a 09:29 (minuto fixo por lembrete e usuário), para não
+  concentrar tudo às 09:00. Lembretes **com horário** avisam exatamente no horário.
+- Limpeza da fila 1 vez por hora (em blocos de 20 mil linhas, com índice).
+- Limites por usuário: 20 carteiras com avisos pendentes, 1.500 avisos pendentes e 10 aparelhos.
+- O plano gratuito do Supabase não é pensado para produto público (limites de usuários, banco de 500 MB e
+  chamadas): para muitos usuários, considere o plano Pro.
 
 ## Como funciona (resumo técnico)
 - `handler.ts` tem a lógica (lote, retentativas, limpeza de assinaturas mortas) sem dependências;

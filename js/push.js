@@ -6,7 +6,8 @@
 const PushNotif = {
     HORIZON_DAYS: 45,        // até quando agendar à frente
     MONTHS_AHEAD: 3,         // ocorrências mensais consideradas
-    UNTIMED_HOUR: 9,         // lembretes sem horário: avisos às 09:00
+    UNTIMED_START_MIN: 8 * 60 + 30, // lembretes sem horário: janela de 08:30 a 09:29 ...
+    UNTIMED_SPREAD_MIN: 60,         // ... cada lembrete cai num minuto fixo dela (evita pico no servidor)
     UNTIMED_OFFSETS: [2, 1, 0], // dias antes do vencimento (igual aos avisos ao abrir o app)
     MIN_SYNC_GAP_MS: 2 * 60 * 1000,
 
@@ -48,8 +49,15 @@ const PushNotif = {
         return 'off';
     },
 
+    // Minuto (0..SPREAD-1) estável para uma chave: o mesmo lembrete sempre cai no mesmo minuto.
+    _spread(key) {
+        let h = 2166136261;                         // FNV-1a 32 bits
+        for (let i = 0; i < key.length; i++) { h ^= key.charCodeAt(i); h = Math.imul(h, 16777619); }
+        return (h >>> 0) % this.UNTIMED_SPREAD_MIN;
+    },
+
     // ── Cálculo das ocorrências (puro: recebe tudo por parâmetro) ─────────────
-    // reminders: lista de lembretes; ctx: { now, isPaid(r), isExpiredAt(r, Date), money(v), currentMonth }
+    // reminders: lista de lembretes; ctx: { now, salt, isPaid(r), isExpiredAt(r, Date), money(v), currentMonth }
     buildItems(reminders, ctx) {
         const now = ctx.now ?? Date.now();
         const limit = now + this.HORIZON_DAYS * 86400000;
@@ -96,8 +104,9 @@ const PushNotif = {
                     const quando = r.notify_date
                         ? `${String(due.getDate()).padStart(2, '0')}/${String(due.getMonth() + 1).padStart(2, '0')}`
                         : `dia ${r.day}`;
+                    const minOfDay = this.UNTIMED_START_MIN + this._spread((ctx.salt || '') + ':' + r.id);
                     for (const off of this.UNTIMED_OFFSETS) {
-                        const at = new Date(due.getFullYear(), due.getMonth(), due.getDate() - off, this.UNTIMED_HOUR, 0, 0, 0).getTime();
+                        const at = new Date(due.getFullYear(), due.getMonth(), due.getDate() - off, Math.floor(minOfDay / 60), minOfDay % 60, 0, 0).getTime();
                         if (at <= now || at > limit) continue;
                         items.push({
                             reminder_id: String(r.id), fire_at: new Date(at).toISOString(),
@@ -212,6 +221,7 @@ const PushNotif = {
     _ctx() {
         return {
             now: Date.now(),
+            salt: this._uid() || '',
             currentMonth: App._currentMonth(),
             isPaid: r => App.isReminderPaid(r.id),
             isExpiredAt: (r, d) => App._isReminderExpired(r, d),
