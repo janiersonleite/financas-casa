@@ -136,8 +136,10 @@ const Cofrinhos = {
             q = fid ? q.eq('financa_id', fid) : q.eq('user_id', Storage.userId()).is('financa_id', null);
             const { data: cofrinhos, error } = await q.order('created_at', { ascending: true });
             if (error) throw error;
-            const cats = await this._loadCats();
-            const movs = cofrinhos.length ? await this._loadMovs(cofrinhos.map(c => c.id)) : [];
+            const [cats, movs] = await Promise.all([
+                this._loadCats(),
+                cofrinhos.length ? this._loadMovs(cofrinhos.map(c => c.id)) : Promise.resolve([])
+            ]);
             try { localStorage.setItem(this._cacheKey(), JSON.stringify({ cofrinhos, movs, cats })); } catch {}
             return { cofrinhos, movs, cats, mode: 'cloud' };
         } catch (e) {
@@ -401,9 +403,9 @@ const Cofrinhos = {
     },
 
     // ─── Cálculos ─────────────────────────────────────────────────────────────
-    _stats(c) {
+    _stats(c, movs = this._movsBy[c.id] || []) {
         let ini = 0, dep = 0, ret = 0;
-        for (const m of (this._movsBy[c.id] || [])) {
+        for (const m of movs) {
             const a = Number(m.amount) || 0;
             if (m.kind === 'retirada') ret += a;
             else if (m.kind === 'inicial') ini += a;
@@ -480,6 +482,10 @@ const Cofrinhos = {
         this._bound = true;
         try { if (localStorage.getItem('invest_view') === 'cofrinhos') this.view = 'cofrinhos'; } catch {}
 
+        document.getElementById('cofrinhos-summary-card')?.addEventListener('click', e => {
+            const b = e.target.closest('[data-cs]'); if (!b) return;
+            this.openFromSummary(b.dataset.cs === 'open' ? b.dataset.id : null);
+        });
         document.getElementById('inv-seg-carteira')?.addEventListener('click', () => this.setView('carteira'));
         document.getElementById('inv-seg-cofrinhos')?.addEventListener('click', () => this.setView('cofrinhos'));
 
@@ -571,6 +577,87 @@ const Cofrinhos = {
         if (b) { b.className = isCof ? on : off; b.setAttribute('aria-selected', String(isCof)); }
         const top = document.getElementById('inv-new-aporte-top');
         if (top) top.textContent = isCof ? '+ Cofrinho' : '+ Aporte';
+    },
+
+    // ─── Resumo: saldos dos cofrinhos ─────────────────────────────────────────
+    // Bloco "🐷 Cofrinhos" da aba Resumo. Não entra nas contas do mês: mostra o que
+    // está guardado agora e o movimento (depósitos/retiradas) do mês selecionado.
+    async renderSummary() {
+        const card = document.getElementById('cofrinhos-summary-card');
+        const body = document.getElementById('cofrinhos-summary-body');
+        if (!card || !body) return;
+        const token = this._sumToken = (this._sumToken || 0) + 1;
+        let data = null;
+        try { data = await this.load(); } catch (e) { console.warn('Cofrinhos.renderSummary:', e?.message || e); }
+        if (token !== this._sumToken) return; // chegou uma renderização mais nova (troca de mês)
+        if (!data || data.mode === 'missing' || !data.cofrinhos.length) { card.classList.add('hidden'); return; }
+
+        const month = App.currentMonth;
+        const by = {};
+        let mDep = 0, mRet = 0;
+        for (const m of data.movs) {
+            (by[m.cofrinho_id] = by[m.cofrinho_id] || []).push(m);
+            if (m.kind !== 'inicial' && (m.mov_date || '').slice(0, 7) === month) {
+                if (m.kind === 'retirada') mRet += Number(m.amount) || 0; else mDep += Number(m.amount) || 0;
+            }
+        }
+        const rows = data.cofrinhos.map(c => ({ c, s: this._stats(c, by[c.id] || []) }));
+        let saved = 0, remaining = 0;
+        for (const { s } of rows) { saved += s.saved; if (!s.done) remaining += s.remaining; }
+        rows.sort((a, b) => b.s.saved - a.s.saved);
+        const MAX = 5, shown = rows.slice(0, MAX), extra = rows.length - shown.length;
+        const label = App.formatMonthShort(month);
+        const offline = data.mode === 'offline' || data.mode === 'error';
+
+        const tile = (title, value) => `
+            <div class="bg-gray-50 rounded-xl px-2 py-2 text-center">
+                <div class="text-[10px] text-gray-500 leading-tight min-h-[24px] flex items-center justify-center">${title}</div>
+                <div class="text-xs font-bold text-gray-800 mt-0.5">${this._money(value)}</div>
+            </div>`;
+        const row = ({ c, s }) => {
+            const color = this._safeColor(c.color), w = Math.max(0, Math.min(100, s.pct));
+            return `
+            <button type="button" data-cs="open" data-id="${c.id}" class="w-full text-left rounded-xl border px-3 py-2 flex items-center gap-3" style="${this._tintStyle(color)}">
+                <span class="w-9 h-9 rounded-xl flex items-center justify-center text-xl flex-shrink-0" style="background:#ffffffd9;border:1px solid ${color}40">${this._esc(c.emoji || '🐷')}</span>
+                <span class="flex-1 min-w-0">
+                    <span class="flex items-baseline justify-between gap-2">
+                        <span class="text-sm font-semibold text-gray-800 truncate">${this._esc(c.name)}</span>
+                        <span class="text-sm font-bold text-gray-800 flex-shrink-0">${this._money(s.saved)}</span>
+                    </span>
+                    <span class="block h-1.5 rounded-full mt-1" style="background:#ffffffb3"><span class="block h-1.5 rounded-full" style="width:${w.toFixed(1)}%;background:${color}"></span></span>
+                    <span class="flex justify-between text-[10px] text-gray-500 mt-0.5">
+                        <span>${s.done ? '🎉 Concluído' : this._pctTxt(s.pct)}</span><span>de ${this._money(s.target)}</span>
+                    </span>
+                </span>
+            </button>`;
+        };
+
+        body.innerHTML = `
+            <div class="flex items-center justify-between">
+                <p class="text-sm font-semibold text-gray-700">🐷 Cofrinhos</p>
+                <button type="button" data-cs="all" class="text-xs font-semibold text-emerald-600 hover:underline">Ver todos ›</button>
+            </div>
+            <p class="text-[11px] text-gray-400 mb-3">Separado do saldo do mês${offline ? ' · dados salvos neste aparelho' : ''}</p>
+            <div class="text-center mb-3">
+                <div class="text-[11px] text-gray-400 uppercase tracking-wide">Total guardado</div>
+                <div class="text-2xl font-extrabold text-gray-800">${this._money(saved)}</div>
+            </div>
+            <div class="grid grid-cols-3 gap-2 mb-3">
+                ${tile('Falta para as metas', remaining)}
+                ${tile('Depositado em ' + label, mDep)}
+                ${tile('Retirado em ' + label, mRet)}
+            </div>
+            <div class="space-y-2">${shown.map(row).join('')}</div>
+            ${extra > 0 ? `<button type="button" data-cs="all" class="mt-2 w-full text-center text-xs text-gray-500 py-1">+ ${extra} ${extra === 1 ? 'outro cofrinho' : 'outros cofrinhos'}</button>` : ''}`;
+        card.classList.remove('hidden');
+    },
+
+    // Leva o usuário para Investir → Cofrinhos (e abre o detalhe, se vier um id)
+    async openFromSummary(id = null) {
+        this.view = 'cofrinhos';
+        try { localStorage.setItem('invest_view', 'cofrinhos'); } catch {}
+        await App.switchTab('investments');
+        if (id && this._data.cofrinhos.some(c => c.id === id)) this.openDetail(id);
     },
 
     // ─── Lista ────────────────────────────────────────────────────────────────
@@ -748,6 +835,11 @@ const Cofrinhos = {
             </div>`;
     },
 
+    // Fundo/borda/faixa lateral na cor do cofrinho (mesmo visual na lista e no Resumo)
+    _tintStyle(color) {
+        return `background:${color}1f;background:color-mix(in srgb,${color} 14%,#fff);border-color:${color}55;box-shadow:inset 5px 0 0 ${color},0 1px 2px rgba(0,0,0,.06)`;
+    },
+
     _deadlineTxt(c, s) {
         if (!c.target_date) return '';
         const late = !s.done && c.target_date < this._today();
@@ -760,7 +852,7 @@ const Cofrinhos = {
         const meta = [this._esc(this._catName(c)), this._deadlineTxt(c, s)].filter(Boolean).join(' · ');
         return `
         <div data-card="${c.id}" class="rounded-2xl border p-4 cursor-pointer"
-            style="background:${color}1f;background:color-mix(in srgb,${color} 14%,#fff);border-color:${color}55;box-shadow:inset 5px 0 0 ${color},0 1px 2px rgba(0,0,0,.06)">
+            style="${this._tintStyle(color)}">
             <div class="flex items-start gap-3">
                 <div class="w-11 h-11 rounded-2xl flex items-center justify-center text-2xl flex-shrink-0" style="background:#ffffffd9;border:1px solid ${color}40">${this._esc(c.emoji || '🐷')}</div>
                 <div class="flex-1 min-w-0">

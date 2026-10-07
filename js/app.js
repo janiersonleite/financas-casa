@@ -3891,6 +3891,7 @@ const App = {
     },
 
     async renderSummary() {
+        Cofrinhos.renderSummary(); // saldos dos cofrinhos (carrega em paralelo; não bloqueia o resto)
         const prevMonth = this.getPrevMonth(this.currentMonth);
 
         // Fetch current + previous month + 6-month trend in parallel
