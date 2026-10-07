@@ -1,6 +1,6 @@
 // ─── Service Worker — Finanças Casa ──────────────────────────────────────────
 // APP_VERSION: 2026-10-06 12:00  ← atualizar junto com app.js a cada deploy
-const RUNTIME_CACHE = 'app-runtime-v20261007e';
+const RUNTIME_CACHE = 'app-runtime-v20261007g';
 
 self.addEventListener('install', e => {
     e.waitUntil(
@@ -48,6 +48,29 @@ self.addEventListener('fetch', event => {
             .catch(() => caches.match(event.request)
                 .then(cached => cached || caches.match(self.registration.scope + 'index.html'))
             )
+    );
+});
+
+// ── Web Push (lembretes enviados pelo servidor, com o app fechado) ───────────
+// Todo push PRECISA exibir uma notificação (exigência do iOS e do Chrome).
+self.addEventListener('push', event => {
+    let d = {};
+    try { d = event.data ? event.data.json() : {}; }
+    catch (_) { d = { body: event.data ? event.data.text() : '' }; }
+
+    const tag = d.tag || 'push-' + Date.now();
+    const urgent = /_d0$|^sched_rem_/.test(tag);
+    event.waitUntil(
+        self.registration.showNotification(d.title || '🔔 Lembrete', {
+            body:               d.body || '',
+            icon:               'icons/icon-192.png',
+            badge:              'icons/badge-96.png',
+            tag,
+            renotify:           true,
+            requireInteraction: urgent,
+            vibrate:            urgent ? [200, 100, 200] : [100],
+            data:               { action: d.action || 'open-reminders', reminderId: d.reminderId || null },
+        })
     );
 });
 
