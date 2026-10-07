@@ -592,12 +592,14 @@ const Cofrinhos = {
         if (token !== this._sumToken) return; // chegou uma renderização mais nova (troca de mês)
         if (!data || data.mode === 'missing' || !data.cofrinhos.length) { card.classList.add('hidden'); return; }
 
-        const month = App.currentMonth;
+        // Movimento do que o Resumo está mostrando: o mês selecionado ou o período livre
+        const rng = App._summaryRange();
         const by = {};
         let mDep = 0, mRet = 0;
         for (const m of data.movs) {
             (by[m.cofrinho_id] = by[m.cofrinho_id] || []).push(m);
-            if (m.kind !== 'inicial' && (m.mov_date || '').slice(0, 7) === month) {
+            const d = m.mov_date || '';
+            if (m.kind !== 'inicial' && d >= rng.from && d <= rng.to) {
                 if (m.kind === 'retirada') mRet += Number(m.amount) || 0; else mDep += Number(m.amount) || 0;
             }
         }
@@ -606,7 +608,7 @@ const Cofrinhos = {
         for (const { s } of rows) { saved += s.saved; if (!s.done) remaining += s.remaining; }
         rows.sort((a, b) => b.s.saved - a.s.saved);
         const MAX = 5, shown = rows.slice(0, MAX), extra = rows.length - shown.length;
-        const label = App.formatMonthShort(month);
+        const when = rng.isPeriod ? 'no período' : 'em ' + App.formatMonthShort(App.currentMonth);
         const offline = data.mode === 'offline' || data.mode === 'error';
 
         const tile = (title, value) => `
@@ -637,15 +639,15 @@ const Cofrinhos = {
                 <p class="text-sm font-semibold text-gray-700">🐷 Cofrinhos</p>
                 <button type="button" data-cs="all" class="text-xs font-semibold text-emerald-600 hover:underline">Ver todos ›</button>
             </div>
-            <p class="text-[11px] text-gray-400 mb-3">Separado do saldo do mês${offline ? ' · dados salvos neste aparelho' : ''}</p>
+            <p class="text-[11px] text-gray-400 mb-3">Separado do saldo ${rng.isPeriod ? 'do período' : 'do mês'}${offline ? ' · dados salvos neste aparelho' : ''}</p>
             <div class="text-center mb-3">
                 <div class="text-[11px] text-gray-400 uppercase tracking-wide">Total guardado</div>
                 <div class="text-2xl font-extrabold text-gray-800">${this._money(saved)}</div>
             </div>
             <div class="grid grid-cols-3 gap-2 mb-3">
                 ${tile('Falta para as metas', remaining)}
-                ${tile('Depositado em ' + label, mDep)}
-                ${tile('Retirado em ' + label, mRet)}
+                ${tile('Depositado ' + when, mDep)}
+                ${tile('Retirado ' + when, mRet)}
             </div>
             <div class="space-y-2">${shown.map(row).join('')}</div>
             ${extra > 0 ? `<button type="button" data-cs="all" class="mt-2 w-full text-center text-xs text-gray-500 py-1">+ ${extra} ${extra === 1 ? 'outro cofrinho' : 'outros cofrinhos'}</button>` : ''}`;

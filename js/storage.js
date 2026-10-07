@@ -424,6 +424,9 @@ const Storage = {
         if (filters.type)  list = list.filter(t => t.type === filters.type);
         if (filters.types && filters.types.length) list = list.filter(t => filters.types.includes(t.type));
         if (filters.month) list = list.filter(t => t.date?.startsWith(filters.month));
+        if (filters.from || filters.to) {
+            list = list.filter(t => t.date && (!filters.from || t.date >= filters.from) && (!filters.to || t.date <= filters.to));
+        }
         return list;
     },
 
@@ -1215,32 +1218,58 @@ const Storage = {
                     const to   = new Date(+y, +m, 0).toISOString().split('T')[0];
                     list = list.filter(t => t.date >= from && t.date <= to);
                 }
+                if (filters.from || filters.to) {
+                    list = list.filter(t => (!filters.from || t.date >= filters.from) && (!filters.to || t.date <= filters.to));
+                }
                 return list;
             }
 
-            let q = this.db
-                .from('transactions')
-                .select('*')
-                .order('date',       { ascending: false })
-                .order('created_at', { ascending: false });
-
             const _fid = (this.activeFinancaId && this.activeFinancaId !== 'null') ? this.activeFinancaId : null;
-            if (_fid) {
-                q = q.eq('financa_id', _fid);
-            } else {
-                q = q.eq('user_id', this.userId());
+            const ranged = !!(filters.from || filters.to);
+            const buildQuery = () => {
+                let q = this.db
+                    .from('transactions')
+                    .select('*', ranged ? { count: 'exact' } : undefined)
+                    .order('date',       { ascending: false })
+                    .order('created_at', { ascending: false });
+                if (ranged) q = q.order('id'); // desempate estável entre as páginas
+                if (_fid) {
+                    q = q.eq('financa_id', _fid);
+                } else {
+                    q = q.eq('user_id', this.userId());
+                }
+
+                if (filters.type)  q = q.eq('type', filters.type);
+                if (filters.types && filters.types.length) q = q.in('type', filters.types);
+                if (filters.month) {
+                    const [y, m] = filters.month.split('-');
+                    const from   = `${y}-${m}-01`;
+                    const to     = new Date(+y, +m, 0).toISOString().split('T')[0];
+                    q = q.gte('date', from).lte('date', to);
+                }
+                if (filters.from) q = q.gte('date', filters.from);
+                if (filters.to)   q = q.lte('date', filters.to);
+                return q;
+            };
+
+            // Período livre pode passar de 1.000 lançamentos (limite de cada resposta do
+            // Supabase): busca em páginas até completar, senão os totais seriam cortados.
+            if (ranged) {
+                const PAGE = 1000;
+                let all = [], total = null;
+                while (total === null || all.length < total) {
+                    const { data, error, count } = await buildQuery().range(all.length, all.length + PAGE - 1);
+                    if (error) throw error;
+                    const page = data || [];
+                    total = count ?? (all.length + page.length);
+                    if (!page.length) break;
+                    all = all.concat(page);
+                }
+                this._mergeTxCache(all);
+                return all;
             }
 
-            if (filters.type)  q = q.eq('type', filters.type);
-            if (filters.types && filters.types.length) q = q.in('type', filters.types);
-            if (filters.month) {
-                const [y, m] = filters.month.split('-');
-                const from   = `${y}-${m}-01`;
-                const to     = new Date(+y, +m, 0).toISOString().split('T')[0];
-                q = q.gte('date', from).lte('date', to);
-            }
-
-            const { data, error } = await q;
+            const { data, error } = await buildQuery();
             if (error) throw error;
             if (data) this._mergeTxCache(data);
             return data ?? [];
@@ -1259,8 +1288,19 @@ const Storage = {
         return /\b(cartao|fatura)\b/.test(text);
     },
 
+    // Filtro de lançamentos a partir de um mês ('YYYY-MM'), um intervalo ({from,to}) ou nada.
+    _rangeFilter(r) {
+        if (!r) return {};
+        return typeof r === 'string' ? { month: r } : { from: r.from, to: r.to };
+    },
+
     async getSummary(month = null, options = {}) {
-        const list = await this.getTransactions(month ? { month } : {});
+        const list = await this.getTransactions(this._rangeFilter(month));
+        return this.summarizeList(list, options);
+    },
+
+    // Entradas/saídas de uma lista de lançamentos já carregada (mesma regra de getSummary)
+    summarizeList(list, options = {}) {
         let income  = 0, expense = 0;
         let cardPaymentExcluded = 0;
 
@@ -1285,7 +1325,12 @@ const Storage = {
     },
 
     async getCategoryTotals(month = null, options = {}) {
-        const list = await this.getTransactions(month ? { month } : {});
+        const list = await this.getTransactions(this._rangeFilter(month));
+        return this.categoryTotalsList(list, options);
+    },
+
+    // Totais por categoria de uma lista já carregada (mesma regra de getCategoryTotals)
+    categoryTotalsList(list, options = {}) {
         const totals = {};
         const smart = options.smartCardLogic !== false;
         const hasInstallments = smart && list.some(t => t.installment_group_id);
