@@ -4479,6 +4479,8 @@ const App = {
                 else if (beh === 'soma') byCat[cat].income += Number(t.value) || 0;
             }
             const catsSorted = Object.entries(byCat).sort((a, b) => b[1].expense - a[1].expense);
+            // Categorias recolhidas pelo usuário (lembradas entre as atualizações da tela)
+            this._personCatCollapsed = this._personCatCollapsed || new Set();
             let byCatHtml = '';
             for (const [cat, info] of catsSorted) {
                 const catIcon = this.getCategoryIcon(cat);
@@ -4486,17 +4488,22 @@ const App = {
                     ? `<span class="text-red-600 font-bold">-${this.formatCurrency(info.expense)}</span>`
                     : info.income > 0 ? `<span class="text-green-600 font-bold">+${this.formatCurrency(info.income)}</span>`
                     : '';
-                byCatHtml += `
-                <div class="flex items-center justify-between pt-2 pb-0.5 px-1">
-                    <div class="text-[10px] font-semibold text-emerald-600 uppercase flex items-center gap-1">
-                        <span class="text-sm">${catIcon}</span>${this._escHtml(cat)}
-                        <span class="text-gray-400 normal-case">· ${info.items.length}</span>
-                    </div>
-                    <div class="text-[11px]">${totalLine}</div>
-                </div>`;
+                const key = p.email + '::' + cat;
+                const collapsed = this._personCatCollapsed.has(key);
                 // Itens da categoria, do maior valor para o menor
                 const sortedItems = [...info.items].sort((a, b) => (Number(b.value) || 0) - (Number(a.value) || 0));
-                for (const t of sortedItems) byCatHtml += renderItem(t);
+                byCatHtml += `
+                <div class="person-cat-group" data-cat-key="${this._escHtml(key)}">
+                    <div class="person-cat-head flex items-center justify-between pt-2 pb-0.5 px-1 cursor-pointer select-none" role="button" tabindex="0" aria-expanded="${!collapsed}" aria-label="${collapsed ? 'Expandir' : 'Recolher'} categoria ${this._escHtml(cat)}">
+                        <div class="text-[10px] font-semibold text-emerald-600 uppercase flex items-center gap-1">
+                            <span class="person-cat-chevron inline-block text-[9px] text-emerald-500 transition-transform duration-200" style="transform:${collapsed ? 'rotate(-90deg)' : 'none'}">▼</span>
+                            <span class="text-sm">${catIcon}</span>${this._escHtml(cat)}
+                            <span class="text-gray-400 normal-case">· ${info.items.length}</span>
+                        </div>
+                        <div class="text-[11px]">${totalLine}</div>
+                    </div>
+                    <div class="person-cat-items${collapsed ? ' hidden' : ''}">${sortedItems.map(renderItem).join('')}</div>
+                </div>`;
             }
 
             // Toggle de visualização (apenas se houver lançamentos)
@@ -4508,7 +4515,10 @@ const App = {
                     <button class="view-btn flex-1 text-[11px] font-semibold py-1.5 px-2 rounded-full transition-all text-gray-500 hover:bg-emerald-50" data-view="cat">🏷️ Por categoria</button>
                 </div>
                 <div data-view-content="date">${byDateHtml}</div>
-                <div data-view-content="cat" class="hidden">${byCatHtml}</div>`;
+                <div data-view-content="cat" class="hidden">
+                    <div class="flex justify-end px-1 pt-1"><button type="button" class="person-cat-all text-[10px] font-semibold text-emerald-600 hover:underline">Recolher todas</button></div>
+                    ${byCatHtml}
+                </div>`;
             } else {
                 panelHtml = '<p class="text-xs text-gray-400 py-2 text-center">Sem lançamentos</p>';
             }
@@ -4569,6 +4579,42 @@ const App = {
                 panel.querySelectorAll('[data-view-content]').forEach(c => {
                     c.classList.toggle('hidden', c.dataset.viewContent !== view);
                 });
+            });
+        });
+
+        // Categorias (visão "Por categoria"): clicar no cabeçalho recolhe/expande os lançamentos
+        const setGroup = (group, collapsed) => {
+            group.querySelector('.person-cat-items').classList.toggle('hidden', collapsed);
+            const head = group.querySelector('.person-cat-head');
+            head.setAttribute('aria-expanded', String(!collapsed));
+            head.setAttribute('aria-label', (collapsed ? 'Expandir' : 'Recolher') + ' categoria ' + (group.dataset.catKey.split('::')[1] || ''));
+            group.querySelector('.person-cat-chevron').style.transform = collapsed ? 'rotate(-90deg)' : 'none';
+            this._personCatCollapsed[collapsed ? 'add' : 'delete'](group.dataset.catKey);
+        };
+        const syncAllBtn = (panel) => {
+            const btn = panel.querySelector('.person-cat-all');
+            if (!btn) return;
+            const anyOpen = [...panel.querySelectorAll('.person-cat-items')].some(el => !el.classList.contains('hidden'));
+            btn.textContent = anyOpen ? 'Recolher todas' : 'Expandir todas';
+        };
+        bd.querySelectorAll('.person-txn-panel').forEach(panel => syncAllBtn(panel));
+        bd.querySelectorAll('.person-cat-head').forEach(head => {
+            const toggle = (e) => {
+                e.stopPropagation();
+                const group = head.closest('.person-cat-group');
+                setGroup(group, !group.querySelector('.person-cat-items').classList.contains('hidden'));
+                syncAllBtn(head.closest('.person-txn-panel'));
+            };
+            head.addEventListener('click', toggle);
+            head.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(e); } });
+        });
+        bd.querySelectorAll('.person-cat-all').forEach(btn => {
+            btn.addEventListener('click', e => {
+                e.stopPropagation();
+                const panel = btn.closest('.person-txn-panel');
+                const anyOpen = [...panel.querySelectorAll('.person-cat-items')].some(el => !el.classList.contains('hidden'));
+                panel.querySelectorAll('.person-cat-group').forEach(g => setGroup(g, anyOpen));
+                syncAllBtn(panel);
             });
         });
 
