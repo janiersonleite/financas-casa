@@ -27,6 +27,7 @@ const App = {
     recognition: null,
     isListening: false,
     currentMonth: new Date().toISOString().slice(0, 7),
+    summaryPeriod: null,   // Resumo: null = mês selecionado; { preset|from,to } = período livre
     financas:      [],
     activeFinanca: null,
     categories:    [],
@@ -65,6 +66,8 @@ const App = {
         this.bindVoice();
         this.bindVolumeShortcut();
         this.bindMonthNav();
+        this._loadSummaryPeriod();
+        this.bindSummaryPeriod();
         this.bindFinancaUI();
         this.bindCategoryUI();
         this.bindExportButtons();
@@ -3891,20 +3894,38 @@ const App = {
     },
 
     async renderSummary() {
+        Cofrinhos.renderSummary(); // saldos dos cofrinhos (carrega em paralelo; não bloqueia o resto)
+        const rng = this._summaryRange();
+        const per = rng.isPeriod ? { from: rng.from, to: rng.to } : null;
+        this.syncSummaryPeriodUI();
         const prevMonth = this.getPrevMonth(this.currentMonth);
 
         // Fetch current + previous month + 6-month trend in parallel
-        const monthsForTrend = [];
+        let monthsForTrend = [];
         let ym = this.currentMonth;
-        for (let i = 0; i < 6; i++) { monthsForTrend.unshift(ym); ym = this.getPrevMonth(ym); }
+        if (!per) for (let i = 0; i < 6; i++) { monthsForTrend.unshift(ym); ym = this.getPrevMonth(ym); }
 
-        const [summary, catTotals, prevSummary, txns, ...trendSummaries] = await Promise.all([
-            Storage.getSummary(this.currentMonth),
-            Storage.getCategoryTotals(this.currentMonth),
-            Storage.getSummary(prevMonth),
-            Storage.getTransactions({ month: this.currentMonth }),
-            ...monthsForTrend.map(m => Storage.getSummary(m))
-        ]);
+        let summary, catTotals, prevSummary, txns, trendSummaries;
+        if (per) {
+            // Período livre: uma única busca; totais e categorias saem da mesma lista
+            const prevPer = this._prevPeriod(per);
+            [txns, prevSummary] = await Promise.all([Storage.getTransactions(rng.filters), Storage.getSummary(prevPer)]);
+            summary = Storage.summarizeList(txns);
+            catTotals = Storage.categoryTotalsList(txns);
+            const t = this._periodTrend(txns, per);
+            monthsForTrend = t.months; trendSummaries = t.rows;
+            const note = document.getElementById('sum-compare-note');
+            if (note) { note.textContent = `Comparado ao período anterior (${this.formatDate(prevPer.from)} a ${this.formatDate(prevPer.to)})`; note.classList.remove('hidden'); }
+        } else {
+            [summary, catTotals, prevSummary, txns, ...trendSummaries] = await Promise.all([
+                Storage.getSummary(this.currentMonth),
+                Storage.getCategoryTotals(this.currentMonth),
+                Storage.getSummary(prevMonth),
+                Storage.getTransactions({ month: this.currentMonth }),
+                ...monthsForTrend.map(m => Storage.getSummary(m))
+            ]);
+            document.getElementById('sum-compare-note')?.classList.add('hidden');
+        }
 
         // ── Cards ──────────────────────────────────────────────────────────────
         document.getElementById('sum-income').textContent  = this.formatCurrency(summary.income);
@@ -3952,12 +3973,17 @@ const App = {
                 }
             });
         } else {
-            wrap.innerHTML = '<div class="text-center text-gray-400 py-8">Sem gastos neste mês</div>';
+            wrap.innerHTML = `<div class="text-center text-gray-400 py-8">Sem gastos neste ${per ? 'período' : 'mês'}</div>`;
         }
 
         // ── Trend bar chart ────────────────────────────────────────────────────
-        if (this.trendChart) this.trendChart.destroy();
-        this.trendChart = new Chart(document.getElementById('trend-chart'), {
+        // Mês: últimos 6 meses. Período: um mês por barra (só aparece se o período cobre 2+ meses).
+        if (this.trendChart) { this.trendChart.destroy(); this.trendChart = null; }
+        const showTrend = !per || monthsForTrend.length >= 2;
+        document.querySelector('#tab-summary [data-section-id="trend"]')?.classList.toggle('hidden', !showTrend);
+        const trendTitle = document.getElementById('trend-title');
+        if (trendTitle) trendTitle.textContent = per ? 'Evolução por mês no período' : 'Evolução dos últimos 6 meses';
+        if (showTrend) this.trendChart = new Chart(document.getElementById('trend-chart'), {
             type: 'bar',
             data: {
                 labels: monthsForTrend.map(m => this.formatMonthShort(m)),
@@ -3980,9 +4006,16 @@ const App = {
         this.renderCustomTypesChart(txns);
 
         // ── 💡 Insights inteligentes ──────────────────────────────────────────
-        this.renderInsightsSection(txns, prevSummary, trendSummaries);
-        this.renderGoalsSection(txns);
-        this.renderReconcileSection(txns);
+        // Insights de fim de mês, metas mensais e pendências só existem para um mês
+        const goalsCard = document.getElementById('goals-card');
+        if (per) {
+            for (const id of ['insights-card', 'goals-card', 'reconcile-card']) document.getElementById(id)?.classList.add('hidden');
+        } else {
+            goalsCard?.classList.remove('hidden');
+            this.renderInsightsSection(txns, prevSummary, trendSummaries);
+            this.renderGoalsSection(txns);
+            this.renderReconcileSection(txns);
+        }
 
         // ── Person breakdown ───────────────────────────────────────────────────
         this.renderPersonBreakdown(txns);
@@ -4446,6 +4479,8 @@ const App = {
                 else if (beh === 'soma') byCat[cat].income += Number(t.value) || 0;
             }
             const catsSorted = Object.entries(byCat).sort((a, b) => b[1].expense - a[1].expense);
+            // Categorias recolhidas pelo usuário (lembradas entre as atualizações da tela)
+            this._personCatCollapsed = this._personCatCollapsed || new Set();
             let byCatHtml = '';
             for (const [cat, info] of catsSorted) {
                 const catIcon = this.getCategoryIcon(cat);
@@ -4453,17 +4488,22 @@ const App = {
                     ? `<span class="text-red-600 font-bold">-${this.formatCurrency(info.expense)}</span>`
                     : info.income > 0 ? `<span class="text-green-600 font-bold">+${this.formatCurrency(info.income)}</span>`
                     : '';
-                byCatHtml += `
-                <div class="flex items-center justify-between pt-2 pb-0.5 px-1">
-                    <div class="text-[10px] font-semibold text-emerald-600 uppercase flex items-center gap-1">
-                        <span class="text-sm">${catIcon}</span>${this._escHtml(cat)}
-                        <span class="text-gray-400 normal-case">· ${info.items.length}</span>
-                    </div>
-                    <div class="text-[11px]">${totalLine}</div>
-                </div>`;
+                const key = p.email + '::' + cat;
+                const collapsed = this._personCatCollapsed.has(key);
                 // Itens da categoria, do maior valor para o menor
                 const sortedItems = [...info.items].sort((a, b) => (Number(b.value) || 0) - (Number(a.value) || 0));
-                for (const t of sortedItems) byCatHtml += renderItem(t);
+                byCatHtml += `
+                <div class="person-cat-group" data-cat-key="${this._escHtml(key)}">
+                    <div class="person-cat-head flex items-center justify-between pt-2 pb-0.5 px-1 cursor-pointer select-none" role="button" tabindex="0" aria-expanded="${!collapsed}" aria-label="${collapsed ? 'Expandir' : 'Recolher'} categoria ${this._escHtml(cat)}">
+                        <div class="text-[10px] font-semibold text-emerald-600 uppercase flex items-center gap-1">
+                            <span class="person-cat-chevron inline-block text-[9px] text-emerald-500 transition-transform duration-200" style="transform:${collapsed ? 'rotate(-90deg)' : 'none'}">▼</span>
+                            <span class="text-sm">${catIcon}</span>${this._escHtml(cat)}
+                            <span class="text-gray-400 normal-case">· ${info.items.length}</span>
+                        </div>
+                        <div class="text-[11px]">${totalLine}</div>
+                    </div>
+                    <div class="person-cat-items${collapsed ? ' hidden' : ''}">${sortedItems.map(renderItem).join('')}</div>
+                </div>`;
             }
 
             // Toggle de visualização (apenas se houver lançamentos)
@@ -4475,7 +4515,10 @@ const App = {
                     <button class="view-btn flex-1 text-[11px] font-semibold py-1.5 px-2 rounded-full transition-all text-gray-500 hover:bg-emerald-50" data-view="cat">🏷️ Por categoria</button>
                 </div>
                 <div data-view-content="date">${byDateHtml}</div>
-                <div data-view-content="cat" class="hidden">${byCatHtml}</div>`;
+                <div data-view-content="cat" class="hidden">
+                    <div class="flex justify-end px-1 pt-1"><button type="button" class="person-cat-all text-[10px] font-semibold text-emerald-600 hover:underline">Recolher todas</button></div>
+                    ${byCatHtml}
+                </div>`;
             } else {
                 panelHtml = '<p class="text-xs text-gray-400 py-2 text-center">Sem lançamentos</p>';
             }
@@ -4536,6 +4579,42 @@ const App = {
                 panel.querySelectorAll('[data-view-content]').forEach(c => {
                     c.classList.toggle('hidden', c.dataset.viewContent !== view);
                 });
+            });
+        });
+
+        // Categorias (visão "Por categoria"): clicar no cabeçalho recolhe/expande os lançamentos
+        const setGroup = (group, collapsed) => {
+            group.querySelector('.person-cat-items').classList.toggle('hidden', collapsed);
+            const head = group.querySelector('.person-cat-head');
+            head.setAttribute('aria-expanded', String(!collapsed));
+            head.setAttribute('aria-label', (collapsed ? 'Expandir' : 'Recolher') + ' categoria ' + (group.dataset.catKey.split('::')[1] || ''));
+            group.querySelector('.person-cat-chevron').style.transform = collapsed ? 'rotate(-90deg)' : 'none';
+            this._personCatCollapsed[collapsed ? 'add' : 'delete'](group.dataset.catKey);
+        };
+        const syncAllBtn = (panel) => {
+            const btn = panel.querySelector('.person-cat-all');
+            if (!btn) return;
+            const anyOpen = [...panel.querySelectorAll('.person-cat-items')].some(el => !el.classList.contains('hidden'));
+            btn.textContent = anyOpen ? 'Recolher todas' : 'Expandir todas';
+        };
+        bd.querySelectorAll('.person-txn-panel').forEach(panel => syncAllBtn(panel));
+        bd.querySelectorAll('.person-cat-head').forEach(head => {
+            const toggle = (e) => {
+                e.stopPropagation();
+                const group = head.closest('.person-cat-group');
+                setGroup(group, !group.querySelector('.person-cat-items').classList.contains('hidden'));
+                syncAllBtn(head.closest('.person-txn-panel'));
+            };
+            head.addEventListener('click', toggle);
+            head.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(e); } });
+        });
+        bd.querySelectorAll('.person-cat-all').forEach(btn => {
+            btn.addEventListener('click', e => {
+                e.stopPropagation();
+                const panel = btn.closest('.person-txn-panel');
+                const anyOpen = [...panel.querySelectorAll('.person-cat-items')].some(el => !el.classList.contains('hidden'));
+                panel.querySelectorAll('.person-cat-group').forEach(g => setGroup(g, anyOpen));
+                syncAllBtn(panel);
             });
         });
 
@@ -5516,8 +5595,9 @@ const App = {
         const btn = document.getElementById('export-excel-btn');
         btn.disabled = true; btn.textContent = 'Gerando...';
         try {
-            const transactions = await Storage.getTransactions({ month: this.currentMonth });
-            const summary      = await Storage.getSummary(this.currentMonth);
+            const rng          = this._summaryRange();
+            const transactions = await Storage.getTransactions(rng.filters);
+            const summary      = await Storage.getSummary(rng.arg);
 
             // Sheet 1: transactions
             const rows = transactions.map(t => {
@@ -5542,7 +5622,7 @@ const App = {
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows),    'Lançamentos');
             XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sumRows), 'Resumo');
-            XLSX.writeFile(wb, `financas-${this.currentMonth}.xlsx`);
+            XLSX.writeFile(wb, `financas-${rng.slug}.xlsx`);
             this.showToast('✅ Excel exportado!');
         } catch (e) {
             this.showToast('❌ Erro ao exportar: ' + e.message, true);
@@ -5557,9 +5637,10 @@ const App = {
         try {
             const { jsPDF } = window.jspdf;
             const doc          = new jsPDF();
-            const transactions = await Storage.getTransactions({ month: this.currentMonth });
-            const summary      = await Storage.getSummary(this.currentMonth);
-            const monthLabel   = this.formatMonth(this.currentMonth);
+            const rng          = this._summaryRange();
+            const transactions = await Storage.getTransactions(rng.filters);
+            const summary      = await Storage.getSummary(rng.arg);
+            const monthLabel   = rng.label;
 
             // Header
             doc.setFillColor(37, 99, 235);
@@ -5610,7 +5691,7 @@ const App = {
                 alternateRowStyles: { fillColor: [248, 250, 252] }
             });
 
-            doc.save(`financas-${this.currentMonth}.pdf`);
+            doc.save(`financas-${rng.slug}.pdf`);
             this.showToast('✅ PDF exportado!');
         } catch (e) {
             this.showToast('❌ Erro ao exportar: ' + e.message, true);
@@ -6311,6 +6392,148 @@ const App = {
         document.querySelectorAll('.month-display').forEach(el => {
             el.textContent = this.formatMonth(this.currentMonth);
         });
+    },
+
+    // ─── Resumo: período livre (qualquer intervalo de datas) ───────────────────
+    // Por padrão o Resumo mostra um mês; em "Período" o usuário escolhe de/até (ou um
+    // atalho: 7/30/90 dias, este ano). Só o Resumo usa isso; as outras abas seguem o mês.
+    _SUMMARY_PERIOD_KEY: 'summary_period',
+    _SUMMARY_PERIOD_MAX_DAYS: 366 * 5,
+
+    _localYmd(d) {
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    },
+    _addDays(ymd, n) {
+        const [y, m, d] = ymd.split('-').map(Number);
+        return this._localYmd(new Date(y, m - 1, d + n));
+    },
+    // Dias do intervalo, contando os dois extremos
+    _periodDays(per) {
+        const a = per.from.split('-').map(Number), b = per.to.split('-').map(Number);
+        return Math.round((new Date(b[0], b[1] - 1, b[2]) - new Date(a[0], a[1] - 1, a[2])) / 86400000) + 1;
+    },
+    // Atalhos são recalculados a cada uso ("30 dias" sempre termina hoje)
+    _resolvePeriod(p) {
+        if (!p) return null;
+        const today = this._localYmd(new Date());
+        if (p.preset === 'year') return { from: today.slice(0, 4) + '-01-01', to: today };
+        if (/^\d+$/.test(String(p.preset || ''))) return { from: this._addDays(today, -(Number(p.preset) - 1)), to: today };
+        return { from: p.from, to: p.to };
+    },
+    _validatePeriod(per) {
+        if (!per || !per.from || !per.to) return 'Informe a data inicial e a final.';
+        if (per.from > per.to) return 'A data inicial não pode ser depois da final.';
+        if (this._periodDays(per) > this._SUMMARY_PERIOD_MAX_DAYS) return 'O período pode ter no máximo 5 anos.';
+        return '';
+    },
+    // Período imediatamente anterior, com a mesma duração (para o comparativo)
+    _prevPeriod(per) {
+        const n = this._periodDays(per);
+        const to = this._addDays(per.from, -1);
+        return { from: this._addDays(to, -(n - 1)), to };
+    },
+    // O que o Resumo está mostrando agora: o mês selecionado ou o período livre.
+    // filters → para Storage.getTransactions; arg → para Storage.getSummary/getCategoryTotals.
+    _summaryRange() {
+        const per = this.summaryPeriod ? this._resolvePeriod(this.summaryPeriod) : null;
+        if (per && !this._validatePeriod(per)) {
+            const days = this._periodDays(per);
+            return {
+                isPeriod: true, from: per.from, to: per.to, days,
+                filters: { from: per.from, to: per.to }, arg: { from: per.from, to: per.to },
+                label: `${this.formatDate(per.from)} a ${this.formatDate(per.to)}`,
+                slug: `${per.from}_a_${per.to}`
+            };
+        }
+        const [y, m] = this.currentMonth.split('-').map(Number);
+        return {
+            isPeriod: false, from: `${this.currentMonth}-01`, to: this._localYmd(new Date(y, m, 0)), days: new Date(y, m, 0).getDate(),
+            filters: { month: this.currentMonth }, arg: this.currentMonth,
+            label: this.formatMonth(this.currentMonth), slug: this.currentMonth
+        };
+    },
+
+    _loadSummaryPeriod() {
+        try {
+            const v = JSON.parse(localStorage.getItem(this._SUMMARY_PERIOD_KEY) || 'null');
+            if (v && (v.preset || (v.from && v.to))) this.summaryPeriod = v;
+        } catch {}
+    },
+    // p = null volta ao mês; senão { preset } (atalho) ou { from, to } (datas escolhidas)
+    setSummaryPeriod(p) {
+        if (p) this._lastSummaryPeriod = p;
+        this.summaryPeriod = p || null;
+        try {
+            if (p) localStorage.setItem(this._SUMMARY_PERIOD_KEY, JSON.stringify(p));
+            else   localStorage.removeItem(this._SUMMARY_PERIOD_KEY);
+        } catch {}
+        this.syncSummaryPeriodUI();
+        return this.renderSummary();
+    },
+
+    syncSummaryPeriodUI(error = '') {
+        const isPeriod = !!this.summaryPeriod;
+        const on  = 'flex-1 py-2 rounded-xl text-sm font-semibold bg-white text-emerald-700 shadow-sm transition-colors';
+        const off = 'flex-1 py-2 rounded-xl text-sm font-semibold text-gray-500 transition-colors';
+        const bm = document.getElementById('sum-mode-month'), bp = document.getElementById('sum-mode-period');
+        if (bm) { bm.className = isPeriod ? off : on; bm.setAttribute('aria-selected', String(!isPeriod)); }
+        if (bp) { bp.className = isPeriod ? on : off; bp.setAttribute('aria-selected', String(isPeriod)); }
+        document.getElementById('sum-month-nav')?.classList.toggle('hidden', isPeriod);
+        document.getElementById('sum-period-panel')?.classList.toggle('hidden', !isPeriod);
+        if (!isPeriod) return;
+
+        const per = this._resolvePeriod(this.summaryPeriod) || {};
+        const fromEl = document.getElementById('sum-period-from'), toEl = document.getElementById('sum-period-to');
+        // Com erro de validação NÃO sobrescreve os campos: o usuário está no meio da digitação
+        // (ex.: avançou a data inicial e ainda vai ajustar a final)
+        if (!error) {
+            if (fromEl && per.from) fromEl.value = per.from;
+            if (toEl && per.to)     toEl.value   = per.to;
+        }
+        document.querySelectorAll('[data-period-preset]').forEach(b => {
+            const active = String(this.summaryPeriod.preset || '') === b.dataset.periodPreset;
+            b.className = 'px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ' +
+                (active ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50');
+        });
+        const hint = document.getElementById('sum-period-hint');
+        if (hint) {
+            const err = error || this._validatePeriod(per);
+            hint.className = 'text-xs ' + (err ? 'text-red-600 font-medium' : 'text-gray-500');
+            hint.textContent = err || `${this.formatDate(per.from)} a ${this.formatDate(per.to)} · ${this._periodDays(per)} ${this._periodDays(per) === 1 ? 'dia' : 'dias'}`;
+        }
+    },
+
+    bindSummaryPeriod() {
+        document.getElementById('sum-mode-month')?.addEventListener('click', () => this.setSummaryPeriod(null));
+        document.getElementById('sum-mode-period')?.addEventListener('click', () => {
+            if (!this.summaryPeriod) this.setSummaryPeriod(this._lastSummaryPeriod || { preset: '30' });
+        });
+        document.querySelectorAll('[data-period-preset]').forEach(b =>
+            b.addEventListener('click', () => this.setSummaryPeriod({ preset: b.dataset.periodPreset })));
+        // Datas escolhidas à mão: só aplica quando o intervalo é válido
+        const onDates = () => {
+            const from = document.getElementById('sum-period-from').value;
+            const to   = document.getElementById('sum-period-to').value;
+            const err = this._validatePeriod({ from, to });
+            if (err) { this.syncSummaryPeriodUI(err); return; }
+            this.setSummaryPeriod({ preset: null, from, to });
+        };
+        document.getElementById('sum-period-from')?.addEventListener('change', onDates);
+        document.getElementById('sum-period-to')?.addEventListener('change', onDates);
+        this.syncSummaryPeriodUI();
+    },
+
+    // Evolução por mês dentro do período (só os dias do período contam em cada mês)
+    _periodTrend(txns, per) {
+        let [y, m] = per.from.split('-').map(Number);
+        const [ey, em] = per.to.split('-').map(Number);
+        const months = [];
+        while (y < ey || (y === ey && m <= em)) {
+            months.push(`${y}-${String(m).padStart(2, '0')}`);
+            if (++m > 12) { m = 1; y++; }
+        }
+        const last = months.slice(-24); // no máximo 24 barras
+        return { months: last, rows: last.map(mm => Storage.summarizeList(txns.filter(t => (t.date || '').startsWith(mm)))) };
     },
 
     // ─── Offline Cache Warm-up ────────────────────────────────────────────────
