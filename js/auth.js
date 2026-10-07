@@ -43,6 +43,7 @@ const Auth = {
     },
 
     async logout() {
+        try { await window.PushNotif?.onLogout(); } catch (_) {}   // este aparelho deixa de receber avisos da conta
         await $sb.auth.signOut();
     },
 

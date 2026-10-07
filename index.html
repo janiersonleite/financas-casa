@@ -13,7 +13,9 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="Carteiras">
-    <link rel="apple-touch-icon" href="icon.svg">
+    <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+    <link rel="icon" type="image/svg+xml" href="icon.svg">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -1679,6 +1681,7 @@
             <button id="reminders-modal-close" class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500">✕</button>
         </div>
         <div class="flex-1 overflow-y-auto px-4 py-3 space-y-2">
+            <div id="push-card"></div>
             <div id="reminders-list-container"></div>
         </div>
         <div class="px-4 pb-5 pt-2 border-t border-gray-100">
@@ -1753,7 +1756,7 @@
                 <label class="text-xs text-gray-500 font-medium mb-1 block">Horário da notificação (opcional)</label>
                 <input id="reminder-time-input" type="time"
                     class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300">
-                <p class="text-[10px] text-gray-400 mt-1">Se definido, a notificação toca nesse horário. No Android/PWA instalado dispara com o app fechado; no iPhone/Safari aparece ao abrir o app.</p>
+                <p class="text-[10px] text-gray-400 mt-1">Se definido, a notificação toca nesse horário. Para receber com o app fechado, ative os avisos na tela de Lembretes (no iPhone, com o app instalado na Tela de Início).</p>
             </div>
             <!-- Categoria -->
             <div>
@@ -1825,7 +1828,8 @@
 <script src="js/nlp.js?v=20260930d"></script>
 <script src="js/insights.js?v=20260528a"></script>
 <script src="js/cofrinhos.js?v=20261007c"></script>
-<script src="js/app.js?v=20261007d"></script>
+<script src="js/push.js?v=20261007a"></script>
+<script src="js/app.js?v=20261007e"></script>
 
 <script>
 // ── Service Worker + PWA ──────────────────────────────────────────────────────

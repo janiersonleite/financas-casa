@@ -119,6 +119,7 @@ const App = {
         this._handleUrlAction();
         // Notificação persistente na barra + escuta mensagens do SW
         this._setupQuickAddNotification();
+        PushNotif.ensure();
         this._bindSwMessages();
     },
 
@@ -1974,8 +1975,8 @@ const App = {
 
                 await _notify(title, {
                     body,
-                    icon:               'icon.svg',
-                    badge:              'icon.svg',
+                    icon:               'icons/icon-192.png',
+                    badge:              'icons/badge-96.png',
                     tag:                `reminder_${r.id}_d${group.offset}`,
                     requireInteraction: group.offset === 0,  // persiste só no vencimento
                     vibrate:            group.offset === 0 ? [200, 100, 200] : [100],
@@ -2039,8 +2040,8 @@ const App = {
                 try {
                     await reg.showNotification(`🔔 ${r.name}`, {
                         body:      `${r.emoji || '🔔'} Hora de registrar${valor}`,
-                        icon:      'icon.svg',
-                        badge:     'icon.svg',
+                        icon:      'icons/icon-192.png',
+                        badge:     'icons/badge-96.png',
                         tag,
                         showTrigger: new window.TimestampTrigger(when),
                         data:      { action: 'open-reminders' },
@@ -2397,6 +2398,7 @@ const App = {
         const month = this._currentMonth();
         const list  = this._getPaidReminders(month);
         if (!list.includes(id)) { list.push(id); localStorage.setItem(this._paidKey(month), JSON.stringify(list)); }
+        PushNotif.syncSoon(true);
         return month;
     },
     _unmarkReminderPaid(id) {
@@ -2404,6 +2406,7 @@ const App = {
         const month = this._currentMonth();
         const list  = this._getPaidReminders(month).filter(x => x !== id);
         localStorage.setItem(this._paidKey(month), JSON.stringify(list));
+        PushNotif.syncSoon(true);
     },
     isReminderPaid(id) {
         // 1. Verifica nas transações reais já carregadas (fonte principal — Supabase)
@@ -2580,6 +2583,7 @@ const App = {
     openRemindersModal() {
         document.getElementById('reminders-modal')?.classList.remove('hidden');
         this.renderRemindersList();
+        PushNotif.renderCard();
     },
 
     closeRemindersModal() {
@@ -2649,12 +2653,12 @@ const App = {
 
     // Verifica se o lembrete está fora do prazo configurado
     // 0 ou ausência de duration_months => "sempre" (nunca expira)
-    _isReminderExpired(r) {
+    _isReminderExpired(r, at = new Date()) {
         // Pontual (data única): expira depois do dia agendado.
         if (r?.notify_date && /^\d{4}-\d{2}-\d{2}$/.test(r.notify_date)) {
             const [y, m, d] = r.notify_date.split('-').map(Number);
             const end = new Date(y, m - 1, d); end.setHours(23, 59, 59, 999);
-            return new Date() > end;
+            return at > end;
         }
         const months = Number(r?.duration_months) || 0;
         if (months <= 0) return false; // sempre
@@ -2662,7 +2666,7 @@ const App = {
         if (!start) return false; // sem data → não expira
         const end = new Date(start);
         end.setMonth(end.getMonth() + months);
-        return new Date() > end;
+        return at > end;
     },
 
     // Retorna texto curto para mostrar a duração configurada
@@ -2947,6 +2951,7 @@ const App = {
             this.renderRemindersList();
             this.renderRemindersHome();
             this.scheduleReminderTriggers();
+            PushNotif.syncSoon(true);
             this.showToast(this.editingReminderId ? '✅ Lembrete atualizado!' : '✅ Lembrete criado!');
         } catch (e) {
             this.showToast('❌ Erro: ' + e.message, true);
@@ -2962,6 +2967,7 @@ const App = {
             this.reminders = this.reminders.filter(r => r.id !== id);
             this.renderRemindersList();
             this.renderRemindersHome();
+            PushNotif.syncSoon(true);
             this.showToast('🗑️ Lembrete excluído');
         } catch (e) {
             this.showToast('❌ Erro: ' + e.message, true);
@@ -3141,6 +3147,7 @@ const App = {
         ]);
         // Cacheia para isReminderPaid derivar do Supabase (não depende de localStorage)
         this._monthTransactions = allMonth;
+        PushNotif.syncSoon();   // avisos com o app fechado (no-op se o usuário não ativou)
         // Garante categorias renderizadas mesmo se loadCategories ocorreu antes do DOM estar pronto
         if (document.getElementById('quick-cats-grid')?.children.length === 0) {
             this.renderQuickButtons();
@@ -6267,8 +6274,8 @@ const App = {
             const reg = await navigator.serviceWorker.ready;
             await reg.showNotification('💰 Minhas Carteiras', {
                 body:               'Toque para adicionar um novo lançamento',
-                icon:               'icon.svg',
-                badge:              'icon.svg',
+                icon:               'icons/icon-192.png',
+                badge:              'icons/badge-96.png',
                 tag:                'quick-add',
                 renotify:           false,
                 silent:             true,
