@@ -187,7 +187,10 @@ const PushNotif = {
     /** Chamado ao sair da conta: este aparelho deixa de receber avisos dessa conta. */
     async onLogout() {
         try {
-            const reg = await navigator.serviceWorker.ready;
+            if (!this.supported() || !Storage.isCloud) return;
+            // nunca trava o logout: se o service worker não responder em 1,5 s, segue sem desvincular
+            const reg = await Promise.race([navigator.serviceWorker.ready, new Promise(r => setTimeout(() => r(null), 1500))]);
+            if (!reg) return;
             const sub = await reg.pushManager.getSubscription();
             if (sub && window.$sb) await window.$sb.rpc('unregister_push_subscription', { p_endpoint: sub.endpoint });
         } catch {}
