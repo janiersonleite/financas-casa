@@ -576,8 +576,10 @@ const Storage = {
 
     async updateFinanca(id, updates) {
         if (this.isCloud) {
-            const { error } = await this.db.from('financas').update(updates).eq('id', id);
+            // .select() para detectar quando a política de segurança não deixa alterar (0 linhas)
+            const { data, error } = await this.db.from('financas').update(updates).eq('id', id).select('id');
             if (error) throw error;
+            if (!data || !data.length) throw new Error('Sem permissão para alterar esta carteira.');
             return;
         }
         const d = this._localGet();

@@ -273,6 +273,7 @@ const App = {
     },
 
     closeFinancaModal() {
+        this._editingFinancaId = null;
         document.getElementById('financa-modal').classList.add('hidden');
     },
 
@@ -282,21 +283,80 @@ const App = {
         container.innerHTML = this.financas.map(f => {
             const isActive = f.id === this.activeFinanca?.id;
             const isOwner  = f.owner_id === Auth.user?.id || f.owner_id === 'local';
+            const editing  = isOwner && this._editingFinancaId === f.id;
+            const nameBlock = editing
+                ? `<div class="flex items-center gap-1.5" data-financa-edit-box>
+                       <input type="text" maxlength="40" value="${this._escHtml(f.name)}" data-financa-edit-input
+                           class="flex-1 min-w-0 border-2 border-emerald-300 rounded-lg px-2 py-1 text-sm font-semibold text-gray-800 focus:outline-none focus:border-emerald-500">
+                       <button class="px-2 py-1 rounded-lg bg-emerald-600 text-white text-xs font-bold" data-financa-edit-save title="Salvar">✓</button>
+                       <button class="px-2 py-1 rounded-lg bg-gray-100 text-gray-500 text-xs font-bold" data-financa-edit-cancel title="Cancelar">✕</button>
+                   </div>
+                   <div class="text-[11px] text-red-500 mt-1 hidden" data-financa-edit-error></div>`
+                : `<div class="font-semibold text-gray-800 truncate">${this._escHtml(f.name)}</div>
+                   <div class="text-xs text-gray-400">${f.type === 'compartilhada' ? '👥 Compartilhada' : '👤 Individual'}</div>`;
             return `
-            <div class="flex items-center gap-3 p-3 mb-2 rounded-xl border-2 cursor-pointer transition-all ${isActive ? 'border-emerald-500 bg-emerald-50' : 'border-gray-100 bg-white hover:border-gray-300'}" data-financa-select="${f.id}">
+            <div class="flex items-center gap-3 p-3 mb-2 rounded-xl border-2 ${editing ? '' : 'cursor-pointer'} transition-all ${isActive ? 'border-emerald-500 bg-emerald-50' : 'border-gray-100 bg-white hover:border-gray-300'}" data-financa-select="${f.id}">
                 <span class="text-2xl">${f.emoji || '💰'}</span>
-                <div class="flex-1 min-w-0">
-                    <div class="font-semibold text-gray-800 truncate">${f.name}</div>
-                    <div class="text-xs text-gray-400">${f.type === 'compartilhada' ? '👥 Compartilhada' : '👤 Individual'}</div>
-                </div>
-                ${isActive ? '<span class="text-emerald-600 text-lg">✓</span>' : ''}
-                ${isOwner ? `<button class="text-gray-300 hover:text-red-400 text-lg px-1 delete-financa-btn" data-financa-del="${f.id}" title="Excluir">🗑</button>` : ''}
+                <div class="flex-1 min-w-0">${nameBlock}</div>
+                ${isActive && !editing ? '<span class="text-emerald-600 text-lg">✓</span>' : ''}
+                ${isOwner && !editing ? `<button class="text-gray-300 hover:text-emerald-600 text-base px-1 rename-financa-btn" data-financa-rename="${f.id}" title="Renomear" aria-label="Renomear carteira">✏️</button>` : ''}
+                ${isOwner && !editing ? `<button class="text-gray-300 hover:text-red-400 text-lg px-1 delete-financa-btn" data-financa-del="${f.id}" title="Excluir">🗑</button>` : ''}
             </div>`;
         }).join('');
 
+        // ── Renomear carteira ──
+        const closeEdit = () => { this._editingFinancaId = null; this.renderFinancaList(); };
+        container.querySelectorAll('.rename-financa-btn').forEach(btn => {
+            btn.addEventListener('click', e => {
+                e.stopPropagation();
+                this._editingFinancaId = btn.dataset.financaRename;
+                this.renderFinancaList();
+                const inp = container.querySelector('[data-financa-edit-input]');
+                if (inp) { inp.focus(); inp.select(); }
+            });
+        });
+        const editBox = container.querySelector('[data-financa-edit-box]');
+        if (editBox) {
+            const row   = editBox.closest('[data-financa-select]');
+            const input = editBox.querySelector('[data-financa-edit-input]');
+            const errEl = row.querySelector('[data-financa-edit-error]');
+            const saveBtn = editBox.querySelector('[data-financa-edit-save]');
+            const f = this.financas.find(x => x.id === this._editingFinancaId);
+            const showErr = (t) => { errEl.textContent = t; errEl.classList.toggle('hidden', !t); };
+            const save = async () => {
+                const name = input.value.replace(/\s+/g, ' ').trim();
+                if (!name) { showErr('Digite um nome.'); input.focus(); return; }
+                if (name === f.name) { closeEdit(); return; }
+                if (this.financas.some(x => x.id !== f.id && (x.name || '').trim().toLowerCase() === name.toLowerCase())) {
+                    showErr('Já existe uma carteira com esse nome.'); input.focus(); return;
+                }
+                saveBtn.disabled = true; showErr('');
+                try {
+                    await Storage.updateFinanca(f.id, { name });
+                    f.name = name;
+                    if (this.activeFinanca?.id === f.id) { this.activeFinanca.name = name; this.renderFinancaSwitcher(); }
+                    this._editingFinancaId = null;
+                    this.renderFinancaList();
+                    this.showToast('✅ Carteira renomeada!');
+                } catch (err) {
+                    saveBtn.disabled = false;
+                    showErr(/permiss/i.test(err.message) ? err.message : 'Não foi possível renomear. Tente de novo.');
+                }
+            };
+            saveBtn.addEventListener('click', e => { e.stopPropagation(); save(); });
+            editBox.querySelector('[data-financa-edit-cancel]').addEventListener('click', e => { e.stopPropagation(); closeEdit(); });
+            input.addEventListener('click', e => e.stopPropagation());
+            input.addEventListener('keydown', e => {
+                e.stopPropagation();
+                if (e.key === 'Enter') { e.preventDefault(); save(); }
+                else if (e.key === 'Escape') { e.preventDefault(); closeEdit(); }
+            });
+        }
+
         container.querySelectorAll('[data-financa-select]').forEach(el => {
             el.addEventListener('click', async e => {
-                if (e.target.closest('.delete-financa-btn')) return;
+                if (e.target.closest('.delete-financa-btn') || e.target.closest('.rename-financa-btn') || e.target.closest('[data-financa-edit-box]')) return;
+                if (this._editingFinancaId) return;   // editando: clique no cartão não troca de carteira
                 const f = this.financas.find(x => x.id === el.dataset.financaSelect);
                 if (!f) return;
                 this.activeFinanca = f;
