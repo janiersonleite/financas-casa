@@ -134,6 +134,21 @@
 <body class="max-w-md mx-auto min-h-screen relative" style="background:var(--clr-bg)">
 
 <!-- ═══════════════════════ AUTH SCREEN ═════════════════════════ -->
+<!-- Nova senha (link "Esqueci minha senha") -->
+<div id="recovery-modal" class="hidden fixed inset-0 z-[100] flex items-center justify-center px-6 bg-black/70">
+    <div class="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-6 space-y-3">
+        <h2 class="text-lg font-bold text-gray-800">🔑 Defina sua nova senha</h2>
+        <p class="text-xs text-gray-500">Digite a nova senha para a sua conta. Depois é só usar o app normalmente.</p>
+        <input id="recovery-pass1" type="password" autocomplete="new-password" placeholder="Nova senha (mín. 6 caracteres)"
+            class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300">
+        <input id="recovery-pass2" type="password" autocomplete="new-password" placeholder="Repita a nova senha"
+            class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300">
+        <div id="recovery-error" class="hidden bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl px-3 py-2"></div>
+        <button id="recovery-save" data-label="Salvar nova senha" class="w-full py-3 rounded-xl bg-emerald-600 text-white font-semibold text-sm">Salvar nova senha</button>
+        <button id="recovery-cancel" class="w-full py-2 text-xs text-gray-400">Cancelar e sair</button>
+    </div>
+</div>
+
 <div id="auth-screen" class="hidden fixed inset-0 z-50 flex flex-col items-center justify-center px-6" style="background:linear-gradient(160deg,var(--clr-header-a) 0%,var(--clr-header-b) 100%)">
 
     <!-- Logo / Branding -->
@@ -1822,13 +1837,13 @@
 
 </div><!-- /#main-app -->
 
-<script src="js/config.js?v=20260423j"></script>
-<script src="js/auth.js?v=20260424n"></script>
+<script src="js/config.js?v=20261008a"></script>
+<script src="js/auth.js?v=20261008a"></script>
 <script src="js/storage.js?v=20261007a"></script>
 <script src="js/nlp.js?v=20260930d"></script>
 <script src="js/insights.js?v=20260528a"></script>
 <script src="js/cofrinhos.js?v=20261007c"></script>
-<script src="js/push.js?v=20261007b"></script>
+<script src="js/push.js?v=20261008a"></script>
 <script src="js/app.js?v=20261007e"></script>
 
 <script>

@@ -12,6 +12,9 @@ const IS_SUPABASE_CONFIGURED =
 
 // ─── Initialize client ────────────────────────────────────────────────────────
 window.$sb = null;
+// Link de recuperação de senha: guarda o aviso ANTES de o cliente do Supabase limpar a URL.
+window.__PW_RECOVERY = /(^|[#&?])type=recovery(&|$)/.test((location.hash || '') + '&' + (location.search || ''));
+window.__AUTH_LINK_ERROR = /error_code=otp_expired|error=access_denied/.test((location.hash || '') + (location.search || ''));
 if (IS_SUPABASE_CONFIGURED) {
     try {
         const { createClient } = window.supabase;

@@ -13,13 +13,19 @@ const Auth = {
         if (session?.user) {
             this.user = session.user;
             this.showApp();
+            if (window.__PW_RECOVERY) this.showRecovery();   // veio do link "Esqueci minha senha"
         } else {
             this.showAuthScreen();
+            if (window.__AUTH_LINK_ERROR) {
+                const e = document.getElementById('auth-error');
+                if (e) { e.textContent = 'Esse link expirou ou já foi usado. Toque em "Esqueci minha senha" para receber outro.'; e.classList.remove('hidden'); }
+            }
         }
 
         // Listen for auth state changes
         $sb.auth.onAuthStateChange((event, session) => {
             this.user = session?.user ?? null;
+            if (event === 'PASSWORD_RECOVERY') { this.showApp(); this.showRecovery(); return; }
             if (this.user) {
                 this.showApp();
                 // Fresh login (not initial page restore) — reload finances
@@ -45,6 +51,25 @@ const Auth = {
     async logout() {
         try { await window.PushNotif?.onLogout(); } catch (_) {}   // este aparelho deixa de receber avisos da conta
         await $sb.auth.signOut();
+    },
+
+    // ── Nova senha após o link de recuperação ────────────────────────────────
+    showRecovery() {
+        const m = document.getElementById('recovery-modal');
+        if (!m) return;
+        m.classList.remove('hidden');
+        setTimeout(() => document.getElementById('recovery-pass1')?.focus(), 50);
+    },
+    hideRecovery() {
+        document.getElementById('recovery-modal')?.classList.add('hidden');
+        window.__PW_RECOVERY = false;
+        try { history.replaceState(null, '', location.pathname); } catch (_) {}   // tira o token da barra de endereço
+    },
+    async saveNewPassword(p1, p2) {
+        if (!p1 || p1.length < 6) throw new Error('A senha deve ter pelo menos 6 caracteres.');
+        if (p1 !== p2) throw new Error('As senhas não são iguais.');
+        const { error } = await $sb.auth.updateUser({ password: p1 });
+        if (error) throw error;
     },
 
     async resetPassword(email) {
@@ -163,6 +188,24 @@ const Auth = {
             }
         });
 
+        const recSave = document.getElementById('recovery-save');
+        const recErr  = document.getElementById('recovery-error');
+        const recMsg  = (t) => { recErr.textContent = t; recErr.classList.toggle('hidden', !t); };
+        recSave?.addEventListener('click', async () => {
+            recMsg(''); recSave.disabled = true; recSave.textContent = 'Salvando...';
+            try {
+                await this.saveNewPassword(document.getElementById('recovery-pass1').value, document.getElementById('recovery-pass2').value);
+                document.getElementById('recovery-pass1').value = ''; document.getElementById('recovery-pass2').value = '';
+                this.hideRecovery();
+                if (typeof App !== 'undefined' && App.showToast) App.showToast('✅ Senha alterada!');
+            } catch (e) {
+                recMsg(this.translateError(e.message || String(e)));
+            } finally { recSave.disabled = false; recSave.textContent = recSave.dataset.label; }
+        });
+        document.getElementById('recovery-cancel')?.addEventListener('click', async () => {
+            this.hideRecovery(); await this.logout();
+        });
+
         logoutBtn?.addEventListener('click', async () => {
             if (confirm('Sair da conta?')) await this.logout();
         });
@@ -173,6 +216,8 @@ const Auth = {
         if (msg.includes('Email not confirmed')) return 'Confirme seu e-mail antes de entrar.';
         if (msg.includes('User already registered')) return 'E-mail já cadastrado.';
         if (msg.includes('Password should')) return 'A senha deve ter pelo menos 6 caracteres.';
+        if (msg.includes('same password') || msg.includes('different from the old')) return 'Escolha uma senha diferente da atual.';
+        if (msg.includes('session') && msg.includes('missing')) return 'O link expirou. Peça um novo em "Esqueci minha senha".';
         if (msg.includes('rate limit')) return 'Muitas tentativas. Aguarde alguns minutos.';
         return msg;
     }
