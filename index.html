@@ -138,7 +138,7 @@
 <div id="recovery-modal" class="hidden fixed inset-0 z-[100] flex items-center justify-center px-6 bg-black/70">
     <div class="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-6 space-y-3">
         <h2 class="text-lg font-bold text-gray-800">🔑 Defina sua nova senha</h2>
-        <p class="text-xs text-gray-500">Digite a nova senha para a sua conta. Depois é só usar o app normalmente.</p>
+        <p class="text-xs text-gray-500">Digite a nova senha para a sua conta. Em seguida você entra com ela.</p>
         <input id="recovery-pass1" type="password" autocomplete="new-password" placeholder="Nova senha (mín. 6 caracteres)"
             class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300">
         <input id="recovery-pass2" type="password" autocomplete="new-password" placeholder="Repita a nova senha"
@@ -175,6 +175,7 @@
 
         <div class="p-6 space-y-3">
             <!-- Error -->
+            <div id="auth-info" class="hidden bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm rounded-xl px-4 py-2"></div>
             <div id="auth-error" class="hidden bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-2"></div>
             <!-- Success -->
             <div id="auth-success" class="hidden bg-green-50 border border-green-200 text-green-700 text-sm rounded-xl px-4 py-2">
@@ -1838,13 +1839,13 @@
 </div><!-- /#main-app -->
 
 <script src="js/config.js?v=20261008a"></script>
-<script src="js/auth.js?v=20261008a"></script>
+<script src="js/auth.js?v=20261008b"></script>
 <script src="js/storage.js?v=20261007a"></script>
 <script src="js/nlp.js?v=20260930d"></script>
 <script src="js/insights.js?v=20260528a"></script>
 <script src="js/cofrinhos.js?v=20261007c"></script>
 <script src="js/push.js?v=20261008a"></script>
-<script src="js/app.js?v=20261007e"></script>
+<script src="js/app.js?v=20261008a"></script>
 
 <script>
 // ── Service Worker + PWA ──────────────────────────────────────────────────────

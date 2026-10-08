@@ -8,14 +8,25 @@ const Auth = {
             return;
         }
 
+        // Link "Esqueci minha senha": NÃO entra no app. Só mostra a tela de nova senha;
+        // depois de salvar, a sessão é encerrada e a pessoa entra com a senha nova.
+        if (window.__PW_RECOVERY) this._recovering = true;
+
         // Restore session from storage
         const { data: { session } } = await $sb.auth.getSession();
-        if (session?.user) {
+        if (this._recovering) {
+            this.user = null;
+            this.showAuthScreen();
+            this.showRecovery();
+        } else if (session?.user) {
             this.user = session.user;
             this.showApp();
-            if (window.__PW_RECOVERY) this.showRecovery();   // veio do link "Esqueci minha senha"
         } else {
             this.showAuthScreen();
+            let changed = false;
+            try { changed = sessionStorage.getItem('pw_changed') === '1'; sessionStorage.removeItem('pw_changed'); } catch (_) {}
+            const info = document.getElementById('auth-info');
+            if (changed && info) { info.textContent = '✅ Senha alterada! Entre com a sua nova senha.'; info.classList.remove('hidden'); }
             if (window.__AUTH_LINK_ERROR) {
                 const e = document.getElementById('auth-error');
                 if (e) { e.textContent = 'Esse link expirou ou já foi usado. Toque em "Esqueci minha senha" para receber outro.'; e.classList.remove('hidden'); }
@@ -25,7 +36,8 @@ const Auth = {
         // Listen for auth state changes
         $sb.auth.onAuthStateChange((event, session) => {
             this.user = session?.user ?? null;
-            if (event === 'PASSWORD_RECOVERY') { this.showApp(); this.showRecovery(); return; }
+            if (event === 'PASSWORD_RECOVERY') { this._recovering = true; this.user = null; this.showAuthScreen(); this.showRecovery(); return; }
+            if (this._recovering) return;   // enquanto define a nova senha, nenhum evento abre o app
             if (this.user) {
                 this.showApp();
                 // Fresh login (not initial page restore) — reload finances
@@ -62,8 +74,13 @@ const Auth = {
     },
     hideRecovery() {
         document.getElementById('recovery-modal')?.classList.add('hidden');
-        window.__PW_RECOVERY = false;
-        try { history.replaceState(null, '', location.pathname); } catch (_) {}   // tira o token da barra de endereço
+    },
+    // Encerra a sessão temporária do link e recarrega limpo (sem token na URL) na tela de login.
+    async finishRecovery(changed) {
+        try { if (changed) sessionStorage.setItem('pw_changed', '1'); } catch (_) {}
+        try { await $sb.auth.signOut({ scope: 'local' }); } catch (_) {}
+        this.hideRecovery();
+        location.replace(location.pathname);
     },
     async saveNewPassword(p1, p2) {
         if (!p1 || p1.length < 6) throw new Error('A senha deve ter pelo menos 6 caracteres.');
@@ -80,6 +97,7 @@ const Auth = {
     },
 
     showApp() {
+        if (this._recovering) return;
         document.getElementById('auth-screen').classList.add('hidden');
         document.getElementById('main-app').classList.remove('hidden');
         const logoutBtn = document.getElementById('logout-btn');
@@ -196,14 +214,13 @@ const Auth = {
             try {
                 await this.saveNewPassword(document.getElementById('recovery-pass1').value, document.getElementById('recovery-pass2').value);
                 document.getElementById('recovery-pass1').value = ''; document.getElementById('recovery-pass2').value = '';
-                this.hideRecovery();
-                if (typeof App !== 'undefined' && App.showToast) App.showToast('✅ Senha alterada!');
+                await this.finishRecovery(true);
             } catch (e) {
                 recMsg(this.translateError(e.message || String(e)));
             } finally { recSave.disabled = false; recSave.textContent = recSave.dataset.label; }
         });
         document.getElementById('recovery-cancel')?.addEventListener('click', async () => {
-            this.hideRecovery(); await this.logout();
+            await this.finishRecovery(false);
         });
 
         logoutBtn?.addEventListener('click', async () => {
