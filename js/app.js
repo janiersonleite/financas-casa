@@ -60,6 +60,7 @@ const App = {
     async init() {
         await Auth.init();
         Auth.bindUI();
+        if (Auth._recovering) return;   // definindo nova senha: o app só carrega depois, no login
         this.bindNav();
         this.bindQuickInput();
         this.bindModal();
