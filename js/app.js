@@ -125,7 +125,16 @@ const App = {
     },
 
     // ─── Finances ─────────────────────────────────────────────────────────────
-    async loadFinancas() {
+    // Uma carga por vez: ao entrar numa conta nova, o início do app e o evento de login chamavam isto
+    // ao mesmo tempo e AMBOS criavam a carteira "Pessoal" (ficava duplicada).
+    loadFinancas() {
+        if (!this._loadFinancasP) {
+            this._loadFinancasP = this._loadFinancasImpl().finally(() => { this._loadFinancasP = null; });
+        }
+        return this._loadFinancasP;
+    },
+
+    async _loadFinancasImpl() {
         try {
             let financas = await Storage.getFinancas();
             if (!financas.length) {
