@@ -2085,7 +2085,7 @@ const App = {
             const MAX_AHEAD = 60 * 24 * 60 * 60 * 1000; // não agenda além de ~60 dias
 
             for (const r of this.reminders) {
-                if (r.active === false || this._isReminderExpired(r)) continue;
+                if (r.active === false || this._isReminderExpired(r) || this.isReminderPaid(r.id)) continue;
                 if (!r.notify_time) continue; // sem horário → depende do on-open
                 const when = this._nextOccurrenceTs(r);
                 if (!when || when <= now || (when - now) > MAX_AHEAD) continue;
