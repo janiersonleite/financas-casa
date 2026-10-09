@@ -85,11 +85,12 @@ const PushNotif = {
                 }
             }
 
-            const valor = r.amount > 0 && ctx.money ? ` — ${ctx.money(r.amount)}` : '';
+            const valor = '';   // o valor cadastrado é só uma previsão (contas variam): não vai na notificação
             const emoji = r.emoji || '🔔';
             for (const due of dues) {
                 if (ctx.isExpiredAt && ctx.isExpiredAt(r, due)) continue;
-                if (ctx.isPaid && ymKey(due) === ctx.currentMonth && ctx.isPaid(r)) continue; // já pago neste mês
+                if (ctx.isPaid && ymKey(due) === ctx.currentMonth && ctx.isPaid(r)) continue; // (opcional) já pago neste mês
+                const dueYm = ymKey(due);   // o servidor usa isto para pular o aviso se já houver lançamento pago
 
                 if (timeOk) {
                     const [hh, mm] = r.notify_time.slice(0, 5).split(':').map(Number);
@@ -98,7 +99,7 @@ const PushNotif = {
                     items.push({
                         reminder_id: String(r.id), fire_at: new Date(at).toISOString(),
                         title: `🔔 ${r.name}`, body: `${emoji} Hora de registrar${valor}`,
-                        tag: `sched_rem_${r.id}`, action: 'open-reminders',
+                        tag: `sched_rem_${r.id}`, action: 'open-reminders', due_ym: dueYm,
                     });
                 } else {
                     const quando = r.notify_date
@@ -111,7 +112,7 @@ const PushNotif = {
                         items.push({
                             reminder_id: String(r.id), fire_at: new Date(at).toISOString(),
                             title: `${BADGE[off]} ${r.name}`, body: `${emoji} ${LABEL[off]} (${quando})${valor}`,
-                            tag: `reminder_${r.id}_d${off}`, action: 'open-reminders',
+                            tag: `reminder_${r.id}_d${off}`, action: 'open-reminders', due_ym: dueYm,
                         });
                     }
                 }
@@ -225,8 +226,7 @@ const PushNotif = {
         return {
             now: Date.now(),
             salt: this._uid() || '',
-            currentMonth: App._currentMonth(),
-            isPaid: r => App.isReminderPaid(r.id),
+            // Pagamento é conferido pelo SERVIDOR na hora do envio (vale para qualquer aparelho e mês).
             isExpiredAt: (r, d) => App._isReminderExpired(r, d),
             money: v => App.formatCurrency(v),
         };
