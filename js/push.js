@@ -85,7 +85,7 @@ const PushNotif = {
                 }
             }
 
-            const valor = r.amount > 0 && ctx.money ? ` — ${ctx.money(r.amount)}` : '';
+            const valor = '';   // o valor cadastrado é só uma previsão (contas variam): não vai na notificação
             const emoji = r.emoji || '🔔';
             for (const due of dues) {
                 if (ctx.isExpiredAt && ctx.isExpiredAt(r, due)) continue;

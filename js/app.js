@@ -2028,7 +2028,7 @@ const App = {
                 // (Não marca como notificado, para disparar quando o app reabrir após a hora.)
                 if (group.offset === 0 && r.notify_time && nowHHMM < String(r.notify_time).slice(0, 5)) continue;
 
-                const valor = r.amount > 0 ? ` — ${this.formatCurrency(r.amount)}` : '';
+                const valor = '';   // o valor cadastrado é só uma previsão (contas variam): não vai na notificação
                 const quando = r.notify_date ? this._formatShortDate(r.notify_date) : `dia ${r.day}`;
                 const hora   = r.notify_time ? ` às ${String(r.notify_time).slice(0, 5)}` : '';
                 const body  = `${r.emoji || '🔔'} ${group.label} (${quando}${hora})${valor}`;
@@ -2097,7 +2097,7 @@ const App = {
                     pend.forEach(n => n.close());
                 } catch (_) {}
 
-                const valor = r.amount > 0 ? ` — ${this.formatCurrency(r.amount)}` : '';
+                const valor = '';   // o valor cadastrado é só uma previsão (contas variam): não vai na notificação
                 try {
                     await reg.showNotification(`🔔 ${r.name}`, {
                         body:      `${r.emoji || '🔔'} Hora de registrar${valor}`,
