@@ -632,6 +632,21 @@ const Storage = {
         return data; // 'added' | 'invited'
     },
 
+    // Pede ao servidor (Edge Function send-invite) para enviar o e-mail de convite.
+    // Retorna { ok, code, retry } — nunca lança: o convite já foi registrado antes.
+    async sendInviteEmail(financaId, email) {
+        if (!this.isCloud) return { ok: false, code: 'local' };
+        try {
+            const { data, error } = await this.db.functions.invoke('send-invite', { body: { financa_id: financaId, email } });
+            if (error) {
+                let j = null;
+                try { j = await error.context.json(); } catch (_) {}
+                return { ok: false, code: j?.error || 'failed', retry: j?.retry_after ?? null };
+            }
+            return data?.sent ? { ok: true, code: 'sent' } : { ok: false, code: 'failed' };
+        } catch (_) { return { ok: false, code: 'network' }; }
+    },
+
     async cancelInvite(inviteId) {
         if (this.isCloud) {
             const { error } = await this.db.from('financa_invites').delete().eq('id', inviteId);

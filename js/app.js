@@ -253,7 +253,8 @@ const App = {
 
         // Share modal
         document.getElementById('financa-share-btn')?.addEventListener('click', () => {
-            if (this.activeFinanca) this.openShareModal(this.activeFinanca);
+            // O convite por e-mail agora fica na própria lista de carteiras (👥 em cada carteira)
+            if (this.activeFinanca) this.openFinancaModal(this.activeFinanca.id);
         });
         const sModal = document.getElementById('share-modal');
         document.getElementById('share-modal-close')?.addEventListener('click', () => this.closeShareModal());
@@ -267,13 +268,16 @@ const App = {
         document.getElementById('check-invites-btn')?.addEventListener('click', () => this.manualCheckInvites());
     },
 
-    openFinancaModal() {
+    openFinancaModal(shareId = null) {
         document.getElementById('financa-modal').classList.remove('hidden');
+        this._editingFinancaId = null;
+        this._sharingFinancaId = shareId;
         this.renderFinancaList();
     },
 
     closeFinancaModal() {
         this._editingFinancaId = null;
+        this._sharingFinancaId = null;
         document.getElementById('financa-modal').classList.add('hidden');
     },
 
@@ -294,15 +298,29 @@ const App = {
                    <div class="text-[11px] text-red-500 mt-1 hidden" data-financa-edit-error></div>`
                 : `<div class="font-semibold text-gray-800 truncate">${this._escHtml(f.name)}</div>
                    <div class="text-xs text-gray-400">${f.type === 'compartilhada' ? '👥 Compartilhada' : '👤 Individual'}</div>`;
+            const sharing = isOwner && this._sharingFinancaId === f.id;
             return `
-            <div class="flex items-center gap-3 p-3 mb-2 rounded-xl border-2 ${editing ? '' : 'cursor-pointer'} transition-all ${isActive ? 'border-emerald-500 bg-emerald-50' : 'border-gray-100 bg-white hover:border-gray-300'}" data-financa-select="${f.id}">
+            <div class="flex items-center gap-3 p-3 ${sharing ? 'mb-1' : 'mb-2'} rounded-xl border-2 ${editing ? '' : 'cursor-pointer'} transition-all ${isActive ? 'border-emerald-500 bg-emerald-50' : 'border-gray-100 bg-white hover:border-gray-300'}" data-financa-select="${f.id}">
                 <span class="text-2xl">${f.emoji || '💰'}</span>
                 <div class="flex-1 min-w-0">${nameBlock}</div>
                 ${isActive && !editing ? '<span class="text-emerald-600 text-lg">✓</span>' : ''}
+                ${isOwner && !editing ? `<button class="${sharing ? 'text-emerald-600' : 'text-gray-300 hover:text-emerald-600'} text-base px-1 share-financa-btn" data-financa-share="${f.id}" title="Compartilhar com outras pessoas" aria-label="Compartilhar carteira" aria-expanded="${sharing}">👥</button>` : ''}
                 ${isOwner && !editing ? `<button class="text-gray-300 hover:text-emerald-600 text-base px-1 rename-financa-btn" data-financa-rename="${f.id}" title="Renomear" aria-label="Renomear carteira">✏️</button>` : ''}
                 ${isOwner && !editing ? `<button class="text-gray-300 hover:text-red-400 text-lg px-1 delete-financa-btn" data-financa-del="${f.id}" title="Excluir">🗑</button>` : ''}
-            </div>`;
+            </div>${sharing ? this._financaSharePanelHtml(f) : ''}`;
         }).join('');
+
+        // ── Compartilhar carteira (convite por e-mail, aqui mesmo na lista) ──
+        container.querySelectorAll('.share-financa-btn').forEach(btn => {
+            btn.addEventListener('click', e => {
+                e.stopPropagation();
+                this._sharingFinancaId = this._sharingFinancaId === btn.dataset.financaShare ? null : btn.dataset.financaShare;
+                this._editingFinancaId = null;
+                this.renderFinancaList();
+            });
+        });
+        const panel = container.querySelector('[data-fs-panel]');
+        if (panel) this._bindFinancaSharePanel(panel);
 
         // ── Renomear carteira ──
         const closeEdit = () => { this._editingFinancaId = null; this.renderFinancaList(); };
@@ -355,7 +373,7 @@ const App = {
 
         container.querySelectorAll('[data-financa-select]').forEach(el => {
             el.addEventListener('click', async e => {
-                if (e.target.closest('.delete-financa-btn') || e.target.closest('.rename-financa-btn') || e.target.closest('[data-financa-edit-box]')) return;
+                if (e.target.closest('.delete-financa-btn') || e.target.closest('.rename-financa-btn') || e.target.closest('.share-financa-btn') || e.target.closest('[data-financa-edit-box]')) return;
                 if (this._editingFinancaId) return;   // editando: clique no cartão não troca de carteira
                 const f = this.financas.find(x => x.id === el.dataset.financaSelect);
                 if (!f) return;
@@ -448,6 +466,7 @@ const App = {
         document.getElementById('share-modal').classList.remove('hidden');
         document.getElementById('share-financa-name').textContent = `${financa.emoji} ${financa.name}`;
         document.getElementById('invite-email').value = '';
+        this.hideInviteShare();
         await this.renderMembersList(financa.id);
         await this.renderLinkSection(financa);
     },
@@ -516,12 +535,16 @@ const App = {
                 <div class="flex items-center gap-3 py-2 border-b border-gray-100 last:border-0">
                     <div class="w-8 h-8 rounded-full bg-yellow-100 flex items-center justify-center text-sm">⏳</div>
                     <div class="flex-1 min-w-0">
-                        <div class="text-sm font-medium text-gray-800 truncate">${inv.email}</div>
-                        <div class="text-xs text-gray-400">Aguardando aceite</div>
+                        <div class="text-sm font-medium text-gray-800 truncate">${this._escHtml(inv.email)}</div>
+                        <div class="text-xs text-gray-400">Aguardando a pessoa criar a conta</div>
                     </div>
+                    <button class="text-emerald-600 text-xs font-semibold px-2 py-1 rounded-lg bg-emerald-50 share-invite-btn" data-invite-email="${this._escHtml(inv.email)}" title="Compartilhar convite">📨 Compartilhar</button>
                     <button class="text-gray-300 hover:text-red-400 text-lg cancel-invite-btn" data-invite-id="${inv.id}">✕</button>
                 </div>
             `).join('');
+            invitesList.querySelectorAll('.share-invite-btn').forEach(btn => {
+                btn.addEventListener('click', () => this.showInviteShare(btn.dataset.inviteEmail));
+            });
             invitesList.querySelectorAll('.cancel-invite-btn').forEach(btn => {
                 btn.addEventListener('click', async () => {
                     await Storage.cancelInvite(btn.dataset.inviteId);
@@ -540,15 +563,201 @@ const App = {
         const btn = document.getElementById('invite-send');
         btn.disabled = true; btn.textContent = '...';
         try {
-            const result = await Storage.inviteMember(this.activeFinanca.id, email, role);
+            const { result, emailRes } = await this._inviteFlow(this.activeFinanca, email, role);
             document.getElementById('invite-email').value = '';
             await this.renderMembersList(this.activeFinanca.id);
-            this.showToast(result === 'added' ? '✅ Membro adicionado diretamente!' : '✅ Convite enviado!');
+            if (result === 'added') {
+                this.hideInviteShare();
+                this.showToast('✅ Membro adicionado diretamente!');
+            } else {
+                const note = this._inviteEmailNote(emailRes);
+                this.showInviteShare(email, { note: note.text });
+                this.showToast(note.ok ? '✅ Convite registrado e e-mail enviado' : '✅ Convite registrado — compartilhe o link (veja abaixo)');
+            }
         } catch (e) {
             this.showToast('❌ ' + e.message, true);
         } finally {
             btn.disabled = false; btn.textContent = 'Enviar';
         }
+    },
+
+    // ─── Compartilhar carteira: painel dentro da lista de carteiras ───────────
+    _financaSharePanelHtml(f) {
+        return `
+        <div data-fs-panel="${f.id}" class="mb-2 p-3 rounded-xl bg-emerald-50/60 border border-emerald-100">
+            <div class="text-xs font-semibold text-emerald-800 mb-2">👥 Compartilhar “${this._escHtml(f.name)}”</div>
+            <div class="flex gap-2">
+                <input data-fs-email type="email" inputmode="email" autocomplete="off" placeholder="E-mail"
+                    class="flex-1 min-w-0 border-2 border-gray-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:border-emerald-500">
+                <select data-fs-role class="border-2 border-gray-200 rounded-xl px-1.5 py-2 text-xs bg-white focus:outline-none focus:border-emerald-500" aria-label="Permissão">
+                    <option value="membro">Membro</option>
+                    <option value="admin">Admin</option>
+                    <option value="visualizador">Só ver</option>
+                </select>
+                <button data-fs-send class="px-3 py-2 bg-emerald-600 text-white rounded-xl text-sm font-medium flex-shrink-0">Convidar</button>
+            </div>
+            <p class="text-[11px] text-gray-500 mt-1.5">Quem já tem conta entra na hora. Quem ainda não tem recebe um <b>e-mail com o passo a passo</b> para criar a conta.</p>
+            <div data-fs-msg class="hidden text-xs mt-2 font-medium"></div>
+            <div data-fs-share class="hidden mt-2"></div>
+            <div data-fs-lists class="mt-3"></div>
+            <button data-fs-more class="text-[11px] text-gray-500 underline mt-2">Mais opções (vincular meus lançamentos)</button>
+        </div>`;
+    },
+
+    _shareBox() {
+        return document.querySelector('[data-fs-share]') || document.getElementById('invite-share');
+    },
+
+    // Texto para o resultado do envio do e-mail de convite
+    _inviteEmailNote(res) {
+        if (res?.ok) return { text: '✉️ E-mail de convite enviado! Se quiser, avise também por mensagem:', ok: true };
+        const why = {
+            too_soon:      `Já enviamos um e-mail há pouco${res?.retry ? ` (tente de novo em ${Math.ceil(res.retry / 60)} min)` : ''}.`,
+            limit_reached: 'O limite de e-mails deste convite foi atingido.',
+            hourly_limit:  'Você enviou muitos convites na última hora.',
+            forbidden:     'Só quem administra a carteira pode enviar convites.',
+            local:         'Sem conexão com a nuvem.',
+            not_configured:'O envio de e-mails ainda não foi configurado.',
+        }[res?.code] || 'Não foi possível enviar o e-mail agora.';
+        return { text: `⚠️ ${why} Compartilhe o convite manualmente:`, ok: false };
+    },
+
+    // Registra o convite (ou adiciona direto) e, se a pessoa ainda não tem conta, pede o envio do e-mail.
+    async _inviteFlow(financa, email, role) {
+        email = email.trim();
+        const result = await Storage.inviteMember(financa.id, email, role);
+        let emailRes = null;
+        if (result !== 'added') emailRes = await Storage.sendInviteEmail(financa.id, email.toLowerCase());
+        // Carteira "individual" que ganha participante passa a ser "compartilhada"
+        if (financa.type === 'individual') {
+            try { await Storage.updateFinanca(financa.id, { type: 'compartilhada' }); financa.type = 'compartilhada'; } catch (_) {}
+        }
+        return { result, emailRes };
+    },
+
+    _bindFinancaSharePanel(panel) {
+        const fid    = panel.dataset.fsPanel;
+        const f      = this.financas.find(x => x.id === fid);
+        const input  = panel.querySelector('[data-fs-email]');
+        const roleEl = panel.querySelector('[data-fs-role]');
+        const sendEl = panel.querySelector('[data-fs-send]');
+        const msgEl  = panel.querySelector('[data-fs-msg]');
+        const say = (t, bad) => { msgEl.textContent = t; msgEl.classList.toggle('hidden', !t); msgEl.classList.toggle('text-red-600', !!bad); msgEl.classList.toggle('text-emerald-700', !bad); };
+        const send = async () => {
+            const email = input.value.trim();
+            if (!email) { input.focus(); return; }
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) { say('Digite um e-mail válido.', true); input.focus(); return; }
+            sendEl.disabled = true; sendEl.textContent = '...'; say('');
+            try {
+                const { result, emailRes } = await this._inviteFlow(f, email, roleEl.value);
+                input.value = '';
+                if (result === 'added') {
+                    this.hideInviteShare();
+                    say('✅ Essa pessoa já tem conta: foi adicionada à carteira.');
+                } else {
+                    const note = this._inviteEmailNote(emailRes);
+                    say(note.ok ? '✅ Convite registrado e e-mail enviado.' : '✅ Convite registrado.', false);
+                    this.showInviteShare(email, { note: note.text });
+                }
+                await this._renderInlineLists(fid);
+                this.renderFinancaSwitcher();
+            } catch (e) {
+                say('❌ ' + (e.message || 'Não foi possível convidar.'), true);
+            } finally { sendEl.disabled = false; sendEl.textContent = 'Convidar'; }
+        };
+        sendEl.addEventListener('click', e => { e.stopPropagation(); send(); });
+        input.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); send(); } });
+        panel.addEventListener('click', e => e.stopPropagation());
+        panel.querySelector('[data-fs-more]').addEventListener('click', () => this.openShareModal(f));
+        this._renderInlineLists(fid);
+        setTimeout(() => { try { input.focus({ preventScroll: true }); panel.scrollIntoView({ block: 'nearest' }); } catch (_) {} }, 50);
+    },
+
+    async _renderInlineLists(fid) {
+        const box = document.querySelector(`[data-fs-panel="${fid}"] [data-fs-lists]`);
+        if (!box) return;
+        let members = [], invites = [];
+        try { [members, invites] = await Promise.all([Storage.getMembers(fid), Storage.getPendingInvites(fid)]); } catch (_) {}
+        if (!document.body.contains(box)) return;
+        const roleLabel = r => r === 'admin' ? '⭐ Admin' : r === 'visualizador' ? '👁 Só ver' : '👤 Membro';
+        const row = (icon, title, sub, actions) => `
+            <div class="flex items-center gap-2 py-1.5 border-b border-emerald-100/70 last:border-0">
+                <div class="w-7 h-7 rounded-full bg-white flex items-center justify-center text-xs flex-shrink-0">${icon}</div>
+                <div class="flex-1 min-w-0"><div class="text-xs font-medium text-gray-800 truncate">${title}</div><div class="text-[11px] text-gray-400">${sub}</div></div>
+                ${actions}
+            </div>`;
+        const mHtml = members.map(m => row(this._escHtml((m.email || 'U').charAt(0).toUpperCase()), this._escHtml(m.email || 'Usuário'), roleLabel(m.role),
+            m.user_id !== Auth.user?.id ? `<button class="text-gray-300 hover:text-red-400 text-base fs-remove-member" data-member-id="${m.id}" title="Remover">✕</button>` : '<span class="text-[11px] text-emerald-600 font-medium">Você</span>')).join('');
+        const iHtml = invites.map(inv => row('⏳', this._escHtml(inv.email), inv.emailed_at ? '✉️ E-mail enviado · aguardando a pessoa criar a conta' : 'Aguardando a pessoa criar a conta',
+            `<button class="text-[11px] font-semibold text-emerald-700 px-1.5 py-1 rounded-lg bg-white fs-resend" data-email="${this._escHtml(inv.email)}" title="Reenviar e-mail">✉️ Reenviar</button>
+             <button class="text-[11px] font-semibold text-emerald-700 px-1.5 py-1 rounded-lg bg-white fs-share-inv" data-email="${this._escHtml(inv.email)}" title="Compartilhar por mensagem">📨</button>
+             <button class="text-gray-300 hover:text-red-400 text-base fs-cancel-inv" data-invite-id="${inv.id}" title="Cancelar convite">✕</button>`)).join('');
+        box.innerHTML = (mHtml ? `<div class="text-[11px] font-semibold text-gray-500 uppercase mb-1">Participantes</div>${mHtml}` : '')
+                      + (iHtml ? `<div class="text-[11px] font-semibold text-gray-500 uppercase mt-2 mb-1">Convites pendentes</div>${iHtml}` : '');
+        const msgEl = box.closest('[data-fs-panel]').querySelector('[data-fs-msg]');
+        const say = (t, bad) => { msgEl.textContent = t; msgEl.classList.remove('hidden'); msgEl.classList.toggle('text-red-600', !!bad); msgEl.classList.toggle('text-emerald-700', !bad); };
+        box.querySelectorAll('.fs-remove-member').forEach(b => b.addEventListener('click', async () => {
+            if (!confirm('Remover este participante?')) return;
+            try { await Storage.removeMember(fid, b.dataset.memberId); await this._renderInlineLists(fid); } catch (_) { say('❌ Erro ao remover', true); }
+        }));
+        box.querySelectorAll('.fs-cancel-inv').forEach(b => b.addEventListener('click', async () => {
+            try { await Storage.cancelInvite(b.dataset.inviteId); await this._renderInlineLists(fid); } catch (_) { say('❌ Erro ao cancelar', true); }
+        }));
+        box.querySelectorAll('.fs-share-inv').forEach(b => b.addEventListener('click', () => this.showInviteShare(b.dataset.email)));
+        box.querySelectorAll('.fs-resend').forEach(b => b.addEventListener('click', async () => {
+            b.disabled = true;
+            const res = await Storage.sendInviteEmail(fid, b.dataset.email);
+            const note = this._inviteEmailNote(res);
+            say(res.ok ? '✅ E-mail reenviado.' : note.text.replace(/ Compartilhe.*$/, ''), !res.ok);
+            b.disabled = false;
+            if (res.ok) await this._renderInlineLists(fid);
+        }));
+    },
+
+    // ─── Compartilhar convite por mensagem (WhatsApp / e-mail / copiar) ───────
+
+    _inviteMessage(email) {
+        const nome = this.activeFinanca?.name || 'Minhas Carteiras';
+        const url  = location.origin + '/';
+        return `Oi! Convidei você para a carteira "${nome}" no Minhas Carteiras. Para entrar:\n` +
+               `1) Acesse ${url}\n` +
+               `2) Toque em "Criar conta" usando exatamente este e-mail: ${email}\n` +
+               `3) Confirme o e-mail que você vai receber e entre.\n` +
+               `A carteira aparece automaticamente para você. (O convite vale por 30 dias.)`;
+    },
+    hideInviteShare() {
+        document.querySelectorAll('[data-fs-share], #invite-share').forEach(box => { box.classList.add('hidden'); box.innerHTML = ''; });
+    },
+    showInviteShare(email, opts = {}) {
+        const box = this._shareBox();
+        if (!box || !email) return;
+        const msg  = this._inviteMessage(email);
+        const wa   = 'https://wa.me/?text=' + encodeURIComponent(msg);
+        const nome = this.activeFinanca?.name || 'Minhas Carteiras';
+        const mail = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent('Convite: carteira ' + nome)}&body=${encodeURIComponent(msg)}`;
+        box.innerHTML = `
+            <div class="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-900">
+                <div class="font-semibold mb-1">📨 Envie este convite para <span class="break-all">${this._escHtml(email)}</span></div>
+                <div class="text-emerald-800/80 mb-2">${this._escHtml(opts.note || 'Essa pessoa ainda não tem conta. Ela precisa criar a conta com este e-mail para a carteira aparecer.')}</div>
+                <pre class="whitespace-pre-wrap break-words font-sans bg-white border border-emerald-100 rounded-lg p-2 text-[11px] text-gray-700 mb-2" id="invite-share-text">${this._escHtml(msg)}</pre>
+                <div class="flex flex-wrap gap-2">
+                    <a href="${wa}" target="_blank" rel="noopener" class="px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-semibold" id="invite-share-wa">WhatsApp</a>
+                    <a href="${mail}" class="px-3 py-1.5 rounded-lg bg-white border border-emerald-300 text-emerald-700 font-semibold" id="invite-share-mail">E-mail</a>
+                    <button type="button" class="px-3 py-1.5 rounded-lg bg-white border border-emerald-300 text-emerald-700 font-semibold" id="invite-share-copy">Copiar texto</button>
+                    ${navigator.share ? '<button type="button" class="px-3 py-1.5 rounded-lg bg-white border border-emerald-300 text-emerald-700 font-semibold" id="invite-share-native">Compartilhar…</button>' : ''}
+                    <button type="button" class="px-3 py-1.5 rounded-lg text-gray-400" id="invite-share-close">Fechar</button>
+                </div>
+            </div>`;
+        box.classList.remove('hidden');
+        document.getElementById('invite-share-copy')?.addEventListener('click', async e => {
+            const b = e.currentTarget;
+            try { await navigator.clipboard.writeText(msg); b.textContent = '✅ Copiado'; }
+            catch { const r = document.createRange(); r.selectNodeContents(document.getElementById('invite-share-text')); const s = getSelection(); s.removeAllRanges(); s.addRange(r); b.textContent = 'Selecionado: copie'; }
+            setTimeout(() => { b.textContent = 'Copiar texto'; }, 2000);
+        });
+        document.getElementById('invite-share-native')?.addEventListener('click', () => { navigator.share({ title: 'Convite — Minhas Carteiras', text: msg }).catch(() => {}); });
+        document.getElementById('invite-share-close')?.addEventListener('click', () => this.hideInviteShare());
+        box.scrollIntoView({ block: 'nearest' });
     },
 
     async linkTransactionsToFinanca() {

@@ -438,7 +438,7 @@ const NLP = {
     extractType(text) {
         // Usa borda de palavra para evitar falsos positivos:
         // ex: 'renda' NÃO deve casar dentro de 'merenda'
-        const norm = text.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+        const norm = this._stripAmounts(text.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''));
         for (const kw of this.incomeKeywords) {
             const safe = kw.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
             if (new RegExp(`\\b${safe}\\b`).test(norm)) return 'entrada';
@@ -543,13 +543,24 @@ const NLP = {
         return best?.name || null;
     },
 
+    // Tira da frase os VALORES em dinheiro antes de procurar a categoria. Sem isso, o preço
+    // vira palavra-chave: "camisa da igreja 99,90" casava com a keyword "99" (app de táxi) → Transporte.
+    _stripAmounts(norm) {
+        return norm
+            .replace(/r\$\s*[\d.,]+/g, ' ')                                          // R$ 99,90
+            .replace(/\b\d[\d.,]*\s*(?:reais|real|contos?|centavos?|pilas?)\b/g, ' ') // 99 reais
+            .replace(/\b\d+(?:[.,]\d+)+\b/g, ' ')                                    // 99,90 / 1.250,00
+            .replace(/([a-z])\s+\d+\s*$/, '$1')                                       // número solto no fim: "camisa 99"
+            .replace(/\s+/g, ' ').trim();
+    },
+
     // Extrai categoria usando APENAS keywords estaticos (sem mapa aprendido).
     // Usado pela UI do modal para garantir que 'frango' => Alimentacao sem ambiguidade.
     extractCategoryStatic(text) {
         const cats = this.dynamicCategories
             ? { ...this.categories, ...this.dynamicCategories }
             : this.categories;
-        const norm = text.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+        const norm = this._stripAmounts(text.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''));
         // 0. Nome exato de categoria — PRIORIDADE ABSOLUTA
         //    Categoria do usuario ("Feira") vence keyword estatico ("feira"=>Alimentacao)
         const byName = this._matchCategoryByName(norm, Object.keys(cats));
@@ -574,7 +585,7 @@ const NLP = {
         const cats = this.dynamicCategories
             ? { ...this.categories, ...this.dynamicCategories }
             : this.categories;
-        const norm = text.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+        const norm = this._stripAmounts(text.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''));
 
         // 0. Nome exato de categoria — PRIORIDADE ABSOLUTA
         const byName = this._matchCategoryByName(norm, Object.keys(cats));
