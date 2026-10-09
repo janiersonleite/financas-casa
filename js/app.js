@@ -448,6 +448,7 @@ const App = {
         document.getElementById('share-modal').classList.remove('hidden');
         document.getElementById('share-financa-name').textContent = `${financa.emoji} ${financa.name}`;
         document.getElementById('invite-email').value = '';
+        this.hideInviteShare();
         await this.renderMembersList(financa.id);
         await this.renderLinkSection(financa);
     },
@@ -516,12 +517,16 @@ const App = {
                 <div class="flex items-center gap-3 py-2 border-b border-gray-100 last:border-0">
                     <div class="w-8 h-8 rounded-full bg-yellow-100 flex items-center justify-center text-sm">⏳</div>
                     <div class="flex-1 min-w-0">
-                        <div class="text-sm font-medium text-gray-800 truncate">${inv.email}</div>
-                        <div class="text-xs text-gray-400">Aguardando aceite</div>
+                        <div class="text-sm font-medium text-gray-800 truncate">${this._escHtml(inv.email)}</div>
+                        <div class="text-xs text-gray-400">Aguardando a pessoa criar a conta</div>
                     </div>
+                    <button class="text-emerald-600 text-xs font-semibold px-2 py-1 rounded-lg bg-emerald-50 share-invite-btn" data-invite-email="${this._escHtml(inv.email)}" title="Compartilhar convite">📨 Compartilhar</button>
                     <button class="text-gray-300 hover:text-red-400 text-lg cancel-invite-btn" data-invite-id="${inv.id}">✕</button>
                 </div>
             `).join('');
+            invitesList.querySelectorAll('.share-invite-btn').forEach(btn => {
+                btn.addEventListener('click', () => this.showInviteShare(btn.dataset.inviteEmail));
+            });
             invitesList.querySelectorAll('.cancel-invite-btn').forEach(btn => {
                 btn.addEventListener('click', async () => {
                     await Storage.cancelInvite(btn.dataset.inviteId);
@@ -543,12 +548,65 @@ const App = {
             const result = await Storage.inviteMember(this.activeFinanca.id, email, role);
             document.getElementById('invite-email').value = '';
             await this.renderMembersList(this.activeFinanca.id);
-            this.showToast(result === 'added' ? '✅ Membro adicionado diretamente!' : '✅ Convite enviado!');
+            if (result === 'added') {
+                this.hideInviteShare();
+                this.showToast('✅ Membro adicionado diretamente!');
+            } else {
+                // Não existe conta com esse e-mail: o convite fica registrado, mas NENHUM e-mail é enviado.
+                this.showInviteShare(email);
+                this.showToast('✅ Convite registrado — falta a pessoa criar a conta (veja abaixo)');
+            }
         } catch (e) {
             this.showToast('❌ ' + e.message, true);
         } finally {
             btn.disabled = false; btn.textContent = 'Enviar';
         }
+    },
+
+    // ─── Compartilhar convite (o sistema não envia e-mail de convite) ─────────
+    _inviteMessage(email) {
+        const nome = this.activeFinanca?.name || 'Minhas Carteiras';
+        const url  = location.origin + '/';
+        return `Oi! Convidei você para a carteira "${nome}" no Minhas Carteiras. Para entrar:\n` +
+               `1) Acesse ${url}\n` +
+               `2) Toque em "Criar conta" usando exatamente este e-mail: ${email}\n` +
+               `3) Confirme o e-mail que você vai receber e entre.\n` +
+               `A carteira aparece automaticamente para você. (O convite vale por 30 dias.)`;
+    },
+    hideInviteShare() {
+        const box = document.getElementById('invite-share');
+        if (box) { box.classList.add('hidden'); box.innerHTML = ''; }
+    },
+    showInviteShare(email) {
+        const box = document.getElementById('invite-share');
+        if (!box || !email) return;
+        const msg  = this._inviteMessage(email);
+        const wa   = 'https://wa.me/?text=' + encodeURIComponent(msg);
+        const nome = this.activeFinanca?.name || 'Minhas Carteiras';
+        const mail = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent('Convite: carteira ' + nome)}&body=${encodeURIComponent(msg)}`;
+        box.innerHTML = `
+            <div class="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-900">
+                <div class="font-semibold mb-1">📨 Envie este convite para <span class="break-all">${this._escHtml(email)}</span></div>
+                <div class="text-emerald-800/80 mb-2">Essa pessoa ainda não tem conta. Ela precisa criar a conta com este e-mail para a carteira aparecer.</div>
+                <pre class="whitespace-pre-wrap bg-white border border-emerald-100 rounded-lg p-2 text-[11px] text-gray-700 mb-2" id="invite-share-text">${this._escHtml(msg)}</pre>
+                <div class="flex flex-wrap gap-2">
+                    <a href="${wa}" target="_blank" rel="noopener" class="px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-semibold" id="invite-share-wa">WhatsApp</a>
+                    <a href="${mail}" class="px-3 py-1.5 rounded-lg bg-white border border-emerald-300 text-emerald-700 font-semibold" id="invite-share-mail">E-mail</a>
+                    <button type="button" class="px-3 py-1.5 rounded-lg bg-white border border-emerald-300 text-emerald-700 font-semibold" id="invite-share-copy">Copiar texto</button>
+                    ${navigator.share ? '<button type="button" class="px-3 py-1.5 rounded-lg bg-white border border-emerald-300 text-emerald-700 font-semibold" id="invite-share-native">Compartilhar…</button>' : ''}
+                    <button type="button" class="px-3 py-1.5 rounded-lg text-gray-400" id="invite-share-close">Fechar</button>
+                </div>
+            </div>`;
+        box.classList.remove('hidden');
+        document.getElementById('invite-share-copy')?.addEventListener('click', async e => {
+            const b = e.currentTarget;
+            try { await navigator.clipboard.writeText(msg); b.textContent = '✅ Copiado'; }
+            catch { const r = document.createRange(); r.selectNodeContents(document.getElementById('invite-share-text')); const s = getSelection(); s.removeAllRanges(); s.addRange(r); b.textContent = 'Selecionado: copie'; }
+            setTimeout(() => { b.textContent = 'Copiar texto'; }, 2000);
+        });
+        document.getElementById('invite-share-native')?.addEventListener('click', () => { navigator.share({ title: 'Convite — Minhas Carteiras', text: msg }).catch(() => {}); });
+        document.getElementById('invite-share-close')?.addEventListener('click', () => this.hideInviteShare());
+        box.scrollIntoView({ block: 'nearest' });
     },
 
     async linkTransactionsToFinanca() {
