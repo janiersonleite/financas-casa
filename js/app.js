@@ -6078,6 +6078,7 @@ const App = {
 
     bindImportUI() {
         document.getElementById('import-excel-btn')?.addEventListener('click', () => this.openImportModal());
+        document.getElementById('download-template-btn')?.addEventListener('click', () => this.downloadImportTemplate());
 
         const modal = document.getElementById('import-modal');
         document.getElementById('import-modal-close')?.addEventListener('click', () => this.closeImportModal());
@@ -6150,7 +6151,8 @@ const App = {
             if (rows.length < 2) { this.showToast('❌ Planilha vazia ou sem dados', true); return; }
 
             const headers = rows[0].map(h => String(h).trim());
-            this._importRawRows = rows.slice(1).filter(r => r.some(c => c !== ''));
+            const isExample = r => r.some(c => typeof c === 'string' && c.trim().toLowerCase().startsWith(this._IMPORT_EXAMPLE_MARK));
+            this._importRawRows = rows.slice(1).filter(r => r.some(c => c !== '') && !isExample(r));   // ignora as linhas de exemplo do modelo
             this._importColumns = headers;
 
             this.renderImportMapping(headers);
@@ -6496,22 +6498,63 @@ const App = {
         }
     },
 
+    // Linhas de exemplo do modelo começam com este texto e são ignoradas ao importar.
+    _IMPORT_EXAMPLE_MARK: '(exemplo)',
+
+    // Baixa a planilha-modelo: aba "Lançamentos" (para preencher), "Instruções" e "Listas" (tipos e categorias válidos).
     downloadImportTemplate() {
+        if (typeof XLSX === 'undefined') { this.showToast('❌ Não foi possível gerar a planilha agora (sem conexão com a biblioteca de Excel).', true); return; }
+        const mark    = this._IMPORT_EXAMPLE_MARK;
         const wb      = XLSX.utils.book_new();
         const customs = Storage.getCustomTypes();
-        const tipoEx  = customs.length ? customs[0].name : 'Investimento';
-        const ws = XLSX.utils.aoa_to_sheet([
-            ['Data',       'Tipo',    'Categoria',   'Descrição',         'Valor',  'Inserido por'],
-            ['23/04/2026', 'saída',   'Alimentação', 'Mercado da semana', 150.00,   ''],
-            ['23/04/2026', 'entrada', 'Salário',     'Salário abril',     3000.00,  ''],
-            ['22/04/2026', 'saída',   'Transporte',  'Uber',              25.50,    'amigo@email.com'],
-            ['21/04/2026', 'saída',   'Moradia',     'Aluguel',           1200.00,  ''],
-            ['20/04/2026', tipoEx,    'Outros',      'Exemplo tipo extra', 500.00,  ''],
-        ]);
-        ws['!cols'] = [{ wch: 14 }, { wch: 14 }, { wch: 16 }, { wch: 28 }, { wch: 12 }, { wch: 24 }];
-        XLSX.utils.book_append_sheet(wb, ws, 'Modelo');
-        XLSX.writeFile(wb, 'modelo-financas.xlsx');
-        this.showToast('✅ Modelo baixado!');
+        const cats    = (this.categories || []).map(c => c.name).filter(Boolean);
+        const catEx   = i => cats[i] || ['Alimentação', 'Salário', 'Transporte', 'Moradia'][i] || 'Outros';
+        const d = (dd, mm, yy) => new Date(Date.UTC(yy, mm - 1, dd, 12));
+        const hoje = new Date();
+        const y = hoje.getFullYear(), m = hoje.getMonth() + 1;
+
+        // 1) Lançamentos
+        const rows = [
+            ['Data', 'Tipo', 'Categoria', 'Descrição', 'Valor', 'Inserido por'],
+            [d(5, m, y),  'saída',   catEx(0), `${mark} Mercado da semana`,  150.00, ''],
+            [d(10, m, y), 'entrada', catEx(1), `${mark} Salário`,           3000.00, ''],
+            [d(12, m, y), 'saída',   catEx(2), `${mark} Uber`,                25.50, ''],
+        ];
+        const ws = XLSX.utils.aoa_to_sheet(rows, { cellDates: true });
+        [2, 3, 4].forEach(r => { if (ws['A' + r]) ws['A' + r].z = 'dd/mm/yyyy'; if (ws['E' + r]) ws['E' + r].z = '#,##0.00'; });
+        ws['!cols'] = [{ wch: 14 }, { wch: 14 }, { wch: 18 }, { wch: 34 }, { wch: 14 }, { wch: 26 }];
+        XLSX.utils.book_append_sheet(wb, ws, 'Lançamentos');
+
+        // 2) Instruções
+        const info = [
+            ['Como preencher a planilha (aba "Lançamentos")'],
+            [''],
+            ['• Apague as 3 linhas de exemplo (as que começam com "' + mark + '") e escreva os seus lançamentos, um por linha, a partir da linha 2.'],
+            ['• Data: DD/MM/AAAA (ex.: 05/10/2026). Se o Excel converter para data, tudo bem.'],
+            ['• Tipo: "entrada" (receita) ou "saída" (gasto)' + (customs.length ? ', ou um destes tipos seus: ' + customs.map(t => t.name).join(', ') : '') + '.'],
+            ['• Categoria: use um nome da aba "Listas". Se escrever uma categoria nova, ela é criada na importação.'],
+            ['• Descrição: texto livre (ex.: Mercado, Aluguel).'],
+            ['• Valor: número positivo, com vírgula ou ponto (ex.: 150,00). Valor negativo vira saída automaticamente.'],
+            ['• Inserido por: opcional. Em carteira compartilhada, pode ser o e-mail de quem fez o gasto.'],
+            [''],
+            ['• Não mude os nomes das colunas da linha 1 e deixe "Lançamentos" como a primeira aba.'],
+            ['• Depois: no app, vá em Resumo → Importar planilha, escolha este arquivo e confira a prévia antes de confirmar.'],
+        ];
+        const wsI = XLSX.utils.aoa_to_sheet(info);
+        wsI['!cols'] = [{ wch: 120 }];
+        XLSX.utils.book_append_sheet(wb, wsI, 'Instruções');
+
+        // 3) Listas (tipos e categorias válidos)
+        const tipos = ['entrada', 'saída', ...customs.map(t => t.name)];
+        const n = Math.max(tipos.length, cats.length);
+        const listas = [['Tipos válidos', 'Categorias da carteira ativa']];
+        for (let i = 0; i < n; i++) listas.push([tipos[i] || '', cats[i] || '']);
+        const wsL = XLSX.utils.aoa_to_sheet(listas);
+        wsL['!cols'] = [{ wch: 22 }, { wch: 30 }];
+        XLSX.utils.book_append_sheet(wb, wsL, 'Listas');
+
+        XLSX.writeFile(wb, 'modelo-importacao-minhas-carteiras.xlsx');
+        this.showToast('✅ Modelo baixado! Preencha a aba "Lançamentos" e importe.');
     },
 
     // ─── Notificação persistente "Novo Lançamento" ────────────────────────────
