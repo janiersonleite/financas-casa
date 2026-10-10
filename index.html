@@ -687,10 +687,15 @@
                 📦 Backup completo do perfil
             </button>
             <p class="text-xs font-semibold text-gray-400 uppercase px-1 pt-1">Importar</p>
+            <button id="download-template-btn"
+                class="w-full flex items-center justify-center gap-2 py-3 bg-white text-emerald-700 border-2 border-emerald-500 rounded-2xl text-sm font-semibold hover:bg-emerald-50 transition-colors">
+                📄 Baixar modelo da planilha (Excel)
+            </button>
             <button id="import-excel-btn"
                 class="w-full flex items-center justify-center gap-2 py-3 bg-emerald-600 text-white rounded-2xl text-sm font-semibold hover:bg-emerald-700 transition-colors shadow-sm">
                 📥 Importar planilha (.xlsx / .csv)
             </button>
+            <p class="text-[11px] text-gray-400 px-1">Baixe o modelo, preencha os lançamentos no Excel e importe aqui.</p>
         </div>
     </div>
 </div>
@@ -1211,7 +1216,7 @@
                 <div>• Data: DD/MM/AAAA ou AAAA-MM-DD</div>
                 <div>• Valor negativo → saída automática</div>
                 <button id="import-download-template"
-                    class="mt-2 text-emerald-700 underline font-medium">⬇ Baixar modelo de exemplo</button>
+                    class="mt-2 text-emerald-700 underline font-medium">⬇ Baixar modelo da planilha (Excel)</button>
             </div>
         </div>
 
@@ -1243,6 +1248,11 @@
                     <div id="import-inserter-info" class="mb-2 flex items-center gap-2 text-xs bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2">
                         <span class="text-gray-500">👤 Insertor:</span>
                         <span id="import-inserter-email" class="font-semibold text-emerald-800"></span>
+                    </div>
+                    <div id="import-new-cats" class="hidden mb-3 text-xs bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 space-y-0.5">
+                        <div class="font-semibold text-emerald-800">📂 Categorias novas encontradas</div>
+                        <div class="text-emerald-700">Serão criadas automaticamente ao importar (confira se não é erro de digitação):</div>
+                        <div id="import-new-cats-list" class="font-medium text-emerald-900 break-all"></div>
                     </div>
                     <div id="import-new-types" class="hidden mb-3 text-xs bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 space-y-0.5">
                         <div class="font-semibold text-emerald-800">🏷️ Novos tipos de lançamento encontrados</div>
@@ -1847,7 +1857,7 @@
 <script src="js/insights.js?v=20260528a"></script>
 <script src="js/cofrinhos.js?v=20261007c"></script>
 <script src="js/push.js?v=20261009b"></script>
-<script src="js/app.js?v=20261009f"></script>
+<script src="js/app.js?v=20261010b"></script>
 
 <script>
 // ── Service Worker + PWA ──────────────────────────────────────────────────────
