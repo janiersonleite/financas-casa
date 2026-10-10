@@ -4463,8 +4463,9 @@ const App = {
             this.renderInvestmentsTab();
         });
         document.getElementById('inv-pix-delete')?.addEventListener('click', () => {
-            if (!confirm('Excluir a chave PIX salva (e o nome e o banco)?')) return;
-            Storage.setPixInfo({});   // tudo vazio → remove o registro
+            if (!confirm('Excluir a chave PIX salva?\n\n(O nome do titular e o banco continuam guardados.)')) return;
+            const cur = Storage.getPixInfo();
+            Storage.setPixInfo({ key: '', name: cur.name, bank: cur.bank });   // só a chave; nome e banco ficam
             this.showToast('🗑️ Chave PIX excluída');
             this.renderInvestmentsTab();
         });
