@@ -6290,9 +6290,28 @@ const App = {
         };
     },
 
+    // Chave de comparação de categorias: sem acento, sem maiúsculas e com espaços normalizados.
+    _catKey(s) { return String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim(); },
+
+    // Unifica os nomes de categoria da importação: usa o nome EXATO da categoria já existente
+    // ("alimentacao" → "Alimentação") e, entre as novas, a primeira grafia vista. Evita duplicatas.
+    // Retorna a lista (sem repetição) das categorias que serão CRIADAS.
+    _canonImportCategories(txns) {
+        const canon = new Map();
+        for (const c of (this.categories || [])) if (c?.name) canon.set(this._catKey(c.name), { name: c.name, isNew: false });
+        for (const t of txns) {
+            const key = this._catKey(t.category);
+            if (!key || key === 'outros') { t.category = 'Outros'; continue; }
+            if (!canon.has(key)) canon.set(key, { name: String(t.category).replace(/\s+/g, ' ').trim(), isNew: true });
+            t.category = canon.get(key).name;
+        }
+        return [...new Set(txns.map(t => t.category))].filter(n => canon.get(this._catKey(n))?.isNew);
+    },
+
     renderImportPreview() {
         const map   = this._getMapping();
         const txns  = this._importRawRows.map(r => this._rowToTransaction(r, map)).filter(t => t.value > 0);
+        const newCatNames = this._canonImportCategories(txns);
         const shown = txns.slice(0, 6);
 
         document.getElementById('import-count').textContent = `${txns.length} lançamento${txns.length !== 1 ? 's' : ''} encontrado${txns.length !== 1 ? 's' : ''}`;
@@ -6334,6 +6353,13 @@ const App = {
 
         // Store for confirm
         this._importParsed = txns;
+
+        // Aviso de categorias novas que serão criadas automaticamente
+        const newCatsWrap = document.getElementById('import-new-cats');
+        if (newCatsWrap) {
+            newCatsWrap.classList.toggle('hidden', !newCatNames.length);
+            document.getElementById('import-new-cats-list').textContent = newCatNames.join(', ');
+        }
 
         // Aviso de tipos novos que serão criados automaticamente
         const newTypesWrap = document.getElementById('import-new-types');
@@ -6391,9 +6417,9 @@ const App = {
         btn.disabled = true; btn.textContent = 'Preparando...';
         try {
             // Auto-criar categorias que não existem ainda
-            const existingNames = new Set(this.categories.map(c => c.name.toLowerCase()));
+            const existingKeys = new Set(this.categories.map(c => this._catKey(c.name)));
             const newNames = [...new Set(txns.map(t => t.category))]
-                .filter(name => name && name !== 'Outros' && !existingNames.has(name.toLowerCase()));
+                .filter(name => name && name !== 'Outros' && !existingKeys.has(this._catKey(name)));
 
             if (newNames.length) {
                 btn.textContent = `Criando ${newNames.length} categoria${newNames.length > 1 ? 's' : ''}...`;
