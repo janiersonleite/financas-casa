@@ -4429,6 +4429,7 @@ const App = {
                     ${has ? `<div class="flex items-center gap-3">
                         <button id="inv-pix-copy" class="text-[11px] text-emerald-600 font-semibold">📋 Copiar</button>
                         <button id="inv-pix-edit" class="text-[11px] text-gray-400 font-semibold">Editar</button>
+                        <button id="inv-pix-delete" class="text-[11px] text-red-400 hover:text-red-600 font-semibold">Excluir</button>
                     </div>` : ''}
                 </div>
                 ${has ? `
@@ -4459,6 +4460,13 @@ const App = {
             const bank = document.getElementById('inv-pix-bank')?.value.trim() || '';
             Storage.setPixInfo({ key, name, bank });
             this.showToast(key ? '🔑 Chave PIX salva!' : 'Chave PIX removida');
+            this.renderInvestmentsTab();
+        });
+        document.getElementById('inv-pix-delete')?.addEventListener('click', () => {
+            if (!confirm('Excluir a chave PIX salva?\n\n(O nome do titular e o banco continuam guardados.)')) return;
+            const cur = Storage.getPixInfo();
+            Storage.setPixInfo({ key: '', name: cur.name, bank: cur.bank });   // só a chave; nome e banco ficam
+            this.showToast('🗑️ Chave PIX excluída');
             this.renderInvestmentsTab();
         });
         document.getElementById('inv-pix-edit')?.addEventListener('click', () => {
