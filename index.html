@@ -129,6 +129,37 @@
             border: 2px dashed #10b981;
             border-radius: 1rem;
         }
+
+        /* ═══ Layout responsivo (detecção automática por largura de tela) ═══
+           Celular (<768px): coluna única, menu inferior, modais como "bottom sheet".
+           Tablet (≥768px): coluna central mais larga, modais centralizados.
+           Desktop (≥1024px): menu lateral à esquerda e conteúdo amplo. */
+        @media (min-width: 768px) {
+            body { max-width: 760px !important; }
+            #invite-banner, #bottom-nav { max-width: 760px !important; }
+            .fixed.inset-0.items-end { align-items: center !important; padding: 1rem; }
+            .fixed.inset-0.items-end > div { border-radius: 1.5rem !important; max-width: 34rem !important; }
+        }
+        @media (min-width: 1024px) {
+            body { max-width: none !important; width: 100%; margin: 0 !important; padding-left: 96px; }
+            .tab-page { max-width: 980px; margin-left: auto; margin-right: auto; }
+            #bottom-nav {
+                left: 0 !important; right: auto !important; top: 0; bottom: 0 !important;
+                transform: none !important; width: 96px !important; max-width: none !important;
+                border-radius: 0 !important; padding-bottom: 0 !important;
+                display: flex; flex-direction: column; justify-content: center;
+            }
+            #bottom-nav > div { flex-direction: column; gap: 6px; padding: 0 8px; }
+            #bottom-nav .nav-tab { flex: none; padding: 14px 0; border-radius: 16px; cursor: pointer; }
+            #bottom-nav .nav-tab:hover { background: rgba(255,255,255,0.08); }
+            #bottom-nav .nav-tab .nav-label { font-size: 11px; }
+            #bottom-nav .nav-tab .nav-icon { width: 24px; height: 24px; }
+            .nav-tab.tab-active { background: rgba(255,255,255,0.12); }
+            .nav-tab.tab-active::after { left: 4px; top: 50%; bottom: auto; transform: translateY(-50%); width: 4px; height: 22px; }
+            #invite-banner { left: 96px !important; right: 0 !important; max-width: none !important; }
+            #toast { bottom: 2rem; }
+            #offline-bar { left: 96px; }
+        }
     </style>
 </head>
 <body class="max-w-md mx-auto min-h-screen relative" style="background:var(--clr-bg)">
