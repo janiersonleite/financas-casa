@@ -4709,7 +4709,9 @@ const App = {
         // Tipos marcados como "não atribuir a uma pessoa" (ex.: retirada de investimento)
         // ficam de fora do Resumo por pessoa: não são atribuídos a ninguém, não entram no
         // valor, no % nem na contagem de lançamentos. Continuam contando nas demais telas.
-        const attributable = txns.filter(t => !Storage.isNoPerson(t.type));
+        const npCats = new Set((this.categories || []).filter(c => c.no_person).map(c => (c.name || '').trim().toLowerCase()));
+        const attributable = txns.filter(t => !Storage.isNoPerson(t.type)
+            && !npCats.has((t.category || '').trim().toLowerCase()));
 
         // Group by email (fall back to current user for transactions with no inserter)
         // Usa o BEHAVIOR do tipo (soma / subtrai / neutro) para classificar corretamente.
@@ -7414,6 +7416,7 @@ const App = {
         document.getElementById('cat-name-input').value    = cat?.name    || '';
         document.getElementById('cat-keywords-input').value = (cat?.keywords || []).join(', ');
         document.getElementById('cat-type-input').value    = cat?.type    || 'saida';
+        document.getElementById('cat-noperson-input').checked = !!cat?.no_person;
 
         // Reset type buttons
         const colorMap = { saida: 'red', entrada: 'green', both: 'blue' };
@@ -7439,6 +7442,8 @@ const App = {
         const keywords = document.getElementById('cat-keywords-input').value
             .split(',').map(k => k.trim().toLowerCase()).filter(Boolean);
 
+        const noPerson = !!document.getElementById('cat-noperson-input')?.checked;
+
         if (!name) { document.getElementById('cat-name-input').focus(); return; }
 
         const btn = document.getElementById('cat-form-save');
@@ -7447,13 +7452,13 @@ const App = {
             let keptId = this.editingCatId;
             if (this.editingCatId) {
                 const oldName = this.categories.find(c => c.id === this.editingCatId)?.name || '';
-                await Storage.updateCategory(this.editingCatId, { name, emoji, keywords, type });
+                await Storage.updateCategory(this.editingCatId, { name, emoji, keywords, type, no_person: noPerson });
                 // Propaga o novo nome para lançamentos/lembretes existentes (referência por texto)
                 if (oldName && oldName !== name) await Storage.renameCategoryEverywhere(oldName, name);
                 const idx = this.categories.findIndex(c => c.id === this.editingCatId);
-                if (idx !== -1) this.categories[idx] = { ...this.categories[idx], name, emoji, keywords, type };
+                if (idx !== -1) this.categories[idx] = { ...this.categories[idx], name, emoji, keywords, type, no_person: noPerson };
             } else {
-                const cat = await Storage.createCategory(name, emoji, keywords, type);
+                const cat = await Storage.createCategory(name, emoji, keywords, type, noPerson);
                 keptId = cat.id;
                 this.categories.push(cat);
                 this.categories = this._sortCategories(this.categories);

@@ -800,10 +800,11 @@ const Storage = {
         return (d.categories || []).filter(c => safeFid ? c.financa_id === safeFid : !c.financa_id);
     },
 
-    async createCategory(name, emoji, keywords, type) {
+    async createCategory(name, emoji, keywords, type, noPerson = false) {
         const fid = (this.activeFinancaId && this.activeFinancaId !== 'null') ? this.activeFinancaId : null;
         if (this.isCloud) {
             const payload = { name, emoji, keywords, type, user_id: this.userId() };
+            if (noPerson) payload.no_person = true;
             if (fid) payload.financa_id = fid;
             const { data, error } = await this.db
                 .from('categories')
@@ -814,7 +815,7 @@ const Storage = {
         }
         const d = this._localGet();
         if (!d.categories) d.categories = [];
-        const cat = { id: Date.now().toString(), name, emoji, keywords, type, sort_order: 99, user_id: 'local', ...(fid ? { financa_id: fid } : {}) };
+        const cat = { id: Date.now().toString(), name, emoji, keywords, type, no_person: !!noPerson, sort_order: 99, user_id: 'local', ...(fid ? { financa_id: fid } : {}) };
         d.categories.push(cat);
         this._localSave(d);
         return cat;
