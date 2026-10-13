@@ -1527,11 +1527,41 @@ const App = {
                 this._renderInstallmentPicker();
             }
         }
+        this._setupAuthorPicker(data);
         // Renderiza área de vínculo com lembrete (sempre visível — botão de vincular/desvincular)
         this._renderReminderLinkArea();
         if (data.focusValue) setTimeout(() => document.getElementById('modal-value').focus(), 100);
         // Verifica sugestão de lembrete para a categoria já preenchida ao abrir
         setTimeout(() => this._checkReminderSuggestByCategory(), 50);
+    },
+
+    // Admin da carteira pode corrigir o autor (inserted_by_email) de um lançamento existente.
+    async _setupAuthorPicker(data) {
+        const wrap = document.getElementById('modal-author-wrap');
+        const sel  = document.getElementById('modal-author');
+        this._authorOrig = null; this._authorAllowed = false;
+        if (!wrap || !sel) return;
+        wrap.classList.add('hidden');
+        if (!this.editingId || !Storage.isCloud) return;
+        const fid = data.financa_id || this.activeFinanca?.id;
+        const f = this.financas.find(x => x.id === fid);
+        if (!fid || !f || f.type === 'individual') return;
+        const myId = Auth.user?.id, myEmail = Auth.user?.email;
+        const editingId = this.editingId;
+        let members = [];
+        try { members = await Storage.getMembers(fid); } catch (_) { return; }
+        if (this.editingId !== editingId) return; // modal mudou durante o carregamento
+        const isAdmin = f.owner_id === myId || members.some(m => m.user_id === myId && m.role === 'admin');
+        if (!isAdmin) return;
+        const emails = [];
+        const add = e => { e = (e || '').trim(); if (e && !emails.some(x => x.toLowerCase() === e.toLowerCase())) emails.push(e); };
+        add(data.inserted_by_email); members.forEach(m => add(m.email)); add(myEmail);
+        const cur = (data.inserted_by_email || '').trim();
+        sel.innerHTML = (cur ? '' : '<option value="">(sem autor)</option>') +
+            emails.map(e => `<option value="${this._escHtml(e)}">${this._escHtml(e)}</option>`).join('');
+        sel.value = cur ? emails.find(e => e.toLowerCase() === cur.toLowerCase()) : '';
+        this._authorOrig = cur; this._authorAllowed = true;
+        wrap.classList.remove('hidden');
     },
 
     closeModal() {
@@ -1746,6 +1776,9 @@ const App = {
             ...(this.editingId
                 ? { reminder_id: this._reminderSourceId || null }
                 : (this._reminderSourceId ? { reminder_id: this._reminderSourceId } : {})),
+            ...(this.editingId && this._authorAllowed && document.getElementById('modal-author')?.value
+                && document.getElementById('modal-author').value !== this._authorOrig
+                ? { inserted_by_email: document.getElementById('modal-author').value } : {}),
             ...(!this.editingId && this._modalFinancaId ? { _targetFinancaId: this._modalFinancaId } : {})
         };
 
