@@ -160,6 +160,16 @@
             #toast { bottom: 2rem; }
             #offline-bar { left: 96px; }
         }
+        /* Desktop: fonte maior (tudo em rem escala junto) */
+        @media (min-width: 1024px) { html { font-size: 118%; } .tab-page { max-width: 1120px; } }
+        /* Textos com tamanho fixo em px (rótulos pequenos) também crescem no desktop */
+        @media (min-width: 1024px) {
+            [class*="text-[9px]"]  { font-size: 12px !important; }
+            [class*="text-[10px]"] { font-size: 13px !important; }
+            [class*="text-[11px]"] { font-size: 14px !important; }
+            #bottom-nav .nav-tab .nav-label { font-size: 12px; }
+        }
+        @media (min-width: 1440px) { html { font-size: 130%; } .tab-page { max-width: 1280px; } }
     </style>
 </head>
 <body class="max-w-md mx-auto min-h-screen relative" style="background:var(--clr-bg)">
