@@ -277,6 +277,25 @@ const Cofrinhos = {
         if (error) throw error;
     },
 
+    async updateMov(id, fields) {
+        this._assertWritable();
+        const upd = {};
+        if (fields.amount !== undefined) upd.amount = this._round(fields.amount);
+        if (fields.note !== undefined) upd.note = (fields.note || '').trim() || null;
+        if (fields.mov_date) upd.mov_date = fields.mov_date;
+        if (!Storage.isCloud) {
+            const d = Storage._localGet();
+            const i = (d.cofrinho_movs || []).findIndex(m => m.id === id);
+            if (i === -1) throw new Error('Movimentação não encontrada.');
+            d.cofrinho_movs[i] = { ...d.cofrinho_movs[i], ...upd };
+            Storage._localSave(d);
+            return;
+        }
+        const { data, error } = await Storage.db.from('cofrinho_movs').update(upd).eq('id', id).select();
+        if (error) throw error;
+        if (!data || !data.length) throw new Error('Não foi possível editar esta movimentação (sem permissão, já removida ou falta rodar a migração 20261019000001).');
+    },
+
     async deleteMov(id) {
         this._assertWritable();
         if (!Storage.isCloud) {
@@ -907,6 +926,7 @@ const Cofrinhos = {
         }
         if (a === 'del') return this._deleteCofrinho(id);
         if (a === 'del-mov') return this._deleteMov(btn.dataset.id);
+        if (a === 'edit-mov') return this.openMov(id, null, btn.dataset.id);
     },
 
     async _deleteCofrinho(id) {
@@ -997,7 +1017,7 @@ const Cofrinhos = {
                     <div class="text-[10px] text-gray-400">${App.formatDate(m.mov_date)}</div>
                 </div>
                 <div class="text-sm font-bold text-gray-800 flex-shrink-0">${isRet ? '−' : '+'}${this._money(m.amount)}</div>
-                ${canWrite ? `<button type="button" data-dact="del-mov" data-id="${m.id}" aria-label="Excluir movimentação" class="text-gray-300 hover:text-red-500 text-sm px-1">🗑</button>` : ''}
+                ${canWrite ? `<button type="button" data-dact="edit-mov" data-id="${m.id}" aria-label="Editar movimentação" class="text-gray-300 hover:text-emerald-600 text-sm px-1">✏️</button><button type="button" data-dact="del-mov" data-id="${m.id}" aria-label="Excluir movimentação" class="text-gray-300 hover:text-red-500 text-sm px-1">🗑</button>` : ''}
             </div>`;
         }).join('') || '<p class="text-xs text-gray-400 text-center py-2">Nenhuma movimentação ainda.</p>';
 
@@ -1347,23 +1367,30 @@ const Cofrinhos = {
     },
 
     // ─── Depósito / retirada ──────────────────────────────────────────────────
-    openMov(id, kind) {
+    openMov(id, kind, movId = null) {
         const c = this._data.cofrinhos.find(x => x.id === id);
         if (!c) return;
-        this._mov = { id, kind: kind === 'retirada' ? 'retirada' : 'deposito' };
+        const editing = movId ? (this._data.movs || []).find(x => x.id === movId && x.cofrinho_id === id) : null;
+        if (movId && !editing) return;
+        if (editing) kind = editing.kind;
+        this._mov = { id, kind: kind === 'retirada' ? 'retirada' : (kind === 'inicial' ? 'inicial' : 'deposito'), movId: editing ? editing.id : null, orig: editing || null };
         const s = this._stats(c), isRet = this._mov.kind === 'retirada';
-        document.getElementById('cof-mov-title').textContent = (isRet ? 'Retirar de ' : 'Depositar em ') + (c.emoji || '🐷') + ' ' + c.name;
-        document.getElementById('cof-mov-hint').textContent = isRet
+        document.getElementById('cof-mov-title').textContent = editing
+            ? 'Editar ' + (this.KIND_LABEL[editing.kind] || 'movimentação').toLowerCase() + ' · ' + (c.emoji || '🐷') + ' ' + c.name
+            : (isRet ? 'Retirar de ' : 'Depositar em ') + (c.emoji || '🐷') + ' ' + c.name;
+        document.getElementById('cof-mov-hint').textContent = editing
+            ? `Guardado agora: ${this._money(s.saved)}`
+            : isRet
             ? `Guardado agora: ${this._money(s.saved)} (máximo para retirar)`
             : (s.done ? `Guardado agora: ${this._money(s.saved)} · meta já atingida` : `Guardado agora: ${this._money(s.saved)} · faltam ${this._money(s.remaining)}`);
         const pixBox = document.getElementById('cof-mov-pix');
-        pixBox.innerHTML = !isRet && c.pix_key ? this._pixBlockHtml(c, 'id="cof-mov-pix-copy"') : '';
-        pixBox.classList.toggle('hidden', isRet || !c.pix_key);
-        document.getElementById('cof-mov-amount').value = '';
-        document.getElementById('cof-mov-date').value   = this._today();
-        document.getElementById('cof-mov-note').value   = '';
+        pixBox.innerHTML = !editing && !isRet && c.pix_key ? this._pixBlockHtml(c, 'id="cof-mov-pix-copy"') : '';
+        pixBox.classList.toggle('hidden', !!editing || isRet || !c.pix_key);
+        document.getElementById('cof-mov-amount').value = editing ? App._toMaskedCurrency(Number(editing.amount)) : '';
+        document.getElementById('cof-mov-date').value   = editing ? editing.mov_date : this._today();
+        document.getElementById('cof-mov-note').value   = editing ? (editing.note || '') : '';
         const save = document.getElementById('cof-mov-save');
-        save.textContent = isRet ? 'Retirar' : 'Depositar';
+        save.textContent = editing ? 'Salvar' : (isRet ? 'Retirar' : 'Depositar');
         save.className = 'flex-1 py-3 rounded-xl text-white text-sm font-bold ' + (isRet ? 'bg-amber-600 hover:bg-amber-700' : 'bg-emerald-600 hover:bg-emerald-700');
         this._movError('');
         document.getElementById('cofrinho-mov-modal').classList.remove('hidden');
@@ -1393,7 +1420,12 @@ const Cofrinhos = {
 
         if (!(amount > 0)) return this._movError('Informe um valor maior que zero.');
         if (date > this._today()) return this._movError('A data não pode ser futura.');
-        if (kind === 'retirada' && amount > s.saved + 0.004) {
+        const orig = this._mov.orig;
+        if (orig) {
+            // Saldo resultante da edição não pode ficar negativo.
+            const after = kind === 'retirada' ? s.saved + Number(orig.amount) - amount : s.saved - Number(orig.amount) + amount;
+            if (after < -0.004) return this._movError(`Com esse valor o saldo ficaria negativo (${this._money(after)}).`);
+        } else if (kind === 'retirada' && amount > s.saved + 0.004) {
             return this._movError(`Você só tem ${this._money(s.saved)} guardado neste cofrinho.`);
         }
         this._movError('');
@@ -1401,6 +1433,13 @@ const Cofrinhos = {
         const btn = document.getElementById('cof-mov-save'), label = btn.textContent;
         btn.disabled = true; btn.textContent = 'Salvando...';
         try {
+            if (orig) {
+                await this.updateMov(orig.id, { amount, note, mov_date: date });
+                this.closeMov();
+                App.showToast('✅ Movimentação atualizada');
+                await App.renderInvestmentsTab();
+                return;
+            }
             await this.addMov(c.id, kind, amount, note, date);
             const reached = kind === 'deposito' && !s.done && s.target > 0 && s.saved + amount >= s.target;
             this.closeMov();
