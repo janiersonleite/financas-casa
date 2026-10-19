@@ -221,7 +221,58 @@ const Storage = {
             const k = (key || '').trim(), n = (name || '').trim(), b = (bank || '').trim();
             if (k || n || b) localStorage.setItem(this._pixKeyKey(fid), JSON.stringify({ key: k, name: n, bank: b }));
             else             localStorage.removeItem(this._pixKeyKey(fid));
+            // Marca como pendente e envia para a nuvem (fica igual em todos os aparelhos)
+            localStorage.setItem('invest_pix_dirty_' + (fid || 'personal'), '1');
         } catch {}
+        this._pushPix(fid);
+    },
+
+    async _pushPix(fid) {
+        if (!this.isCloud || !this.isOnline) return false;
+        const scope = fid || 'personal';
+        let info;
+        try {
+            const raw = localStorage.getItem(this._pixKeyKey(fid));
+            info = raw ? (raw[0] === '{' ? JSON.parse(raw) : { key: raw }) : {};
+        } catch { info = {}; }
+        const k = info.key || '', n = info.name || '', b = info.bank || '';
+        try {
+            const uid = this.userId();
+            const { error } = (k || n || b)
+                ? await this.db.from('user_pix').upsert({ user_id: uid, scope, pix_key: k, name: n, bank: b, updated_at: new Date().toISOString() })
+                : await this.db.from('user_pix').delete().eq('user_id', uid).eq('scope', scope);
+            if (error) return false;   // ex.: migração ainda não aplicada — segue só local
+            localStorage.removeItem('invest_pix_dirty_' + scope);
+            return true;
+        } catch { return false; }
+    },
+
+    // Traz a chave PIX da nuvem (a nuvem vale, exceto se há alteração local ainda não enviada).
+    // Retorna true quando o valor local mudou. No máx. 1 consulta por minuto por carteira.
+    _pixSyncedAt: {},
+    async syncPixFromCloud(force = false) {
+        if (!this.isCloud || !this.isOnline) return false;
+        const fid = (this.activeFinancaId && this.activeFinancaId !== 'null') ? this.activeFinancaId : null;
+        const scope = fid || 'personal';
+        if (!force && Date.now() - (this._pixSyncedAt[scope] || 0) < 60000) return false;
+        try {
+            const dirty = localStorage.getItem('invest_pix_dirty_' + scope);
+            if (dirty) { await this._pushPix(fid); this._pixSyncedAt[scope] = Date.now(); return false; }
+            const { data, error } = await this.db.from('user_pix')
+                .select('pix_key,name,bank').eq('user_id', this.userId()).eq('scope', scope).maybeSingle();
+            if (error) return false;   // tabela ausente / sem rede: mantém o local
+            this._pixSyncedAt[scope] = Date.now();
+            const local = this.getPixInfo();
+            if (!data) {
+                // Nada na nuvem: sobe o que já existe neste aparelho (migração automática)
+                if (local.key || local.name || local.bank) await this._pushPix(fid);
+                return false;
+            }
+            const same = local.key === data.pix_key && local.name === data.name && local.bank === data.bank;
+            if (same) return false;
+            localStorage.setItem(this._pixKeyKey(fid), JSON.stringify({ key: data.pix_key, name: data.name, bank: data.bank }));
+            return true;
+        } catch { return false; }
     },
 
     // Carteira de investimentos (modelo "só aportes e resgates"):

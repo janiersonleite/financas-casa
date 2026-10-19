@@ -4528,6 +4528,9 @@ const App = {
         Cofrinhos.syncChrome();
         if (Cofrinhos.view === 'cofrinhos') { await Cofrinhos.render(body); return; }
 
+        // Chave PIX vem da nuvem (igual em todos os aparelhos); não trava a tela se demorar
+        await Promise.race([Storage.syncPixFromCloud().catch(() => false), new Promise(r => setTimeout(r, 2500))]);
+
         let portfolio;
         try { portfolio = await Storage.getInvestmentPortfolio(this.currentMonth); }
         catch { body.innerHTML = '<p class="text-center text-gray-400 py-8 text-sm">Não foi possível carregar a carteira.</p>'; return; }
