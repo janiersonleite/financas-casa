@@ -1,0 +1,20 @@
+name: Conferir SRI dos scripts de CDN
+
+# Confere, contra o CDN real, o hash (integrity) de cada <script> externo do index.html.
+# Se um hash estiver errado o navegador se recusa a carregar o script e o app fica em branco.
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sri:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node scripts/verify-sri.js
