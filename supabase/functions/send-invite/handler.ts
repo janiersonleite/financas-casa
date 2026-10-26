@@ -1,7 +1,7 @@
 // Lógica pura do envio de e-mail de convite (sem dependências externas → testável em Node/Deno).
 
 export interface Deps {
-    getUser(token: string): Promise<{ id: string; email: string } | null>;
+    getUser(token: string): Promise<{ id: string; email: string; emailConfirmed?: boolean } | null>;
     isAdmin(financaId: string, userId: string): Promise<boolean>;
     getFinanca(financaId: string): Promise<{ name: string; emoji: string } | null>;
     getInvite(financaId: string, email: string): Promise<{
@@ -18,11 +18,19 @@ export interface Result { status: number; body: Record<string, unknown> }
 export const MIN_GAP_MS = 5 * 60 * 1000;     // reenvio do mesmo convite: no mínimo 5 min
 export const MAX_PER_INVITE = 5;             // no máximo 5 e-mails por convite
 export const MAX_PER_HOUR_BY_USER = 20;      // no máximo 20 e-mails de convite por hora por pessoa
+export const MAX_NAME_LEN = 80;              // nome da carteira usado no e-mail (assunto/corpo)
 
 const EMAIL_RE = /^[^\s@<>"']+@[^\s@<>"']+\.[^\s@<>"']{2,}$/;
 export const esc = (s: string) => s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
 
-export function buildEmail(p: { inviterEmail: string; financaName: string; emoji: string; to: string; appUrl: string }) {
+/** Nome seguro para e-mail: sem quebras de linha/controles, espaços colapsados, no máximo MAX_NAME_LEN. */
+export function safeName(n: string): string {
+    const t = String(n ?? '').replace(/[\u0000-\u001f\u007f\u2028\u2029]+/g, ' ').replace(/\s+/g, ' ').trim();
+    return t.length > MAX_NAME_LEN ? t.slice(0, MAX_NAME_LEN - 1).trimEnd() + '…' : t;
+}
+
+export function buildEmail(p0: { inviterEmail: string; financaName: string; emoji: string; to: string; appUrl: string }) {
+    const p = { ...p0, financaName: safeName(p0.financaName) || 'Carteira', emoji: String(p0.emoji ?? '').slice(0, 16) };
     const subject = `Convite: carteira "${p.financaName}" no Minhas Carteiras`;
     const text =
 `Olá!
@@ -58,11 +66,13 @@ export async function handleSendInvite(deps: Deps, token: string | null, body: u
     if (!token) return { status: 401, body: { error: 'unauthorized' } };
     const user = await deps.getUser(token);
     if (!user) return { status: 401, body: { error: 'unauthorized' } };
+    // convidante precisa ter o e-mail confirmado (quando o dado vier do Auth)
+    if (user.emailConfirmed === false) return { status: 403, body: { error: 'email_not_confirmed' } };
 
     const b = (body ?? {}) as { financa_id?: unknown; email?: unknown };
     const financaId = typeof b.financa_id === 'string' ? b.financa_id : '';
     const email = typeof b.email === 'string' ? b.email.trim().toLowerCase() : '';
-    if (!/^[0-9a-f-]{36}$/i.test(financaId) || !EMAIL_RE.test(email) || email.length > 254)
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(financaId) || !EMAIL_RE.test(email) || email.length > 254)
         return { status: 400, body: { error: 'invalid_input' } };
 
     if (!(await deps.isAdmin(financaId, user.id))) return { status: 403, body: { error: 'forbidden' } };

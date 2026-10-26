@@ -42,7 +42,7 @@ const Cofrinhos = {
     _round(n) { return Math.round((Number(n) || 0) * 100) / 100; },
     _ceil(n)  { return Math.ceil((Number(n) || 0) * 100 - 1e-9) / 100; },
     _money(v) { return App.formatCurrency(this._round(v)); },
-    _esc(s)   { return App._escHtml(s); },
+    _esc(s)   { return Utils.esc(s); },
     _safeColor(c) { return /^#[0-9a-fA-F]{6}$/.test(c || '') ? c : this.COLORS[0]; },
     // Cor inicial de um cofrinho novo: a menos usada da paleta (empate = ordem da paleta),
     // para que os cofrinhos novos já nasçam diferentes entre si.

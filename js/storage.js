@@ -735,15 +735,9 @@ const Storage = {
 
     async acceptInvite(inviteId, financaId) {
         if (!this.isCloud) return;
-        await this.db.from('financa_members').upsert({
-            financa_id: financaId,
-            user_id:    this.userId(),
-            email:      Auth.user?.email,
-            role:       'membro'
-        }, { onConflict: 'financa_id,user_id' });
-        await this.db.from('financa_invites')
-            .update({ accepted_at: new Date().toISOString() })
-            .eq('id', inviteId);
+        // O servidor valida o convite (e-mail, confirmação, validade) e usa o papel DO CONVITE.
+        const { error } = await this.db.rpc('accept_invite', { p_invite_id: inviteId });
+        if (error) throw error;
     },
 
     // ── Categories ───────────────────────────────────────────────────────────
@@ -1370,8 +1364,10 @@ const Storage = {
 
     // Entradas/saídas de uma lista de lançamentos já carregada (mesma regra de getSummary)
     summarizeList(list, options = {}) {
+        // Somas em centavos inteiros (evita 0.1+0.2 = 0.30000000000000004)
         let income  = 0, expense = 0;
         let cardPaymentExcluded = 0;
+        const cents = v => Math.round((Number(v) + Number.EPSILON) * 100);
 
         // Lógica inteligente: se houver parcelas no mês, ignora os pagamentos de cartão
         // (assume que as parcelas já representam o gasto real)
@@ -1381,16 +1377,16 @@ const Storage = {
         for (const t of list) {
             const beh = this.getBehavior(t.type);
             if (beh === 'soma') {
-                income += Number(t.value);
+                income += cents(t.value);
             } else if (beh === 'subtrai') {
                 if (hasInstallments && this.isCardPayment(t)) {
-                    cardPaymentExcluded += Number(t.value);
+                    cardPaymentExcluded += cents(t.value);
                     continue;
                 }
-                expense += Number(t.value);
+                expense += cents(t.value);
             }
         }
-        return { income, expense, balance: income - expense, count: list.length, cardPaymentExcluded };
+        return { income: income / 100, expense: expense / 100, balance: (income - expense) / 100, count: list.length, cardPaymentExcluded: cardPaymentExcluded / 100 };
     },
 
     async getCategoryTotals(month = null, options = {}) {

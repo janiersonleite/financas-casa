@@ -310,7 +310,7 @@ const App = {
             const sharing = isOwner && this._sharingFinancaId === f.id;
             return `
             <div class="flex items-center gap-3 p-3 ${sharing ? 'mb-1' : 'mb-2'} rounded-xl border-2 ${editing ? '' : 'cursor-pointer'} transition-all ${isActive ? 'border-emerald-500 bg-emerald-50' : 'border-gray-100 bg-white hover:border-gray-300'}" data-financa-select="${f.id}">
-                <span class="text-2xl">${f.emoji || '💰'}</span>
+                <span class="text-2xl">${Utils.esc(f.emoji || '💰')}</span>
                 <div class="flex-1 min-w-0">${nameBlock}</div>
                 ${isActive && !editing ? '<span class="text-emerald-600 text-lg">✓</span>' : ''}
                 ${isOwner && !editing ? `<button class="${sharing ? 'text-emerald-600' : 'text-gray-300 hover:text-emerald-600'} text-base px-1 share-financa-btn" data-financa-share="${f.id}" title="Compartilhar com outras pessoas" aria-label="Compartilhar carteira" aria-expanded="${sharing}">👥</button>` : ''}
@@ -351,7 +351,7 @@ const App = {
             const f = this.financas.find(x => x.id === this._editingFinancaId);
             const showErr = (t) => { errEl.textContent = t; errEl.classList.toggle('hidden', !t); };
             const save = async () => {
-                const name = input.value.replace(/\s+/g, ' ').trim();
+                const name = input.value.replace(/\s+/g, ' ').trim().slice(0, 60);
                 if (!name) { showErr('Digite um nome.'); input.focus(); return; }
                 if (name === f.name) { closeEdit(); return; }
                 if (this.financas.some(x => x.id !== f.id && (x.name || '').trim().toLowerCase() === name.toLowerCase())) {
@@ -448,10 +448,10 @@ const App = {
     },
 
     async saveNewFinanca() {
-        const name  = document.getElementById('financa-name-input').value.trim();
+        const name  = document.getElementById('financa-name-input').value.trim().slice(0, 60);
         if (!name) { document.getElementById('financa-name-input').focus(); return; }
         const type  = document.getElementById('financa-type-input').value;
-        const emoji = document.querySelector('.financa-emoji-btn.border-emerald-500')?.dataset.emoji || '💰';
+        const emoji = Utils.cleanEmoji(document.querySelector('.financa-emoji-btn.border-emerald-500')?.dataset.emoji, '💰');
         const btn   = document.getElementById('financa-create-save');
         btn.disabled = true; btn.textContent = 'Criando...';
         try {
@@ -517,7 +517,7 @@ const App = {
                     ${(m.email || 'U').charAt(0).toUpperCase()}
                 </div>
                 <div class="flex-1 min-w-0">
-                    <div class="text-sm font-medium text-gray-800 truncate">${m.email || 'Usuário'}</div>
+                    <div class="text-sm font-medium text-gray-800 truncate">${Utils.esc(m.email || 'Usuário')}</div>
                     <div class="text-xs text-gray-400">${m.role === 'admin' ? '⭐ Admin' : m.role === 'visualizador' ? '👁 Visualizador' : '👤 Membro'}</div>
                 </div>
                 ${m.user_id !== Auth.user?.id
@@ -1057,7 +1057,7 @@ const App = {
             const reminderBadgeEl = document.getElementById('modal-reminder-badge');
             if (reminderBadgeEl && r) {
                 reminderBadgeEl.innerHTML = `<span class="inline-flex items-center gap-1.5 text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl px-3 py-1.5 font-medium">
-                    ${r.emoji || '🔔'} Lembrete: <strong>${this._escHtml(r.name)}</strong> — todo dia ${r.day}
+                    ${Utils.esc(r.emoji || '🔔')} Lembrete: <strong>${this._escHtml(r.name)}</strong> — todo dia ${r.day}
                 </span>`;
                 reminderBadgeEl.classList.remove('hidden');
             }
@@ -1147,9 +1147,9 @@ const App = {
                 : (this._importFinancaId ?? (this.activeFinanca?.id || null));
             const isActive = (f.id === currentId) || (!f.id && !currentId);
             return `<button class="financa-select-item w-full flex items-center gap-3 px-3 py-3 rounded-xl border-2 transition-all ${isActive ? 'border-emerald-500 bg-emerald-50' : 'border-gray-100 bg-gray-50 hover:border-emerald-200'}" data-fid="${f.id || ''}">
-                <span class="text-2xl">${f.emoji || '💰'}</span>
+                <span class="text-2xl">${Utils.esc(f.emoji || '💰')}</span>
                 <div class="flex-1 text-left">
-                    <p class="font-semibold text-gray-800 text-sm">${f.name}</p>
+                    <p class="font-semibold text-gray-800 text-sm">${Utils.esc(f.name)}</p>
                     <p class="text-xs text-gray-400">${f.type === 'compartilhada' ? '👥 Compartilhada' : '👤 Individual'}</p>
                 </div>
                 ${isActive ? '<span class="text-emerald-600 text-lg">✓</span>' : ''}
@@ -1245,7 +1245,7 @@ const App = {
 
     _toMaskedCurrency(num) {
         if (!num && num !== 0) return '';
-        const [intRaw, dec] = Number(num).toFixed(2).split('.');
+        const [intRaw, dec] = Utils.roundMoney(num).toFixed(2).split('.');
         return intRaw.replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ',' + dec;
     },
 
@@ -1307,8 +1307,11 @@ const App = {
             let valueLine = '';
             if (enteredValue > 0) {
                 if (this._installmentValueMode === 'total') {
-                    const perInstallment = enteredValue / qty;
-                    valueLine = ` · ${qty}× de ${this.formatCurrency(perInstallment)} (total ${this.formatCurrency(enteredValue)})`;
+                    const partes = Utils.splitMoney(enteredValue, qty);
+                    const igual = partes.every(v => v === partes[0]);
+                    valueLine = igual
+                        ? ` · ${qty}× de ${this.formatCurrency(partes[0])} (total ${this.formatCurrency(enteredValue)})`
+                        : ` · ${this.formatCurrency(partes[0])} + ${qty - 1}× de ${this.formatCurrency(partes[partes.length - 1])} (total ${this.formatCurrency(enteredValue)})`;
                 } else {
                     const total = enteredValue * qty;
                     valueLine = ` · ${qty}× de ${this.formatCurrency(enteredValue)} (total ${this.formatCurrency(total)})`;
@@ -1585,7 +1588,7 @@ const App = {
         if (linked) {
             el.innerHTML = `
                 <div class="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2">
-                    <span class="text-base">${linked.emoji || '🔔'}</span>
+                    <span class="text-base">${Utils.esc(linked.emoji || '🔔')}</span>
                     <div class="flex-1 min-w-0 text-xs text-emerald-800">
                         Lembrete: <strong>${this._escHtml(linked.name)}</strong>
                         <div class="text-[10px] text-emerald-600">todo dia ${linked.day}</div>
@@ -1654,7 +1657,7 @@ const App = {
                         const amt = r.amount > 0 ? this.formatCurrency(r.amount) : '';
                         return `
                         <button type="button" class="rem-picker-item w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center gap-3 ${highlight}" data-id="${r.id}" data-name="${this._escHtml(r.name)}">
-                            <span class="text-xl">${r.emoji || '🔔'}</span>
+                            <span class="text-xl">${Utils.esc(r.emoji || '🔔')}</span>
                             <div class="flex-1 min-w-0">
                                 <p class="text-sm font-semibold text-gray-800 truncate">${this._escHtml(r.name)}${isSelected ? ' <span class="text-emerald-600 text-xs">✓ vinculado</span>' : ''}${sameDay && !isSelected ? ' <span class="text-yellow-700 text-[10px]">📅 mesmo dia</span>' : ''}</p>
                                 <p class="text-[11px] text-gray-500">Dia ${r.day}${r.category ? ' · ' + this._escHtml(r.category) : ''}${amt ? ' · ' + amt : ''}</p>
@@ -1762,7 +1765,7 @@ const App = {
         if (!value || value <= 0) { this.shake(document.getElementById('modal-value')); return; }
 
         const installQty = !this.editingId ? (this._installmentQty || 1) : 1;
-        const baseDesc   = document.getElementById('modal-description').value || 'Sem descrição';
+        const baseDesc   = (document.getElementById('modal-description').value || 'Sem descrição').slice(0, 290);
 
         const base = {
             value,
@@ -1770,7 +1773,7 @@ const App = {
             category:    document.getElementById('modal-category').value || 'Outros',
             description: baseDesc,
             date:        document.getElementById('modal-date').value,
-            notes:       document.getElementById('modal-notes').value,
+            notes:       (document.getElementById('modal-notes').value || '').slice(0, 1000),
             // Se editando: envia reminder_id (ou null para desvincular).
             // Se novo lançamento: só inclui se houver vínculo.
             ...(this.editingId
@@ -1844,13 +1847,20 @@ const App = {
                 // Cria N transações, uma por mês
                 // Se modo = 'total': valor informado é o total → divide por installQty
                 // Se modo = 'perInstallment' (padrão): valor informado é o de cada parcela
-                const perInstallmentValue = this._installmentValueMode === 'total'
-                    ? Math.round((value / installQty) * 100) / 100
-                    : value;
+                // Em centavos inteiros: a soma das parcelas é EXATAMENTE o total (sobra nas primeiras parcelas)
+                const parcelas = this._installmentValueMode === 'total'
+                    ? Utils.splitMoney(value, installQty)
+                    : Array(installQty).fill(value);
+                if (parcelas.some(v => !(v > 0))) {
+                    btn.disabled = false; btn.textContent = 'Salvar';
+                    this.shake(document.getElementById('modal-value'));
+                    this.showToast('Valor total pequeno demais para esse número de parcelas', true);
+                    return;
+                }
                 const groupId = 'inst_' + Date.now().toString(36);
                 const txns = Array.from({ length: installQty }, (_, i) => ({
                     ...base,
-                    value:                perInstallmentValue,
+                    value:                parcelas[i],
                     date:                 this._addMonths(base.date, i),
                     description:          `${baseDesc} (${i + 1}/${installQty})`,
                     installment_group_id: groupId,
@@ -1948,7 +1958,7 @@ const App = {
             return `<button data-type-btn="${t.id}"
                 class="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium border-2 transition-all"
                 style="border-color:#e5e7eb;color:#374151;" data-hex="${hex}">
-                ${t.emoji} ${t.name}
+                ${Utils.esc(t.emoji)} ${Utils.esc(t.name)}
             </button>`;
         }).join('');
     },
@@ -2071,9 +2081,9 @@ const App = {
         container.innerHTML = customs.map(t => {
             const hex = this._getTypeColorHex(t.color);
             return `<div class="flex items-center gap-3 py-2.5 border-b border-gray-100 last:border-0">
-                <span class="text-xl w-8 text-center">${t.emoji}</span>
+                <span class="text-xl w-8 text-center">${Utils.esc(t.emoji)}</span>
                 <div class="flex-1 min-w-0">
-                    <div class="text-sm font-medium text-gray-800">${t.name}</div>
+                    <div class="text-sm font-medium text-gray-800">${Utils.esc(t.name)}</div>
                     <div class="text-xs" style="color:${hex}">${behaviorLabel[t.behavior] || t.behavior}</div>
                 </div>
                 <div class="flex items-center gap-1 flex-shrink-0">
@@ -2136,8 +2146,8 @@ const App = {
     },
 
     async saveTypeForm() {
-        const name     = document.getElementById('type-name-input').value.trim();
-        const emoji    = document.getElementById('type-emoji-input').value.trim() || '📋';
+        const name     = document.getElementById('type-name-input').value.trim().slice(0, 40);
+        const emoji    = Utils.cleanEmoji(document.getElementById('type-emoji-input').value, '📋');
         const behavior = document.getElementById('type-behavior-input').value;
         const color    = document.getElementById('type-color-input').value;
         const noPerson = !!document.getElementById('type-noperson-input')?.checked;
@@ -2382,8 +2392,8 @@ const App = {
             const tag  = ['text-red-200', 'text-orange-200', 'text-yellow-200'][offset] || 'text-white/70';
             const lbl  = ['Vence hoje', 'Vence amanhã', 'Vence em 2 dias'][offset] || 'Vence';
             return `<div class="flex items-center gap-2">
-                <span>${r.emoji || '🔔'}</span>
-                <span class="font-semibold">${r.name}</span>
+                <span>${Utils.esc(r.emoji || '🔔')}</span>
+                <span class="font-semibold">${Utils.esc(r.name)}</span>
                 <span class="${tag} text-xs">${lbl}${val}</span>
             </div>`;
         }).join('');
@@ -2520,9 +2530,9 @@ const App = {
                 return `
                 <div class="deal-card reminder-paid-card cursor-pointer hover:shadow-md transition-shadow opacity-70" style="padding:10px 12px" data-reminder-id="${r.id}">
                     <div class="flex items-center gap-2 mb-1.5">
-                        <div class="w-7 h-7 rounded-lg flex items-center justify-center text-base flex-shrink-0" style="background:#f0fdf4">${r.emoji || '🔔'}</div>
+                        <div class="w-7 h-7 rounded-lg flex items-center justify-center text-base flex-shrink-0" style="background:#f0fdf4">${Utils.esc(r.emoji || '🔔')}</div>
                         <div class="flex-1 min-w-0">
-                            <div class="text-xs font-semibold text-gray-400 line-through break-words">${r.name}${installHtml}</div>
+                            <div class="text-xs font-semibold text-gray-400 line-through break-words">${Utils.esc(r.name)}${installHtml}</div>
                             <div class="text-[10px] text-green-500 font-medium">✅ Pago · ${monthName} · <span class="underline">ver lançamento</span></div>
                         </div>
                         <button class="reminder-unpay-btn text-[10px] text-gray-300 hover:text-red-400 px-1 flex-shrink-0" data-reminder-id="${r.id}" title="Desfazer">↩</button>
@@ -2538,9 +2548,9 @@ const App = {
             return `
             <div class="deal-card reminder-unpaid-card cursor-pointer hover:shadow-md transition-shadow" style="padding:10px 12px" data-reminder-id="${r.id}">
                 <div class="flex items-center gap-2 mb-1.5">
-                    <div class="w-7 h-7 rounded-lg flex items-center justify-center text-base flex-shrink-0" style="background:${accent.iconBg}">${r.emoji || '🔔'}</div>
+                    <div class="w-7 h-7 rounded-lg flex items-center justify-center text-base flex-shrink-0" style="background:${accent.iconBg}">${Utils.esc(r.emoji || '🔔')}</div>
                     <div class="flex-1 min-w-0">
-                        <div class="text-xs font-bold text-gray-800 break-words leading-tight">${r.name}${installHtml}</div>
+                        <div class="text-xs font-bold text-gray-800 break-words leading-tight">${Utils.esc(r.name)}${installHtml}</div>
                         <div class="text-[10px] font-medium" style="color:${accent.label}">${accent.badge}</div>
                     </div>
                     <span class="text-sm font-extrabold" style="color:${accent.amtColor}">${amtTxt}</span>
@@ -2647,8 +2657,8 @@ const App = {
             <div class="flex items-center gap-3">
                 <div class="w-11 h-11 rounded-2xl bg-white flex items-center justify-center text-2xl shadow-sm flex-shrink-0">${catIcon}</div>
                 <div class="flex-1 min-w-0">
-                    <p class="text-sm font-bold text-gray-800 truncate">${txn.description || txn.category || '—'}</p>
-                    <p class="text-xs text-gray-400">${txn.category || ''}${badge ? ' · ' : ''}${badge ? badge.replace(/<[^>]*>/g,'') : ''}</p>
+                    <p class="text-sm font-bold text-gray-800 truncate">${Utils.esc(txn.description || txn.category || '—')}</p>
+                    <p class="text-xs text-gray-400">${Utils.esc(txn.category || '')}${badge ? ' · ' : ''}${badge ? badge.replace(/<[^>]*>/g,'') : ''}</p>
                 </div>
                 <span class="text-lg font-extrabold flex-shrink-0 ${color}">${sign}${this.formatCurrency(txn.value)}</span>
             </div>
@@ -2668,13 +2678,13 @@ const App = {
                 </div>
                 <div>
                     <p class="text-gray-400 mb-0.5">Categoria</p>
-                    <p class="font-semibold text-gray-700">${txn.category || '—'}</p>
+                    <p class="font-semibold text-gray-700">${Utils.esc(txn.category || '—')}</p>
                 </div>
                 <div>
                     <p class="text-gray-400 mb-0.5">Valor</p>
                     <p class="font-bold ${color}">${sign}${this.formatCurrency(txn.value)}</p>
                 </div>
-                ${txn.notes ? `<div class="col-span-2"><p class="text-gray-400 mb-0.5">Observação</p><p class="font-semibold text-gray-700">${txn.notes}</p></div>` : ''}
+                ${txn.notes ? `<div class="col-span-2"><p class="text-gray-400 mb-0.5">Observação</p><p class="font-semibold text-gray-700">${Utils.esc(txn.notes)}</p></div>` : ''}
             </div>
         </div>
 
@@ -2932,10 +2942,10 @@ const App = {
             const installBadge = `<span class="ml-1 inline-block text-[10px] font-semibold rounded-full px-2 py-0.5 ${badgeColors}">${badgeText}</span>`;
 
             return `<div class="flex items-center gap-3 bg-gray-50 rounded-xl px-3 py-3 border border-gray-100 ${opacity}">
-                <span class="text-2xl">${r.emoji || '🔔'}</span>
+                <span class="text-2xl">${Utils.esc(r.emoji || '🔔')}</span>
                 <div class="flex-1 min-w-0">
-                    <div class="font-semibold text-gray-800 text-sm truncate">${r.name}${expiredBadge}${installBadge}</div>
-                    <div class="text-xs text-gray-400">${r.notify_date ? '📅 ' + this._formatShortDate(r.notify_date) : 'Todo dia ' + r.day}${r.notify_time ? ' às ' + String(r.notify_time).slice(0, 5) : ''}${cat}${amt}</div>
+                    <div class="font-semibold text-gray-800 text-sm truncate">${Utils.esc(r.name)}${expiredBadge}${installBadge}</div>
+                    <div class="text-xs text-gray-400">${r.notify_date ? '📅 ' + this._formatShortDate(r.notify_date) : 'Todo dia ' + r.day}${r.notify_time ? ' às ' + String(r.notify_time).slice(0, 5) : ''}${Utils.esc(cat)}${amt}</div>
                 </div>
                 <button class="reminder-edit-btn p-1.5 rounded-lg hover:bg-white text-gray-400 hover:text-emerald-600" data-id="${r.id}" title="Editar">✏️</button>
                 <button class="reminder-del-btn  p-1.5 rounded-lg hover:bg-white text-gray-400 hover:text-red-500"  data-id="${r.id}" title="Excluir">🗑️</button>
@@ -3038,7 +3048,7 @@ const App = {
             { id: 'entrada', name: '💰 Entrada (Receita)' },
             ...Storage.getCustomTypes().map(t => ({ id: t.id, name: `${t.emoji} ${t.name}` }))
         ];
-        typeSel.innerHTML = allTypes.map(t => `<option value="${t.id}" ${reminder?.type === t.id ? 'selected' : ''}>${t.name}</option>`).join('');
+        typeSel.innerHTML = allTypes.map(t => `<option value="${t.id}" ${reminder?.type === t.id ? 'selected' : ''}>${Utils.esc(t.name)}</option>`).join('');
 
         // Mês de início — preenche com start_month, ou created_at, ou mês atual
         const startInput = document.getElementById('reminder-start-month');
@@ -3173,8 +3183,8 @@ const App = {
 
         // Salvar nova categoria
         saveBtn?.addEventListener('click', async () => {
-            const name  = nameIn?.value.trim();
-            const emoji = emojiIn?.value.trim() || '📦';
+            const name  = nameIn?.value.trim().slice(0, 40);
+            const emoji = Utils.cleanEmoji(emojiIn?.value, '📦');
             if (!name) { nameIn?.focus(); return; }
 
             saveBtn.disabled = true;
@@ -3213,9 +3223,9 @@ const App = {
     },
 
     async saveReminderForm() {
-        const name   = document.getElementById('reminder-name-input').value.trim();
+        const name   = document.getElementById('reminder-name-input').value.trim().slice(0, 80);
         const amount = parseFloat(document.getElementById('reminder-amount-input').value) || 0;
-        const emoji  = document.getElementById('reminder-emoji-input').value.trim() || '🔔';
+        const emoji  = Utils.cleanEmoji(document.getElementById('reminder-emoji-input').value, '🔔');
         const catRaw   = document.getElementById('reminder-category-input').value;
         const category = catRaw === '__new__' ? '' : catRaw; // ignora opção de nova categoria não finalizada
         const type   = document.getElementById('reminder-type-input').value || 'saida';
@@ -3957,7 +3967,7 @@ const App = {
         panel.innerHTML = cats.map(c => {
             const active = sel.has(c.name);
             return `<button class="hist-cat-chip flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap border transition-all ${active ? 'bg-emerald-500 text-white border-emerald-600' : 'bg-gray-50 text-gray-600 border-gray-200'}" data-hcat="${this._escHtml(c.name)}">
-                <span>${c.emoji || '📦'}</span><span>${this._escHtml(c.name)}</span>
+                <span>${Utils.esc(c.emoji || '📦')}</span><span>${this._escHtml(c.name)}</span>
             </button>`;
         }).join('');
 
@@ -4095,7 +4105,7 @@ const App = {
                 const linkedReminder = t.reminder_id ? this.reminders.find(r => r.id === t.reminder_id) : null;
                 const reminderBadge  = linkedReminder
                     ? `<span class="inline-flex items-center gap-1 text-xs bg-emerald-50 text-emerald-600 border border-emerald-100 rounded-full px-2 py-0.5 mt-0.5">
-                           ${linkedReminder.emoji || '🔔'} ${linkedReminder.name}
+                           ${Utils.esc(linkedReminder.emoji || '🔔')} ${Utils.esc(linkedReminder.name)}
                        </span>`
                     : '';
                 // Badge de parcela (parcelada finita) OU de recorrência (♾️)
@@ -4372,7 +4382,7 @@ const App = {
                     <div class="flex items-center gap-2 bg-white rounded-lg px-2.5 py-1.5 mb-1 border border-emerald-100">
                         <span class="text-base flex-shrink-0">${icon}</span>
                         <div class="flex-1 min-w-0">
-                            <div class="text-xs font-medium text-gray-800 truncate">${t.description || cat}</div>
+                            <div class="text-xs font-medium text-gray-800 truncate">${Utils.esc(t.description || cat)}</div>
                             ${badge ? `<div class="mt-0.5">${badge}</div>` : ''}
                         </div>
                         <div class="text-xs font-bold flex-shrink-0 ${isIncome ? 'text-green-600' : 'text-red-600'}">
@@ -4387,11 +4397,11 @@ const App = {
 
             html += `
             <div class="border-b border-gray-100 last:border-0">
-                <div class="flex justify-between items-center py-3 cursor-pointer select-none cat-breakdown-row" data-cat="${cat}">
+                <div class="flex justify-between items-center py-3 cursor-pointer select-none cat-breakdown-row" data-cat="${Utils.esc(cat)}">
                     <div class="flex items-center gap-2">
                         <div class="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center text-lg flex-shrink-0">${icon}</div>
                         <div>
-                            <div class="text-sm font-semibold text-gray-800">${cat}</div>
+                            <div class="text-sm font-semibold text-gray-800">${Utils.esc(cat)}</div>
                             <div class="text-xs text-gray-400">${catTxns.length} lançamento${catTxns.length !== 1 ? 's' : ''}${pct ? ` · ${pct}%` : ''}</div>
                         </div>
                     </div>
@@ -4600,7 +4610,7 @@ const App = {
             const dateTxt = t.date ? t.date.slice(8, 10) + '/' + this._monthAbbr(t.date) : '';
             return `
             <div class="inv-recent-item flex items-center gap-2 py-2 border-b border-gray-50 last:border-0 cursor-pointer hover:bg-gray-50 rounded-lg px-1" data-id="${t.id}">
-                <span class="text-base flex-shrink-0">${this.getCategoryIcon(t.category)}</span>
+                <span class="text-base flex-shrink-0">${Utils.esc(this.getCategoryIcon(t.category))}</span>
                 <div class="flex-1 min-w-0">
                     <div class="text-sm text-gray-800 truncate">${this._escHtml(t.description || t.category || '—')}</div>
                     <div class="text-[10px] text-gray-400 truncate">${this._escHtml(t.category || 'Sem produto')}${dateTxt ? ' · ' + dateTxt : ''} · ${isAporte ? 'Aporte' : 'Resgate'}</div>
@@ -4782,8 +4792,8 @@ const App = {
                 <div class="person-panel-item flex items-center gap-2 bg-white rounded-lg px-2.5 py-1.5 mb-1 border border-emerald-100 cursor-pointer hover:bg-emerald-50 transition-colors" data-id="${t.id}">
                     <span class="text-base flex-shrink-0">${catIcon}</span>
                     <div class="flex-1 min-w-0">
-                        <div class="text-xs font-medium text-gray-800 truncate">${t.description || t.category || '—'}</div>
-                        <div class="text-[10px] text-gray-400 truncate">${t.category || ''}${t.date ? ' · ' + t.date.slice(8) + '/' + this._monthAbbr(t.date) : ''}</div>
+                        <div class="text-xs font-medium text-gray-800 truncate">${Utils.esc(t.description || t.category || '—')}</div>
+                        <div class="text-[10px] text-gray-400 truncate">${Utils.esc(t.category || '')}${t.date ? ' · ' + t.date.slice(8) + '/' + this._monthAbbr(t.date) : ''}</div>
                         ${badge ? `<div class="mt-0.5">${badge}</div>` : ''}
                     </div>
                     <div class="text-xs font-bold flex-shrink-0 ${color}">${sign}${this.formatCurrency(t.value)}</div>
@@ -4861,7 +4871,7 @@ const App = {
                     <div class="flex items-center gap-2">
                         <div class="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold ${bgCls} ${txtCls}">${initials}</div>
                         <div>
-                            <div class="text-sm font-semibold text-gray-800">${label}${isMe ? ' <span class="text-xs text-emerald-500 font-normal">(você)</span>' : ''}</div>
+                            <div class="text-sm font-semibold text-gray-800">${Utils.esc(label)}${isMe ? ' <span class="text-xs text-emerald-500 font-normal">(você)</span>' : ''}</div>
                             <div class="text-xs text-gray-400">${personTxns.length} lançamento${personTxns.length !== 1 ? 's' : ''}${pct > 0 ? ` · ${pct}%` : ''}</div>
                         </div>
                     </div>
@@ -4874,7 +4884,7 @@ const App = {
                     </div>
                 </div>
                 ${pct > 0 ? `<div class="w-full bg-gray-100 rounded-full h-1.5 -mt-1 mb-2"><div class="${barColor} h-1.5 rounded-full" style="width:${pct}%"></div></div>` : ''}
-                <div class="person-txn-panel hidden bg-emerald-50 rounded-2xl px-3 pt-1 pb-3 mb-2" data-person-email="${p.email}">
+                <div class="person-txn-panel hidden bg-emerald-50 rounded-2xl px-3 pt-1 pb-3 mb-2" data-person-email="${Utils.esc(p.email)}">
                     ${panelHtml}
                 </div>
             </div>`;
@@ -5189,7 +5199,7 @@ const App = {
         list.innerHTML = cats.map(c => {
             const val = goals[c.name] || '';
             return `<div class="flex items-center gap-2">
-                <span class="text-lg">${c.emoji || '📦'}</span>
+                <span class="text-lg">${Utils.esc(c.emoji || '📦')}</span>
                 <span class="flex-1 text-sm text-gray-700">${this._escHtml(c.name)}</span>
                 <div class="flex items-center gap-1">
                     <span class="text-xs text-gray-400">R$</span>
@@ -5390,7 +5400,7 @@ const App = {
             const cat = this.categories.find(c => c.name === name);
             const emoji = cat?.emoji || '📦';
             const sel = name === selectedName ? 'selected' : '';
-            return `<option value="${this._escHtml(name)}" ${sel}>${emoji} ${this._escHtml(name)}</option>`;
+            return `<option value="${this._escHtml(name)}" ${sel}>${Utils.esc(emoji)} ${this._escHtml(name)}</option>`;
         }).join('');
 
         list.innerHTML = items.map((it, i) => `
@@ -5496,13 +5506,13 @@ const App = {
         // Opções de categoria (todas do usuário)
         const catOptions = (selected) => (this.categories || []).map(c => {
             const sel = c.name === selected ? 'selected' : '';
-            return `<option value="${this._escHtml(c.name)}" ${sel}>${c.emoji || '📦'} ${this._escHtml(c.name)}</option>`;
+            return `<option value="${this._escHtml(c.name)}" ${sel}>${Utils.esc(c.emoji || '📦')} ${this._escHtml(c.name)}</option>`;
         }).join('');
 
         // Opções de tipo (fixos + customizados)
         const typeOptions = (selected) => (this.transactionTypes || []).map(t => {
             const sel = t.id === selected ? 'selected' : '';
-            return `<option value="${this._escHtml(t.id)}" ${sel}>${t.emoji || ''} ${this._escHtml(t.name)}</option>`;
+            return `<option value="${this._escHtml(t.id)}" ${sel}>${Utils.esc(t.emoji || '')} ${this._escHtml(t.name)}</option>`;
         }).join('');
 
         const todayStr = new Date().toISOString().slice(0, 10);
@@ -5807,8 +5817,8 @@ const App = {
                     const behaviorIcon = ct.behavior === 'soma' ? '➕' : ct.behavior === 'subtrai' ? '➖' : '⬜';
                     return `<div class="flex items-center gap-2 px-3 py-2 rounded-xl border-2 text-sm font-semibold"
                         style="border-color:${hex};color:${hex};background:${hex}18">
-                        <span>${ct.emoji}</span>
-                        <span>${ct.name}</span>
+                        <span>${Utils.esc(ct.emoji)}</span>
+                        <span>${Utils.esc(ct.name)}</span>
                         <span class="font-bold">${this.formatCurrency(totals[ct.id])}</span>
                         <span class="text-xs font-normal opacity-70">${behaviorIcon}</span>
                     </div>`;
@@ -5892,7 +5902,7 @@ const App = {
                     <div class="text-xs text-gray-400">${this._monthAbbr(t.date)}</div>
                 </div>
                 <div class="flex-1 min-w-0">
-                    <div class="text-sm text-gray-700 truncate">${t.description}</div>
+                    <div class="text-sm text-gray-700 truncate">${Utils.esc(t.description)}</div>
                     ${badge ? `<div class="mt-0.5">${badge}</div>` : ''}
                 </div>
                 <div class="font-bold text-sm ${color} flex-shrink-0">${sign}${this.formatCurrency(t.value)}</div>
@@ -6254,13 +6264,8 @@ const App = {
     _parseImportValue(raw) {
         if (typeof raw === 'number') return raw;
         if (!raw) return 0;
-        let s = String(raw).replace(/[R$\s]/g, '').trim();
-        if (s.includes(',') && s.includes('.')) {
-            s = s.indexOf('.') < s.indexOf(',') ? s.replace(/\./g, '').replace(',', '.') : s.replace(/,/g, '');
-        } else if (s.includes(',')) {
-            s = s.replace(',', '.');
-        }
-        return parseFloat(s) || 0;
+        const n = Utils.parseMoneyBR(raw);   // regra única pt-BR (js/utils.js); ambíguo/ inválido → 0
+        return Number.isFinite(n) ? n : 0;
     },
 
     _parseImportDate(raw) {
@@ -6329,8 +6334,8 @@ const App = {
             date:        this._parseImportDate(col(map.date)),
             type,
             _rawType:    rawType,
-            category:    String(col(map.category) || 'Outros').trim() || 'Outros',
-            description: String(col(map.description) || '').trim() || 'Importado',
+            category:    String(col(map.category) || 'Outros').trim().slice(0, 40) || 'Outros',
+            description: String(col(map.description) || '').trim().slice(0, 300) || 'Importado',
             value:       absVal || 0,
             ...(inserter ? { inserted_by_email: inserter } : {})
         };
@@ -6387,8 +6392,8 @@ const App = {
             return `<tr class="${i % 2 === 0 ? '' : 'bg-gray-50'}">
                 <td class="px-2 py-1.5 text-gray-700">${t.date}</td>
                 <td class="px-2 py-1.5 ${tColor}">${tArrow} ${tName}</td>
-                <td class="px-2 py-1.5 text-gray-700">${t.category}</td>
-                <td class="px-2 py-1.5 text-gray-500 max-w-[80px] truncate">${t.description}</td>
+                <td class="px-2 py-1.5 text-gray-700">${Utils.esc(t.category)}</td>
+                <td class="px-2 py-1.5 text-gray-500 max-w-[80px] truncate">${Utils.esc(t.description)}</td>
                 <td class="px-2 py-1.5 text-right font-medium ${tColor}">${this.formatCurrency(t.value)}</td>
                 <td class="px-2 py-1.5 text-gray-400 text-xs truncate max-w-[80px]">${inserterDisplay}</td>
             </tr>`;
@@ -7011,9 +7016,8 @@ const App = {
     // ─── Helpers ──────────────────────────────────────────────────────────────
 
     // Escapa caracteres HTML perigosos em texto puro
-    _escHtml(str) {
-        return (str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-    },
+    // Mantido por compatibilidade: delega ao helper único (js/utils.js)
+    _escHtml(str) { return Utils.esc(str); },
 
     // Destaca todas as ocorrências de `query` em `str` (case-insensitive)
     _hlText(str, query) {
@@ -7025,7 +7029,7 @@ const App = {
     },
 
     formatCurrency(value) {
-        return (value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        return Utils.roundMoney(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
     },
 
     formatDate(dateStr) {
@@ -7086,8 +7090,8 @@ const App = {
 
     // ── Nova categoria inline no modal de lançamento ─────────────────────────
     async _saveModalNewCategory() {
-        const name  = document.getElementById('modal-cat-name-input')?.value.trim();
-        const emoji = document.getElementById('modal-cat-emoji-input')?.value.trim() || '📦';
+        const name  = document.getElementById('modal-cat-name-input')?.value.trim().slice(0, 40);
+        const emoji = Utils.cleanEmoji(document.getElementById('modal-cat-emoji-input')?.value, '📦');
         if (!name) { document.getElementById('modal-cat-name-input')?.focus(); return; }
 
         const btn = document.getElementById('modal-cat-save-btn');
@@ -7148,7 +7152,7 @@ const App = {
         // Usa categorias do perfil escolhido no modal; [] vazio cai para o perfil ativo
         const cats = (this._modalCategories?.length) ? this._modalCategories : this.categories;
         sel.innerHTML = cats.map(c =>
-            `<option value="${c.name}">${c.emoji} ${c.name}</option>`
+            `<option value="${Utils.esc(c.name)}">${Utils.esc(c.emoji)} ${Utils.esc(c.name)}</option>`
         ).join('');
         sel.value = current;
         if (!sel.value && cats.length) sel.value = cats[0].name;
@@ -7169,12 +7173,12 @@ const App = {
             const qtype = c.type === 'entrada' ? 'entrada' : 'saida';
             const isIncome = c.type === 'entrada';
             const iconBg = isIncome ? 'background:#ecfdf5' : 'background:#f0fdf4';
-            return `<button data-quick-cat="${c.name}" data-quick-type="${qtype}" data-quick-label="${c.name}"
+            return `<button data-quick-cat="${Utils.esc(c.name)}" data-quick-type="${qtype}" data-quick-label="${Utils.esc(c.name)}"
                 class="cat-card flex flex-col items-center gap-1">
                 <div class="cat-card-icon" style="${iconBg}">
-                    <span class="text-xl leading-none">${c.emoji}</span>
+                    <span class="text-xl leading-none">${Utils.esc(c.emoji)}</span>
                 </div>
-                <span class="text-[10px] text-gray-600 truncate w-full text-center leading-tight font-medium">${c.name}</span>
+                <span class="text-[10px] text-gray-600 truncate w-full text-center leading-tight font-medium">${Utils.esc(c.name)}</span>
             </button>`;
         }).join('') + `
         <button id="manage-cats-btn" class="cat-card flex flex-col items-center gap-1">
@@ -7369,9 +7373,9 @@ const App = {
                    </span>`
                 : '';
             return `<div class="flex items-center gap-3 py-2.5 border-b border-gray-50 last:border-0">
-                <span class="text-2xl w-8 text-center">${cat.emoji}</span>
+                <span class="text-2xl w-8 text-center">${Utils.esc(cat.emoji)}</span>
                 <div class="flex-1 min-w-0">
-                    <div class="text-sm font-medium text-gray-800">${cat.name}</div>
+                    <div class="text-sm font-medium text-gray-800">${Utils.esc(cat.name)}</div>
                     <div class="flex items-center gap-1 mt-0.5">
                         ${typeBadge[cat.type] || ''}${badge ? '&nbsp;' + badge : ''}
                     </div>
@@ -7439,8 +7443,8 @@ const App = {
     },
 
     async saveCategoryForm() {
-        const name     = document.getElementById('cat-name-input').value.trim();
-        const emoji    = document.getElementById('cat-emoji-input').value.trim() || '📦';
+        const name     = document.getElementById('cat-name-input').value.trim().slice(0, 40);
+        const emoji    = Utils.cleanEmoji(document.getElementById('cat-emoji-input').value, '📦');
         const type     = document.getElementById('cat-type-input').value;
         const keywords = document.getElementById('cat-keywords-input').value
             .split(',').map(k => k.trim().toLowerCase()).filter(Boolean);
@@ -7538,7 +7542,7 @@ const App = {
             'bg-indigo-100 text-indigo-600',
         ];
         const cls = isMe ? 'bg-emerald-100 text-emerald-700' : palettes[seed % palettes.length];
-        return `<span class="inline-block text-xs px-1.5 py-0.5 rounded-full ${cls} font-medium leading-tight">${name}</span>`;
+        return `<span class="inline-block text-xs px-1.5 py-0.5 rounded-full ${cls} font-medium leading-tight">${Utils.esc(name)}</span>`;
     },
 
     _resolveTypeName(typeId) {

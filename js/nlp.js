@@ -321,31 +321,9 @@ const NLP = {
     // Suporta: "1.500,50" → 1500.50 | "1500,50" → 1500.50 | "50,30" → 50.30
     //          "1.500" → 1500 | "50.30" → 50.30 | "1500" → 1500
     _parseBRNumber(raw) {
-        if (!raw) return NaN;
-        const s = raw.trim();
-
-        // Formato BR completo: milhar com ponto + decimal com vírgula  ex: 1.500,50
-        if (/^\d{1,3}(\.\d{3})+(,\d{1,2})?$/.test(s)) {
-            return parseFloat(s.replace(/\./g, '').replace(',', '.'));
-        }
-
-        // Apenas vírgula decimal (sem ponto de milhar)  ex: 50,30 | 1500,50
-        if (/^\d+(,\d{1,2})$/.test(s)) {
-            return parseFloat(s.replace(',', '.'));
-        }
-
-        // Ponto ambíguo: 3 dígitos após ponto → milhar  ex: 1.500 → 1500
-        if (/^\d+\.\d{3}$/.test(s)) {
-            return parseFloat(s.replace('.', ''));
-        }
-
-        // Ponto com 1–2 dígitos → decimal  ex: 50.30 | 50.5
-        if (/^\d+\.\d{1,2}$/.test(s)) {
-            return parseFloat(s);
-        }
-
-        // Número inteiro sem separador
-        return parseFloat(s.replace(',', '.'));
+        // regra única de valores pt-BR em js/utils.js (parseMoneyBR); null → NaN para os chamadores desta classe
+        const n = Utils.parseMoneyBR(raw);
+        return n === null ? NaN : n;
     },
 
     // Normaliza saída do reconhecimento de voz antes de parsear o valor.
@@ -390,6 +368,20 @@ const NLP = {
         const rWord = t.match(/([\d.,]+)\s*(?:reais?|real|contos?)/);
         if (rWord) {
             const val = this._parseBRNumber(rWord[1]);
+            if (!isNaN(val) && val > 0) return val;
+        }
+
+        // ── 4b. "2 mil" / "1,5 mil" (algarismo + mil) ────────────────────────────
+        const rMil = t.match(/(?<![\d.,])(\d+(?:,\d{1,2})?)\s*mil\b/);
+        if (rMil) {
+            const base = this._parseBRNumber(rMil[1]);
+            if (!isNaN(base) && base > 0) return Math.round(base * 1000 * 100) / 100;
+        }
+
+        // ── 4c. Milhar com ponto, com/sem centavos, SEM "R$": "1.234,56" | "12.345" ──
+        const rThousands = t.match(/(?<![\d.,])(\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?)(?![\d.,]\d)/);
+        if (rThousands) {
+            const val = this._parseBRNumber(rThousands[1]);
             if (!isNaN(val) && val > 0) return val;
         }
 
