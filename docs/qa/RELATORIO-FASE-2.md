@@ -6,6 +6,11 @@ Base: fatos F1–F15 levantados no catálogo de produção (ver `docs/qa/baselin
 Migrations novas: `supabase/migrations/20261027000001…014` (determinísticas: removem as policies das tabelas afetadas por nome E por catálogo, recriam o conjunto
 correto; idempotentes; testadas 2×, isoladas, em estado parcial fora de ordem, só-repositório e com policies manuais). Rollback testado: `docs/qa/baseline/rollback-estado-producao.sql`.
 
+## Situação em produção (26/10)
+**Aplicado e conferido pelo dono do projeto**, na ordem do roteiro: migrations aditivas (`…001`, `…014`) → front (PR #37) e Edge Function `send-invite` →
+migrations restritivas (`…002` a `…013`), cada uma com a consulta de verificação conforme o esperado, e teste geral manual (login, carteiras, convites, lançamentos,
+parcelamento, cofrinho, lembretes/push, categorias, importação, resumo) sem falhas. Itens ainda ABERTOS: papel "visualizador" no banco, CSP e Tailwind por build (ver "Adiado").
+
 ## Tabela
 | ID | Achado | Estado | Arquivo(s) | Teste que prova | Risco de regressão |
 |---|---|---|---|---|---|
