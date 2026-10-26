@@ -1,4 +1,4 @@
-// ─── Service Worker — Finanças Casa ──────────────────────────────────────────
+// ─── Service Worker — Minhas Carteiras ──────────────────────────────────────────
 // APP_VERSION: 2026-10-06 12:00  ← atualizar junto com app.js a cada deploy
 const RUNTIME_CACHE = 'app-runtime-v20261019b';
 

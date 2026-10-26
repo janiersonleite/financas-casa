@@ -17,11 +17,11 @@
     <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
     <link rel="icon" type="image/svg+xml" href="icon.svg">
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.5.28/dist/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.js" integrity="sha384-TcHRA3zBbn+Lexh5n+Oil4guNPOS3rjNDpGRAN46u/s/mB2IZ50ceC6TYDU2yvgK" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js" integrity="sha384-jb8JQMbMoBUzgWatfe6COACi2ljcDdZQ2OxczGA3bGNeWe+6DChMTBJemed7ZnvJ" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" integrity="sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.5.28/dist/jspdf.plugin.autotable.min.js" integrity="sha384-vxxMdt1K6XlME6zkLsgFrrHIeC7XIdAo1GW/uhhObjJXnymxiIi/eoMXsKJA13ZJ" crossorigin="anonymous"></script>
     <style>
         :root {
             --clr-primary:    #059669;   /* emerald-600 */
@@ -850,7 +850,7 @@
         <!-- Name -->
         <div>
             <label class="block text-xs font-semibold text-gray-500 mb-1.5 uppercase">Nome</label>
-            <input id="financa-name-input" type="text" placeholder="Ex: Pessoal, Família, Negócio..."
+            <input id="financa-name-input" type="text" maxlength="60" placeholder="Ex: Pessoal, Família, Negócio..."
                 class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-emerald-500">
         </div>
 
@@ -1050,7 +1050,7 @@
             <!-- 4. Descrição -->
             <div>
                 <label class="block text-xs font-semibold text-gray-500 mb-1.5 uppercase">Descrição</label>
-                <input id="modal-description" type="text"
+                <input id="modal-description" type="text" maxlength="290"
                     class="w-full bg-white border-2 border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-800 focus:outline-none focus:border-emerald-500"
                     placeholder="Ex: Mercado, Uber, Salário...">
             </div>
@@ -1084,7 +1084,7 @@
                                 <div id="modal-cat-emoji-grid" class="grid grid-cols-8 gap-0.5 max-h-40 overflow-y-auto"></div>
                             </div>
                         </div>
-                        <input id="modal-cat-name-input" type="text" placeholder="Nome da categoria…"
+                        <input id="modal-cat-name-input" type="text" maxlength="40" placeholder="Nome da categoria…"
                             class="flex-1 border-2 border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-emerald-500 bg-white">
                     </div>
                     <input id="modal-cat-emoji-input" type="hidden" value="📦">
@@ -1395,7 +1395,7 @@
             </div>
             <div class="flex-1">
                 <label class="block text-xs font-semibold text-gray-500 mb-1.5 uppercase">Nome</label>
-                <input id="cat-name-input" type="text" placeholder="Ex: Pets, Academia..."
+                <input id="cat-name-input" type="text" maxlength="40" placeholder="Ex: Pets, Academia..."
                     class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-emerald-500">
             </div>
         </div>
@@ -1662,7 +1662,7 @@
             </div>
             <div class="flex-1">
                 <label class="block text-xs font-semibold text-gray-500 mb-1.5 uppercase">Nome</label>
-                <input id="type-name-input" type="text" placeholder="Ex: Investimento, Empréstimo..."
+                <input id="type-name-input" type="text" maxlength="40" placeholder="Ex: Investimento, Empréstimo..."
                     class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-emerald-500">
             </div>
         </div>
@@ -1804,7 +1804,7 @@
                 </div>
                 <div class="flex-1">
                     <label class="text-xs text-gray-500 font-medium mb-1 block">Nome do lembrete *</label>
-                    <input id="reminder-name-input" type="text" placeholder="Ex: Aluguel, Água, Luz..."
+                    <input id="reminder-name-input" type="text" maxlength="80" placeholder="Ex: Aluguel, Água, Luz..."
                         class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300">
                 </div>
             </div>
@@ -1854,7 +1854,7 @@
                     <div class="flex gap-2">
                         <input id="reminder-cat-emoji" type="text" maxlength="2" placeholder="📦"
                             class="w-12 border border-gray-200 rounded-xl px-2 py-2 text-center text-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-300">
-                        <input id="reminder-cat-name" type="text" placeholder="Nome da categoria"
+                        <input id="reminder-cat-name" type="text" maxlength="40" placeholder="Nome da categoria"
                             class="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-300">
                     </div>
                     <div class="flex gap-2">
@@ -1908,12 +1908,13 @@
 
 <script src="js/config.js?v=20261008a"></script>
 <script src="js/auth.js?v=20261008b"></script>
-<script src="js/storage.js?v=20261019a"></script>
-<script src="js/nlp.js?v=20261009a"></script>
+<script src="js/utils.js?v=20261027a"></script>
+<script src="js/storage.js?v=20261027a"></script>
+<script src="js/nlp.js?v=20261027a"></script>
 <script src="js/insights.js?v=20260528a"></script>
-<script src="js/cofrinhos.js?v=20261019a"></script>
+<script src="js/cofrinhos.js?v=20261027a"></script>
 <script src="js/push.js?v=20261009b"></script>
-<script src="js/app.js?v=20261019a"></script>
+<script src="js/app.js?v=20261027a"></script>
 
 <script>
 // ── Service Worker + PWA ──────────────────────────────────────────────────────

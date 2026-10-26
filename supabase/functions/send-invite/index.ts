@@ -27,7 +27,7 @@ Deno.serve(async (req) => {
         now: () => Date.now(),
         async getUser(token) {
             const { data, error } = await sb.auth.getUser(token);
-            return error || !data?.user?.email ? null : { id: data.user.id, email: data.user.email };
+            return error || !data?.user?.email ? null : { id: data.user.id, email: data.user.email, emailConfirmed: !!data.user.email_confirmed_at };
         },
         async isAdmin(financaId, userId) {
             const { data: f } = await sb.from('financas').select('owner_id').eq('id', financaId).maybeSingle();
@@ -41,7 +41,7 @@ Deno.serve(async (req) => {
         },
         async getInvite(financaId, email) {
             const { data } = await sb.from('financa_invites').select('id,accepted_at,expires_at,emailed_at,email_count')
-                .eq('financa_id', financaId).ilike('email', email).maybeSingle();
+                .eq('financa_id', financaId).eq('email', email).maybeSingle();   // e-mail já em minúsculas; sem curingas
             return data ? { ...data, email_count: data.email_count ?? 0 } : null;
         },
         async countRecentEmailsBy(userId, sinceIso) {
@@ -58,8 +58,8 @@ Deno.serve(async (req) => {
             return { ok: r.ok, status: r.status };
         },
         async markEmailed(inviteId) {
-            const { data } = await sb.from('financa_invites').select('email_count').eq('id', inviteId).maybeSingle();
-            await sb.from('financa_invites').update({ emailed_at: new Date().toISOString(), email_count: (data?.email_count ?? 0) + 1 }).eq('id', inviteId);
+            // incremento atômico no banco (migration 20261020000008): sem "ler e depois gravar"
+            await sb.rpc('mark_invite_emailed', { p_invite_id: inviteId });
         },
     };
 
