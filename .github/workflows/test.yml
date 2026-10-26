@@ -1,0 +1,41 @@
+name: Testes
+
+on:
+  push:
+  pull_request:
+  workflow_call:          # reutilizado por deploy.yml (o deploy só roda se estes testes passarem)
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      # os testes de banco criam bancos descartáveis aqui (nunca tocam o Supabase de produção)
+      TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Testes (banco, Edge Functions, unitários, estáticos)
+        run: npm test
+
+      - name: Conferir hashes SRI contra o CDN real
+        run: npm run verify:sri

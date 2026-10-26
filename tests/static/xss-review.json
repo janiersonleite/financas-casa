@@ -1,0 +1,298 @@
+[
+ {
+  "file": "js/app.js",
+  "key": "app.js|${(m.email || 'U').charAt(0).toUpperCase()}|(m.email || 'U').charAt(0).toUpperCase()",
+  "line": 517,
+  "expr": "(m.email || 'U').charAt(0).toUpperCase()",
+  "cls": "ESCAPADO",
+  "note": "1 caractere (charAt(0)) — não carrega payload útil"
+ },
+ {
+  "file": "js/app.js",
+  "key": "app.js|<div class=\"flex-1 min-w-0\"><div class=\"text-xs font-medium text-gray-800 truncate\">${title}</div><div class=\"text-[11px] text-gray-400\">${sub}</div></div>|title",
+  "line": 695,
+  "expr": "title",
+  "cls": "ESCAPADO",
+  "note": "argumentos já passam por _escHtml na chamada de row()"
+ },
+ {
+  "file": "js/app.js",
+  "key": "app.js|<p class=\"text-[11px] text-gray-500\">Dia ${r.day}${r.category ? ' · ' + this._escHtml(r.category) : ''}${amt ? ' · ' + amt : ''}</p>|r.category ? ' · ' + this._escHtml(r.category) : ''",
+  "line": 1660,
+  "expr": "r.category ? ' · ' + this._escHtml(r.category) : ''",
+  "cls": "ESCAPADO",
+  "note": "dentro já usa _escHtml"
+ },
+ {
+  "file": "js/app.js",
+  "key": "app.js|`<div class=\"col-span-8 text-xs font-semibold text-gray-400 mt-2 mb-0.5 px-0.5\">${g.label}</div>` +|g.label",
+  "line": 2039,
+  "expr": "g.label",
+  "cls": "NAO_CONTROLADO",
+  "note": "constante/identificador interno"
+ },
+ {
+  "file": "js/app.js",
+  "key": "app.js|`<button type=\"button\" data-emoji=\"${e}\" class=\"text-2xl p-1 rounded-lg hover:bg-emerald-50 transition-colors leading-none\">${e}</button>`|e",
+  "line": 2041,
+  "expr": "e",
+  "cls": "NAO_CONTROLADO",
+  "note": "constante/identificador interno"
+ },
+ {
+  "file": "js/app.js",
+  "key": "app.js|`<button type=\"button\" data-emoji=\"${e}\" class=\"text-2xl p-1 rounded-lg hover:bg-emerald-50 transition-colors leading-none\">${e}</button>`|e",
+  "line": 2041,
+  "expr": "e",
+  "cls": "NAO_CONTROLADO",
+  "note": "constante/identificador interno"
+ },
+ {
+  "file": "js/app.js",
+  "key": "app.js|<div class=\"text-[10px] font-medium\" style=\"color:${accent.label}\">${accent.badge}</div>|accent.label",
+  "line": 2544,
+  "expr": "accent.label",
+  "cls": "NAO_CONTROLADO",
+  "note": "cor/rótulo de status calculado"
+ },
+ {
+  "file": "js/app.js",
+  "key": "app.js|${txn.notes ? `<div class=\"col-span-2\"><p class=\"text-gray-400 mb-0.5\">Observação</p><p class=\"font-semibold text-gray-700\">${Utils.esc(txn.notes)}</p></div>` : ''}|txn.notes ? `<div class=\"col-span-2\"><p class=\"text-gray-400 mb-0.5\">Observação</p><p class=\"font-semibold text-gray-700\">${Utils.esc(txn.no",
+  "line": 2677,
+  "expr": "txn.notes ? `<div class=\"col-span-2\"><p class=\"text-gray-400 mb-0.5\">Observação</p><p class=\"font-semibold text-gray-700\">${Utils.esc(txn.no",
+  "cls": "ESCAPADO",
+  "note": "ternário; o valor interno passa por Utils.esc"
+ },
+ {
+  "file": "js/app.js",
+  "key": "app.js|`<option value=\"${this._escHtml(c.name)}\" ${c.name === selectedName ? 'selected' : ''}>${c.emoji} ${this._escHtml(c.name)}</option>`|c.name === selectedName ? 'selected' : ''",
+  "line": 3143,
+  "expr": "c.name === selectedName ? 'selected' : ''",
+  "cls": "NAO_CONTROLADO",
+  "note": "comparação booleana → \"selected\""
+ },
+ {
+  "file": "js/app.js",
+  "key": "app.js|`<option value=\"${this._escHtml(c.name)}\" ${c.name === selectedName ? 'selected' : ''}>${c.emoji} ${this._escHtml(c.name)}</option>`|c.emoji",
+  "line": 3143,
+  "expr": "c.emoji",
+  "cls": "NAO_CONTROLADO",
+  "note": "comparação booleana → \"selected\""
+ },
+ {
+  "file": "js/app.js",
+  "key": "app.js|<div class=\"text-[10px] text-gray-400 uppercase tracking-wide\">${label}</div>|label",
+  "line": 4637,
+  "expr": "label",
+  "cls": "NAO_CONTROLADO",
+  "note": "rótulos fixos dos tiles"
+ },
+ {
+  "file": "js/app.js",
+  "key": "app.js|${catOptions(p.category || 'Outros')}|catOptions(p.category || 'Outros')",
+  "line": 5546,
+  "expr": "catOptions(p.category || 'Outros')",
+  "cls": "ESCAPADO",
+  "note": "catOptions() escapa name"
+ },
+ {
+  "file": "js/app.js",
+  "key": "app.js|<span class=\"text-xs text-gray-600 w-24 flex-shrink-0\">${label}</span>|label",
+  "line": 6232,
+  "expr": "label",
+  "cls": "NAO_CONTROLADO",
+  "note": "nome de campo fixo do mapeamento de colunas"
+ },
+ {
+  "file": "js/app.js",
+  "key": "app.js|`<div class=\"col-span-8 text-xs font-semibold text-gray-400 mt-1.5 mb-0.5 px-0.5\">${g.label}</div>` +|g.label",
+  "line": 7129,
+  "expr": "g.label",
+  "cls": "NAO_CONTROLADO",
+  "note": "constante/identificador interno"
+ },
+ {
+  "file": "js/app.js",
+  "key": "app.js|`<button type=\"button\" data-emoji=\"${e}\" class=\"text-xl p-0.5 rounded-lg hover:bg-emerald-50 transition-colors leading-none\">${e}</button>`|e",
+  "line": 7131,
+  "expr": "e",
+  "cls": "NAO_CONTROLADO",
+  "note": "constante/identificador interno"
+ },
+ {
+  "file": "js/app.js",
+  "key": "app.js|`<button type=\"button\" data-emoji=\"${e}\" class=\"text-xl p-0.5 rounded-lg hover:bg-emerald-50 transition-colors leading-none\">${e}</button>`|e",
+  "line": 7131,
+  "expr": "e",
+  "cls": "NAO_CONTROLADO",
+  "note": "constante/identificador interno"
+ },
+ {
+  "file": "js/app.js",
+  "key": "app.js|`<div class=\"col-span-8 text-xs font-semibold text-gray-400 mt-2 mb-0.5 px-0.5\">${g.label}</div>` +|g.label",
+  "line": 7270,
+  "expr": "g.label",
+  "cls": "NAO_CONTROLADO",
+  "note": "constante/identificador interno"
+ },
+ {
+  "file": "js/app.js",
+  "key": "app.js|`<button type=\"button\" data-emoji=\"${e}\" class=\"text-2xl p-1 rounded-lg hover:bg-emerald-50 transition-colors leading-none\">${e}</button>`|e",
+  "line": 7272,
+  "expr": "e",
+  "cls": "NAO_CONTROLADO",
+  "note": "constante/identificador interno"
+ },
+ {
+  "file": "js/app.js",
+  "key": "app.js|`<button type=\"button\" data-emoji=\"${e}\" class=\"text-2xl p-1 rounded-lg hover:bg-emerald-50 transition-colors leading-none\">${e}</button>`|e",
+  "line": 7272,
+  "expr": "e",
+  "cls": "NAO_CONTROLADO",
+  "note": "constante/identificador interno"
+ },
+ {
+  "file": "js/app.js",
+  "key": "app.js|${typeBadge[cat.type] || ''}${badge ? '&nbsp;' + badge : ''}|typeBadge[cat.type] || ''",
+  "line": 7375,
+  "expr": "typeBadge[cat.type] || ''",
+  "cls": "NAO_CONTROLADO",
+  "note": "constante/identificador interno"
+ },
+ {
+  "file": "js/app.js",
+  "key": "app.js|<button class=\"cat-edit-btn text-gray-400 hover:text-emerald-600 px-2 text-lg\" data-cat-id=\"${cat.id}\" title=\"Editar\">✏️</button>|cat.id",
+  "line": 7379,
+  "expr": "cat.id",
+  "cls": "NAO_CONTROLADO",
+  "note": "constante/identificador interno"
+ },
+ {
+  "file": "js/app.js",
+  "key": "app.js|<button class=\"cat-del-btn text-gray-400 hover:text-red-500 px-1 text-lg\"  data-cat-id=\"${cat.id}\" title=\"Excluir\">🗑</button>|cat.id",
+  "line": 7380,
+  "expr": "cat.id",
+  "cls": "NAO_CONTROLADO",
+  "note": "constante/identificador interno"
+ },
+ {
+  "file": "js/cofrinhos.js",
+  "key": "cofrinhos.js|<p class=\"text-xs ${w.soft} mt-0.5\">${w.label}${w.type === 'compartilhada' ? ' · membros veem e editam' : ''}</p>|w.label",
+  "line": 405,
+  "expr": "w.label",
+  "cls": "NAO_CONTROLADO",
+  "note": "rótulo/cálculo interno (períodos, tiles, classes CSS)"
+ },
+ {
+  "file": "js/cofrinhos.js",
+  "key": "cofrinhos.js|<p class=\"text-sm font-extrabold text-white truncate leading-tight\">${this._esc(w.name)} <span class=\"font-normal ${w.soft}\">· ${w.label}</span></p>|w.label",
+  "line": 420,
+  "expr": "w.label",
+  "cls": "NAO_CONTROLADO",
+  "note": "rótulo/cálculo interno (períodos, tiles, classes CSS)"
+ },
+ {
+  "file": "js/cofrinhos.js",
+  "key": "cofrinhos.js|<div class=\"text-[10px] text-gray-500 leading-tight min-h-[24px] flex items-center justify-center\">${title}</div>|title",
+  "line": 635,
+  "expr": "title",
+  "cls": "NAO_CONTROLADO",
+  "note": "rótulo/cálculo interno (períodos, tiles, classes CSS)"
+ },
+ {
+  "file": "js/cofrinhos.js",
+  "key": "cofrinhos.js|<div class=\"text-[10px] text-gray-400 uppercase tracking-wide\">${label}</div>|label",
+  "line": 811,
+  "expr": "label",
+  "cls": "NAO_CONTROLADO",
+  "note": "rótulo/cálculo interno (períodos, tiles, classes CSS)"
+ },
+ {
+  "file": "js/cofrinhos.js",
+  "key": "cofrinhos.js|<div class=\"text-[11px] text-gray-500 truncate\">${s.done ? '<span class=\"font-semibold text-emerald-700\">🎉 Concluído</span>' + (meta ? ' · ' : '') : ''}${meta || (s.done ? '' : '&nbsp;')}</div>|s.done ? '<span class=\"font-semibold text-emerald-700\">🎉 Concluído</span>' + (meta ? ' · ' : '') : ''",
+  "line": 881,
+  "expr": "s.done ? '<span class=\"font-semibold text-emerald-700\">🎉 Concluído</span>' + (meta ? ' · ' : '') : ''",
+  "cls": "ESCAPADO",
+  "note": "valor passa por _esc()/já vem escapado (_pixBlockHtml, meta)"
+ },
+ {
+  "file": "js/cofrinhos.js",
+  "key": "cofrinhos.js|<div class=\"text-[11px] text-gray-500 truncate\">${s.done ? '<span class=\"font-semibold text-emerald-700\">🎉 Concluído</span>' + (meta ? ' · ' : '') : ''}${meta || (s.done ? '' : '&nbsp;')}</div>|meta || (s.done ? '' : '&nbsp;')",
+  "line": 881,
+  "expr": "meta || (s.done ? '' : '&nbsp;')",
+  "cls": "ESCAPADO",
+  "note": "valor passa por _esc()/já vem escapado (_pixBlockHtml, meta)"
+ },
+ {
+  "file": "js/cofrinhos.js",
+  "key": "cofrinhos.js|<button data-act=\"retirada\" data-id=\"${c.id}\" ${canWrite && s.saved > 0 ? '' : 'disabled'}|canWrite && s.saved > 0 ? '' : 'disabled'",
+  "line": 895,
+  "expr": "canWrite && s.saved > 0 ? '' : 'disabled'",
+  "cls": "NAO_CONTROLADO",
+  "note": "rótulo/cálculo interno (períodos, tiles, classes CSS)"
+ },
+ {
+  "file": "js/cofrinhos.js",
+  "key": "cofrinhos.js|class=\"flex-1 py-1.5 rounded-xl text-xs font-semibold border ${k === key ? 'bg-emerald-600 text-white border-emerald-600' : 'border-gray-200 text-gray-600'}\">${label}</button>`).join('')}|label",
+  "line": 1001,
+  "expr": "label",
+  "cls": "NAO_CONTROLADO",
+  "note": "rótulo/cálculo interno (períodos, tiles, classes CSS)"
+ },
+ {
+  "file": "js/cofrinhos.js",
+  "key": "cofrinhos.js|${periods.map(([key, label]) => `<button type=\"button\" data-dact=\"plan\" data-p=\"${key}\"|periods.map(([key, label]) => `<button type=\"button\" data-dact=\"plan\" data-p=\"${key}\" class=\"flex-1 py-1.5 rounded-xl text-xs font-semibold ",
+  "line": 1000,
+  "expr": "periods.map(([key, label]) => `<button type=\"button\" data-dact=\"plan\" data-p=\"${key}\" class=\"flex-1 py-1.5 rounded-xl text-xs font-semibold ",
+  "cls": "NAO_CONTROLADO",
+  "note": "rótulo/cálculo interno (períodos, tiles, classes CSS)"
+ },
+ {
+  "file": "js/cofrinhos.js",
+  "key": "cofrinhos.js|<div class=\"text-sm text-gray-800 truncate\">${this.KIND_LABEL[m.kind] || 'Depósito'}${m.note ? ' · ' + this._esc(m.note) : ''}</div>|m.note ? ' · ' + this._esc(m.note) : ''",
+  "line": 1016,
+  "expr": "m.note ? ' · ' + this._esc(m.note) : ''",
+  "cls": "ESCAPADO",
+  "note": "valor passa por _esc()/já vem escapado (_pixBlockHtml, meta)"
+ },
+ {
+  "file": "js/cofrinhos.js",
+  "key": "cofrinhos.js|<tbody>${series.map(r => `<tr class=\"border-t border-gray-50\"><td class=\"py-1 text-gray-700\">${r.label}</td><td class=\"text-right tabular-nums text-gray-700\">${this._money(r.dep)}</td><td class=\"text-right tabular-nums text-gray-700\">${this._money(r.ret)}</td></tr>`).join('')}</tbody>|r.label",
+  "line": 1034,
+  "expr": "r.label",
+  "cls": "NAO_CONTROLADO",
+  "note": "rótulo/cálculo interno (períodos, tiles, classes CSS)"
+ },
+ {
+  "file": "js/cofrinhos.js",
+  "key": "cofrinhos.js|<span class=\"font-semibold\">${this._pctTxt(s.pct)}${s.done ? ' · 🎉 Concluído' : ''}</span>|s.done ? ' · 🎉 Concluído' : ''",
+  "line": 1066,
+  "expr": "s.done ? ' · 🎉 Concluído' : ''",
+  "cls": "NAO_CONTROLADO",
+  "note": "rótulo/cálculo interno (períodos, tiles, classes CSS)"
+ },
+ {
+  "file": "js/cofrinhos.js",
+  "key": "cofrinhos.js|<button type=\"button\" data-dact=\"ret\" ${canWrite && s.saved > 0 ? '' : 'disabled'} class=\"flex-1 py-3 rounded-xl border-2 border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-40\">− Retirar</button>|canWrite && s.saved > 0 ? '' : 'disabled'",
+  "line": 1072,
+  "expr": "canWrite && s.saved > 0 ? '' : 'disabled'",
+  "cls": "NAO_CONTROLADO",
+  "note": "rótulo/cálculo interno (períodos, tiles, classes CSS)"
+ },
+ {
+  "file": "js/cofrinhos.js",
+  "key": "cofrinhos.js|${c.pix_key ? `<div class=\"rounded-2xl border border-gray-100 p-4\">${this._pixBlockHtml(c, 'data-dact=\"copy-pix\"')}</div>` : ''}|c.pix_key ? `<div class=\"rounded-2xl border border-gray-100 p-4\">${this._pixBlockHtml(c, 'data-dact=\"copy-pix\"')}</div>` : ''",
+  "line": 1076,
+  "expr": "c.pix_key ? `<div class=\"rounded-2xl border border-gray-100 p-4\">${this._pixBlockHtml(c, 'data-dact=\"copy-pix\"')}</div>` : ''",
+  "cls": "ESCAPADO",
+  "note": "valor passa por _esc()/já vem escapado (_pixBlockHtml, meta)"
+ },
+ {
+  "file": "js/cofrinhos.js",
+  "key": "cofrinhos.js|class=\"w-10 h-10 rounded-xl text-xl flex items-center justify-center border-2 ${e === f.emoji ? 'border-emerald-500 bg-emerald-50' : 'border-gray-200'}\">${this._esc(e)}</button>`).join('');|e === f.emoji ? 'border-emerald-500 bg-emerald-50' : 'border-gray-200'",
+  "line": 1148,
+  "expr": "e === f.emoji ? 'border-emerald-500 bg-emerald-50' : 'border-gray-200'",
+  "cls": "NAO_CONTROLADO",
+  "note": "rótulo/cálculo interno (períodos, tiles, classes CSS)"
+ }
+]
