@@ -1,4 +1,6 @@
-# Proposta de Content-Security-Policy (NÃO ativada)
+# Proposta de Content-Security-Policy (histórico da Fase 2 — SUBSTITUÍDA)
+
+> **Atualização (Fase 3b / G4):** a CSP foi **ativada** via `<meta>` no `index.html`, sem o CDN do Tailwind e **sem `'unsafe-inline'` em `script-src`** (hashes sha256). Política final, concessões e validação: `docs/qa/DECISOES.md` (D10) e `docs/qa/csp-validacao.json`. O texto abaixo é o histórico da proposta.
 
 **Por que não ativei:** o GitHub Pages não envia cabeçalhos, então a CSP teria de ir em `<meta http-equiv="Content-Security-Policy">`.
 Consegui validar a política abaixo em Chromium (Playwright) com o app carregado e os fluxos principais (abas Início/Histórico/Resumo/Investir,

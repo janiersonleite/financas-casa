@@ -2,6 +2,9 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
+    <!-- CSP (G4): ver docs/qa/DECISOES.md D10. Hashes dos scripts e onclick inline conferidos por tests/static/csp.test.js (node scripts/csp-hashes.js). frame-ancestors não funciona via <meta>. -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdn.jsdelivr.net 'unsafe-hashes' 'sha256-EAUCm1hSk4ceKt3ebRo9ZI/Lyb7uWL1WXKJaummki0c=' 'sha256-l/23ARYhf101RGv+cKNYSaajASv/yZQMVxcQP3D/0EY=' 'sha256-9cMgbr8skjY7mrmnz5CKwuZBY9/V77yD7zTQ5zuvZCc=' 'sha256-hArZ1mDieNge3HkLvDnEv/0LObbTxE0zABsyLQPDMu0=' 'sha256-+upJ6nEPXfPB82FeVViP6tz3NgSnrldQbVsrXEZx614=' 'sha256-r/J6rnUj+YeZVWk9wyjeev0p42qUnxxFmSBEaejaryc=' 'sha256-qL4aEzIzyw/tYxNn/hR71F/9uFhdgmZGe1UsxYkxn+I='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://dvjjolhalgjooqnravqu.supabase.co wss://dvjjolhalgjooqnravqu.supabase.co; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+    <meta name="referrer" content="strict-origin-when-cross-origin">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">

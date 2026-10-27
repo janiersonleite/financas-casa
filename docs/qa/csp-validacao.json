@@ -1,0 +1,91 @@
+{
+ "politica": "default-src 'none'; script-src 'self' https://cdn.jsdelivr.net 'unsafe-hashes' 'sha256-EAUCm1hSk4ceKt3ebRo9ZI/Lyb7uWL1WXKJaummki0c=' 'sha256-l/23ARYhf101RGv+cKNYSaajASv/yZQMVxcQP3D/0EY=' 'sha256-9cMgbr8skjY7mrmnz5CKwuZBY9/V77yD7zTQ5zuvZCc=' 'sha256-hArZ1mDieNge3HkLvDnEv/0LObbTxE0zABsyLQPDMu0=' 'sha256-+upJ6nEPXfPB82FeVViP6tz3NgSnrldQbVsrXEZx614=' 'sha256-r/J6rnUj+YeZVWk9wyjeev0p42qUnxxFmSBEaejaryc=' 'sha256-qL4aEzIzyw/tYxNn/hR71F/9uFhdgmZGe1UsxYkxn+I='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://<ref>.supabase.co wss://<ref>.supabase.co; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'",
+ "fluxos": [
+  {
+   "nome": "A1 carregar o app (scripts CDN com SRI, CSS, manifest, ícones)",
+   "ok": true,
+   "violacoes": 0
+  },
+  {
+   "nome": "A2 abas Início/Histórico/Resumo/Investir",
+   "ok": true,
+   "violacoes": 0
+  },
+  {
+   "nome": "A3 gráficos (Chart.js) desenhados no Resumo",
+   "ok": true,
+   "violacoes": 0
+  },
+  {
+   "nome": "A4 criar lançamento pelo formulário (UI)",
+   "ok": true,
+   "violacoes": 0
+  },
+  {
+   "nome": "A5 exportar Excel",
+   "ok": true,
+   "violacoes": 0
+  },
+  {
+   "nome": "A6 exportar PDF",
+   "ok": true,
+   "violacoes": 0
+  },
+  {
+   "nome": "A7 importar planilha (xlsx)",
+   "ok": true,
+   "violacoes": 0
+  },
+  {
+   "nome": "A8 cofrinho: criar (UI) e depositar",
+   "ok": true,
+   "violacoes": 0
+  },
+  {
+   "nome": "A9 lembretes: criar e listar",
+   "ok": true,
+   "violacoes": 0
+  },
+  {
+   "nome": "A10 modais com onclick inline (fechar por clique no fundo e no ✕)",
+   "ok": true,
+   "violacoes": 0
+  },
+  {
+   "nome": "A11 service worker registra, ativa e controla a página",
+   "ok": true,
+   "violacoes": 0
+  },
+  {
+   "nome": "A12 push: cartão de notificações e (re)sincronização",
+   "ok": true,
+   "violacoes": 0
+  },
+  {
+   "nome": "B1 tela de login (cliente Supabase real, rede simulada)",
+   "ok": true,
+   "violacoes": 0
+  },
+  {
+   "nome": "B2 login pela interface (REST/Auth em connect-src)",
+   "ok": true,
+   "violacoes": 0
+  },
+  {
+   "nome": "B3 abas e lançamento na nuvem (POST simulado)",
+   "ok": true,
+   "violacoes": 0
+  },
+  {
+   "nome": "B4 Realtime (WebSocket wss) e Edge Function (convite) permitidos",
+   "ok": true,
+   "violacoes": 0
+  }
+ ],
+ "violacoes": [],
+ "consoleErros": [],
+ "hostsBloqueados": [],
+ "preExistentes": [
+  "person-detail-modal: App.closePersonDetail is not a function"
+ ]
+}

@@ -13,7 +13,7 @@ const col = createCollector('misc-findings.json');
 test.after(() => col.flush());
 const read = f => fs.readFileSync(path.join(ROOT, f), 'utf8');
 
-test('index.html: CDNs com versão exata + SRI (Tailwind agora compilado, G3); CSP só como proposta (E1/E2)', () => {
+test('index.html: CDNs com versão exata + SRI (Tailwind agora compilado, G3); CSP (E1/E2, G4)', () => {
   const html = read('index.html');
   const tags = [...html.matchAll(/<script\b[^>]*\bsrc="(https?:[^"]+)"[^>]*>/g)].map(m => ({ url: m[1], tag: m[0] }));
   assert.ok(tags.length >= 5, 'scripts de CDN não encontrados');
@@ -32,7 +32,7 @@ test('index.html: CDNs com versão exata + SRI (Tailwind agora compilado, G3); C
   col.add('SUP-03', 'CORRIGIDO', 'cdn.tailwindcss.com removido: Tailwind 3.4.19 compilado no build (css/app.css)', 'Fase 3 / G3 — ver DECISOES.md (D9)');
   const csp = /Content-Security-Policy/i.test(html);
   assert.ok(fs.existsSync(path.join(ROOT, 'docs', 'qa', 'csp-proposta.md')));
-  col.add('SUP-04', 'PARCIAL', 'CSP entregue como PROPOSTA (docs/qa/csp-proposta.md), não ativada', csp ? 'ATENÇÃO: já existe CSP no index.html' : 'validada em Chromium sem violações, mas Tailwind real não pôde ser testado');
+  col.add('SUP-04', csp ? 'CORRIGIDO' : 'PARCIAL', csp ? 'CSP ativa via <meta> (G4, Fase 3b): validada em Chromium, 0 violações' : 'CSP entregue como PROPOSTA (docs/qa/csp-proposta.md), não ativada', csp ? 'ver DECISOES.md D10 e docs/qa/csp-validacao.json' : 'ativação na branch qa/fase-3b-csp');
 });
 
 test('server.js: bloqueia path traversal e dotfiles; escuta só em 127.0.0.1 (SRV-01/02)', async () => {
