@@ -55,10 +55,26 @@ Usada em: `nlp.js` (voz/texto, inclusive "2 mil", "1,5 mil" e "1.234,56" sem "R$
 
 ## D5. C2 — Parcelamento
 Divisão em centavos inteiros (`Utils.splitMoney`): a **sobra vai uma a uma para as primeiras parcelas** (100/3 → 33,34 + 33,33 + 33,33). A prévia no modal mostra "R$ 33,34 + 2× de R$ 33,33". Total pequeno demais para o nº de parcelas (alguma parcela = R$ 0,00) é recusado com aviso.
-**Não alterado (ADIADO):** MON-05 (datas via `toISOString()` em fusos UTC+), NLP-03 (frases "3 parcelas de 100"): não estavam nos blocos desta fase.
+**Não alterado (ADIADO):** NLP-03 (frases "3 parcelas de 100"): não estavam nos blocos desta fase (MON-05, datas, foi tratado na Fase 3: ver D8).
 
 ## D6. E1/E2 — CDN, SRI e CSP
 - **SRI aplicado** a supabase-js, chart.js, xlsx, jsPDF e jsPDF-autotable, com versão EXATA e `crossorigin="anonymous"`. Os hashes foram calculados dos arquivos do pacote npm (`dist/...`), baixados de **dois hosts de registry** (`registry.npmjs.org` e `registry.yarnpkg.com`; tarballs idênticos, mesmo sha256) — o jsDelivr serve esses arquivos byte a byte. **Não consegui baixar do próprio jsDelivr** (o ambiente bloqueia o host), então a conferência final contra o CDN real fica no `npm run verify:sri`, que roda no CI e **deve rodar antes do deploy** (SRI errado = o script não carrega = app quebrado).
 - Versões fixadas: `@supabase/supabase-js@2.118.0` (era `@2`, hoje resolvia para a mesma), `chart.js@4.5.1` (era sem versão); `xlsx@0.18.5`, `jspdf@2.5.1`, `jspdf-autotable@3.5.28` já estavam fixos.
 - **Tailwind (`cdn.tailwindcss.com`)**: sem SRI (o script é dinâmico e muda). Risco registrado: código de terceiro com acesso total à página. **Tarefa futura:** compilar o Tailwind (CLI `tailwindcss -i ... -o css/tailwind.css --minify`, com `content: ['./index.html','./js/**/*.js']`) e servir o CSS do próprio site; isso também elimina o aviso do "play CDN em produção", acelera o carregamento e permite remover `'unsafe-eval'`/o host da CSP.
 - **CSP**: apenas proposta em `docs/qa/csp-proposta.md` (ver lá por que não foi ativada).
+
+## D8 — Datas de calendário no horário local (G2 / MON-05, Fase 3)
+**Regra:** data de calendário ("hoje", mês corrente, último dia do mês, data padrão do lançamento) usa `Utils.localDateStr/todayLocal/monthKeyLocal/monthEndLocal/parseDateLocal` (js/utils.js). `toISOString()` converte para UTC e, no Brasil (UTC-3), depois das 21h devolve o dia seguinte.
+
+**Substituídos (21 pontos):** `App.currentMonth` inicial; `_addMonths` (parcelas); data padrão do modal; chave diária dos avisos de lembrete; mês exibido/atual (3 pontos); "hoje" de `quickAddFromReminder`, lista de lançamentos, histórico, parcelas e relatórios; `formatDateGroup` (Hoje/Ontem); importação (`_parseImportDate`, "hoje" padrão); insights (projeção, gaps de parcela, `new Date(data + 'T12:00:00')` → parse local); push (`push_registered_<uid>` por dia); storage (data padrão em `_localAdd`, `addTransaction`, `addTransactions`; último dia do mês em `getTransactions` ×2, antes `new Date(+y, +m, 0).toISOString()`).
+
+**Mantidos com `toISOString()` (são INSTANTES, não datas de calendário; o banco guarda timestamptz):**
+| Onde | Motivo |
+|---|---|
+| `created_at` (storage.js ×7, cofrinhos.js ×3) | carimbo de criação |
+| `updated_at` de `user_pix` (storage.js) | carimbo de atualização |
+| `fire_at` (push.js ×2) e o disparo de teste `+40 s` (push.js) | instante absoluto exigido pela Edge Function |
+
+**Mantido sem mudança:** `_parseImportDate` com número serial do Excel usa `getUTC*` (o serial já é "dia sem fuso"); `new Date(raw)` de texto livre só é usado como último recurso.
+
+**Teste:** `tests/unit/dates.test.js` roda 7 cenários × 4 fusos (America/Sao_Paulo, UTC, Asia/Tokyo, America/New_York) com relógio simulado em processo filho, mais um scanner que falha se surgir `toISOString().slice/split` ou `new Date('AAAA-…')` fora da lista acima.

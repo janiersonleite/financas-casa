@@ -26,7 +26,7 @@ const App = {
     chart:      null,
     recognition: null,
     isListening: false,
-    currentMonth: new Date().toISOString().slice(0, 7),
+    currentMonth: Utils.monthKeyLocal(),
     summaryPeriod: null,   // Resumo: null = mês selecionado; { preset|from,to } = período livre
     financas:      [],
     activeFinanca: null,
@@ -1261,7 +1261,7 @@ const App = {
         const result = new Date(y, m - 1 + months, 1);
         const maxDay = new Date(result.getFullYear(), result.getMonth() + 1, 0).getDate();
         result.setDate(Math.min(d, maxDay));
-        return result.toISOString().split('T')[0];
+        return Utils.localDateStr(result);
     },
 
     _renderInstallmentPicker(customActive = false) {
@@ -1481,7 +1481,7 @@ const App = {
         // Remove sufixo "(X/N)" ao editar parcela para o campo ficar limpo
         const cleanDesc = (data.description || '').replace(/\s*\(\d+\/\d+\)\s*$/, '');
         document.getElementById('modal-description').value = cleanDesc;
-        document.getElementById('modal-date').value        = data.date || new Date().toISOString().split('T')[0];
+        document.getElementById('modal-date').value        = data.date || Utils.todayLocal();
         document.getElementById('modal-notes').value       = data.notes || '';
         this.renderModalTypeBtns();
         this.selectModalType(data.type || 'saida');
@@ -2224,7 +2224,7 @@ const App = {
     async checkReminderNotifications() {
         if (!('Notification' in window)) return;  // navegador não suporta
 
-        const todayKey = new Date().toISOString().slice(0, 10); // "2026-04-30"
+        const todayKey = Utils.todayLocal(); // "2026-04-30"
 
         // Configuração dos 3 alertas: chave de deduplicação, dias antes, textos
         const THRESHOLDS = [
@@ -2439,7 +2439,7 @@ const App = {
 
         // Lembrete pontual (data única) só aparece no home no mês da sua data;
         // recorrente aparece em qualquer mês visualizado.
-        const _viewMonth = this.currentMonth || new Date().toISOString().slice(0, 7);
+        const _viewMonth = this.currentMonth || Utils.monthKeyLocal();
         const active = this.reminders.filter(r =>
             r.active !== false &&
             !this._isReminderExpired(r) &&
@@ -2458,7 +2458,7 @@ const App = {
 
         // Usa o mês visualizado para comparação de datas
         const today        = new Date();
-        const realToday    = today.toISOString().slice(0, 7);
+        const realToday    = Utils.monthKeyLocal(today);
         const viewMonth    = this.currentMonth || realToday;
         const isCurrentMonth = viewMonth === realToday;
         const isFutureMonth  = viewMonth > realToday;
@@ -2639,7 +2639,7 @@ const App = {
 
         // Sub-título: data do lançamento
         const dateLabel = txn.date
-            ? new Date(txn.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })
+            ? Utils.parseDateLocal(txn.date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })
             : '';
         document.getElementById('reminder-txn-sub').textContent = dateLabel;
 
@@ -2710,7 +2710,7 @@ const App = {
     // Fonte primária: transações do Supabase (sobrevive a limpeza de cache).
     // Fonte secundária: localStorage (compatibilidade e fallback enquanto
     //   _monthTransactions ainda não foi carregado).
-    _currentMonth() { return this.currentMonth || new Date().toISOString().slice(0, 7); },
+    _currentMonth() { return this.currentMonth || Utils.monthKeyLocal(); },
     _paidKey(month) { return 'reminder_paid_' + month; },
     _getPaidReminders(month) {
         try { return JSON.parse(localStorage.getItem(this._paidKey(month)) || '[]'); } catch { return []; }
@@ -2745,7 +2745,7 @@ const App = {
 
         // Data padrão = HOJE (dia em que o pagamento está sendo registrado),
         // e não a data de vencimento do lembrete — que pode já ter passado.
-        const today = new Date().toISOString().slice(0, 10);
+        const today = Utils.todayLocal();
 
         // Passa todos os dados via objeto para que sobrevivam ao picker de perfil
         this.openModal({
@@ -4080,7 +4080,7 @@ const App = {
                    </div>`;
             return;
         }
-        const todayStr = new Date().toISOString().split('T')[0];
+        const todayStr = Utils.todayLocal();
 
         const grouped = {};
         for (const t of transactions) {
@@ -5515,7 +5515,7 @@ const App = {
             return `<option value="${this._escHtml(t.id)}" ${sel}>${Utils.esc(t.emoji || '')} ${this._escHtml(t.name)}</option>`;
         }).join('');
 
-        const todayStr = new Date().toISOString().slice(0, 10);
+        const todayStr = Utils.todayLocal();
 
         list.innerHTML = drafts.map((p, i) => `
             <div class="compound-item relative bg-gray-50 rounded-xl p-3 border border-gray-200" data-idx="${i}">
@@ -5617,7 +5617,7 @@ const App = {
         }
 
         let saved = 0;
-        const todayStr = new Date().toISOString().slice(0, 10);
+        const todayStr = Utils.todayLocal();
         for (const p of valid) {
             try {
                 await Storage.addTransaction({
@@ -6049,7 +6049,7 @@ const App = {
         try {
             const financa = this.activeFinanca;
             const fname   = financa?.name || 'Pessoal';
-            const today   = new Date().toISOString().slice(0, 10);
+            const today   = Utils.todayLocal();
 
             // 1. Todos os lançamentos (sem filtro de mês)
             const allTxns = await Storage.getTransactions({});
@@ -6269,7 +6269,7 @@ const App = {
     },
 
     _parseImportDate(raw) {
-        const today = new Date().toISOString().split('T')[0];
+        const today = Utils.todayLocal();
         const clamp = (y, m, d) => {
             const last = new Date(Number(y), Number(m), 0).getDate(); // último dia do mês
             const dd   = Math.min(Math.max(1, Number(d)), last);
@@ -7040,8 +7040,8 @@ const App = {
 
     formatDateGroup(dateStr) {
         if (!dateStr || dateStr === 'sem-data') return 'Sem data';
-        const today     = new Date().toISOString().split('T')[0];
-        const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+        const today     = Utils.todayLocal();
+        const _n = new Date(), yesterday = Utils.localDateStr(new Date(_n.getFullYear(), _n.getMonth(), _n.getDate() - 1));
         if (dateStr === today)     return 'Hoje';
         if (dateStr === yesterday) return 'Ontem';
         const [y, m, d] = dateStr.split('-');

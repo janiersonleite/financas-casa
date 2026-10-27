@@ -101,7 +101,7 @@ const Insights = {
 
         let expenseToDate = 0;
         for (const t of currTxns) {
-            if (this._isExpense(t) && t.date && t.date <= (isCurrentMonth ? today.toISOString().slice(0, 10) : `${ymStr}-${String(daysInMonth).padStart(2,'0')}`)) {
+            if (this._isExpense(t) && t.date && t.date <= (isCurrentMonth ? Utils.localDateStr(today) : `${ymStr}-${String(daysInMonth).padStart(2,'0')}`)) {
                 expenseToDate += Number(t.value) || 0;
             }
         }
@@ -111,7 +111,7 @@ const Insights = {
         }
 
         // Lançamentos futuros já agendados (parcelas com data futura)
-        const todayStr = today.toISOString().slice(0, 10);
+        const todayStr = Utils.localDateStr(today);
         let futurePlanned = 0;
         for (const t of currTxns) {
             if (this._isExpense(t) && t.date && t.date > todayStr) {
@@ -315,10 +315,10 @@ const Insights = {
             if (!gaps.length) continue;
 
             // Só sinaliza gaps internos ou últimas parcelas já passadas
-            const today = new Date().toISOString().slice(0, 10);
+            const today = Utils.todayLocal();
             const refTxn = items.find(t => t.installment_current === Math.max(...present));
             if (!refTxn?.date) continue;
-            const refDate = new Date(refTxn.date + 'T12:00:00');
+            const refDate = Utils.parseDateLocal(refTxn.date);
 
             // Para cada gap, calcula data prevista (mês ref + (gap - current))
             const overdue = [];
@@ -326,7 +326,7 @@ const Insights = {
                 const offset = g - refTxn.installment_current;
                 const expected = new Date(refDate);
                 expected.setMonth(expected.getMonth() + offset);
-                const expectedStr = expected.toISOString().slice(0, 10);
+                const expectedStr = Utils.localDateStr(expected);
                 if (expectedStr <= today) {
                     overdue.push({ num: g, expectedDate: expectedStr });
                 }

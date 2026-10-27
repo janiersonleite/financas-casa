@@ -19,6 +19,24 @@ const Utils = {
         return ok.length ? ok.join('') : fallback;
     },
 
+    // ── Datas de CALENDÁRIO no horário LOCAL (nunca toISOString: ele converte para UTC e, no Brasil,
+    // depois das 21h devolve o dia seguinte). toISOString só para instantes (created_at, fire_at…) — ver DECISOES.md (D8).
+    localDateStr(d = new Date()) {
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    },
+    todayLocal() { return Utils.localDateStr(new Date()); },
+    monthKeyLocal(d = new Date()) { return Utils.localDateStr(d).slice(0, 7); },
+    // "AAAA-MM-DD" → Date à meia-noite LOCAL (new Date('AAAA-MM-DD') seria UTC e exibiria o dia anterior em UTC-3)
+    parseDateLocal(s) {
+        const [y, m, d] = String(s).slice(0, 10).split('-').map(Number);
+        return new Date(y, (m || 1) - 1, d || 1);
+    },
+    // Último dia do mês "AAAA-MM" como "AAAA-MM-DD"
+    monthEndLocal(ym) {
+        const [y, m] = String(ym).split('-').map(Number);
+        return Utils.localDateStr(new Date(y, m, 0));
+    },
+
     // ── Dinheiro (pt-BR) ──────────────────────────────────────────────────────
     // Converte texto monetário em número. Regras (ver docs/qa/DECISOES.md, C1):
     //   "1.234,56" / "R$ 1.234,56" / "1,234.56" → 1234.56   (os dois separadores: o ÚLTIMO é o decimal)
