@@ -1,11 +1,14 @@
--- RPC accept_invite — o aceite de convite passa a ser feito pelo SERVIDOR.
+-- [A2 / F13] RPC accept_invite — o aceite de convite passa a ser feito pelo SERVIDOR.
 --
--- O QUE FAZ
---   Valida no banco (e-mail do convite = e-mail de quem aceita, e-mail confirmado, convite não aceito e não expirado), insere o novo
---   membro com o papel DO CONVITE e marca o convite como aceito. O app novo (Storage.acceptInvite) passa a chamar esta função.
+-- O QUE CORRIGE
+--   Storage.acceptInvite fazia upsert em financa_members e update em financa_invites direto pelo cliente, com
+--   role fixo 'membro'. Isso depende de policies frouxas (members_insert "auth.uid() IS NOT NULL" e invites_update
+--   sem WITH CHECK). Esta função valida tudo no servidor e usa o role DO CONVITE, nunca o do cliente.
 --
--- ORDEM: arquivo ADITIVO (só cria uma função); aplicar ANTES do deploy do front novo.
--- O QUE PODE QUEBRAR: nada (função nova; o app antigo não a usa).
+-- ORDEM DE APLICAÇÃO: este arquivo é ADITIVO (só cria uma função) e deve ser aplicado ANTES do deploy do front
+--   novo. As policies restritivas (20261027000002 e seguintes) vão DEPOIS do deploy.
+--
+-- O QUE PODE QUEBRAR: nada (função nova; o app antigo simplesmente não a usa).
 -- COMO REVERTER: drop function if exists public.accept_invite(uuid);
 
 create or replace function public.accept_invite(p_invite_id uuid) returns uuid

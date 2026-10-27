@@ -15,7 +15,12 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # O deploy só acontece se os testes passarem (mesmo workflow usado em push/PR: .github/workflows/test.yml)
+  test:
+    uses: ./.github/workflows/test.yml
+
   deploy:
+    needs: test
     runs-on: ubuntu-latest
     environment:
       name: github-pages
@@ -33,13 +38,20 @@ jobs:
           sed -i "s/app-runtime-v[^']*/app-runtime-v$CACHE_VER/g" sw.js
           echo "Versão injetada: $TIMESTAMP | Cache: app-runtime-v$CACHE_VER"
 
+      # Publica SÓ os arquivos do app (não envia tests/, docs/, supabase/, scripts/ nem arquivos de desenvolvimento).
+      # Se o app passar a usar outro arquivo/pasta, inclua aqui (o teste tests/static/deploy-allowlist.test.js confere).
+      - name: Montar o site (somente arquivos do app)
+        run: |
+          mkdir _site
+          cp -r index.html manifest.json sw.js icon.svg icons js _site/
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: '.'
+          path: '_site'
 
       - name: Deploy to GitHub Pages
         id: deployment
