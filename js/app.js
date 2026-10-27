@@ -4770,9 +4770,9 @@ const App = {
         let html = '';
         for (const p of people) {
             const isMe     = p.email === myEmail;
-            const label    = isMe ? 'Você' : (p.email.split('@')[0] || p.email);
+            const label    = isMe ? 'Você' : (p.email.split('@')[0] || p.email || 'Você');
             const pct      = totalExp > 0 ? ((p.expense / totalExp) * 100).toFixed(1) : 0;
-            const seed     = p.email.charCodeAt(0) + (p.email.charCodeAt(1) || 0);
+            const seed     = (p.email.charCodeAt(0) || 0) + (p.email.charCodeAt(1) || 0);   // e-mail vazio (modo local) não pode virar NaN
             const [bgCls, txtCls] = avatarPalettes[seed % avatarPalettes.length];
             const initials = label.slice(0, 2).toUpperCase();
             const barColor = isMe ? 'bg-emerald-500' : ['bg-purple-400','bg-orange-400','bg-teal-400','bg-pink-400','bg-indigo-400'][seed % 5];
@@ -5919,6 +5919,11 @@ const App = {
 
     closeCategoryDetail() {
         document.getElementById('cat-detail-modal').classList.add('hidden');
+    },
+
+    // O ✕/fundo de #person-detail-modal já chamavam isto, mas a função não existia (erro no console ao clicar)
+    closePersonDetail() {
+        document.getElementById('person-detail-modal')?.classList.add('hidden');
     },
 
     _monthAbbr(dateStr) {
