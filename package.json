@@ -7,7 +7,7 @@
     "test:functions": "node --test tests/functions/*.test.js",
     "test:unit": "node --test tests/unit/*.test.js",
     "test:static": "node --test tests/static/*.test.js",
-    "test": "rm -rf tests/_out && node --test tests/db/*.test.js tests/functions/*.test.js tests/unit/*.test.js tests/static/*.test.js && node tests/summary.js",
+    "test": "rm -rf tests/_out && node --test --test-concurrency=1 --test-timeout=120000 tests/db/*.test.js tests/functions/*.test.js tests/unit/*.test.js tests/static/*.test.js && node tests/summary.js",
     "test:resumo": "node tests/summary.js",
     "verify:sri": "node scripts/verify-sri.js"
   },
