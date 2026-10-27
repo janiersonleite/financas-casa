@@ -30,6 +30,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependências e gerar o CSS (Tailwind)
+        run: |
+          npm ci
+          npm run build:css
+
       # Monta _site/ só com os arquivos que o app referencia e injeta a versão (APP_VERSION e nome do cache do sw.js)
       # nas CÓPIAS, horário de Brasília. Falha se algum arquivo referenciado não existir. Ver scripts/build-site.js.
       - name: Montar o site (somente arquivos do app + versão)
