@@ -30,20 +30,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Inject version timestamp (horário de Brasília)
-        run: |
-          TIMESTAMP=$(TZ='America/Sao_Paulo' date '+%Y-%m-%d %H:%M')
-          CACHE_VER=$(TZ='America/Sao_Paulo' date '+%Y%m%d%H%M')
-          sed -i "s/const APP_VERSION = '[^']*'/const APP_VERSION = '$TIMESTAMP'/" js/app.js
-          sed -i "s/app-runtime-v[^']*/app-runtime-v$CACHE_VER/g" sw.js
-          echo "Versão injetada: $TIMESTAMP | Cache: app-runtime-v$CACHE_VER"
-
-      # Publica SÓ os arquivos do app (não envia tests/, docs/, supabase/, scripts/ nem arquivos de desenvolvimento).
-      # Se o app passar a usar outro arquivo/pasta, inclua aqui (o teste tests/static/deploy-allowlist.test.js confere).
-      - name: Montar o site (somente arquivos do app)
-        run: |
-          mkdir _site
-          cp -r index.html manifest.json sw.js icon.svg icons js _site/
+      # Monta _site/ só com os arquivos que o app referencia e injeta a versão (APP_VERSION e nome do cache do sw.js)
+      # nas CÓPIAS, horário de Brasília. Falha se algum arquivo referenciado não existir. Ver scripts/build-site.js.
+      - name: Montar o site (somente arquivos do app + versão)
+        run: node scripts/build-site.js
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
