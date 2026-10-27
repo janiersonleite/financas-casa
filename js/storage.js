@@ -461,7 +461,7 @@ const Storage = {
         const data = this._localGet();
         t.id = Date.now().toString();
         t.created_at = new Date().toISOString();
-        if (!t.date) t.date = new Date().toISOString().split('T')[0];
+        if (!t.date) t.date = Utils.todayLocal();
         if (this.activeFinancaId) t.financa_id = this.activeFinancaId;
         data.transactions.unshift(t);
         this._localSave(data);
@@ -1167,14 +1167,14 @@ const Storage = {
         }
         const d = this._localGet();
         for (const t of transactions) {
-            if (!t.date) t.date = new Date().toISOString().split('T')[0];
+            if (!t.date) t.date = Utils.todayLocal();
             d.transactions.unshift({ ...t, id: Date.now().toString() + Math.random(), created_at: new Date().toISOString() });
         }
         this._localSave(d);
     },
 
     async addTransaction(t) {
-        if (!t.date) t.date = new Date().toISOString().split('T')[0];
+        if (!t.date) t.date = Utils.todayLocal();
         // _targetFinancaId: finança escolhida pontualmente (não altera activeFinancaId globalmente)
         const targetFid = t._targetFinancaId !== undefined
             ? (t._targetFinancaId || null)
@@ -1278,7 +1278,7 @@ const Storage = {
                 if (filters.month) {
                     const [y, m] = filters.month.split('-');
                     const from = `${y}-${m}-01`;
-                    const to   = new Date(+y, +m, 0).toISOString().split('T')[0];
+                    const to   = Utils.monthEndLocal(filters.month);
                     list = list.filter(t => t.date >= from && t.date <= to);
                 }
                 if (filters.from || filters.to) {
@@ -1307,7 +1307,7 @@ const Storage = {
                 if (filters.month) {
                     const [y, m] = filters.month.split('-');
                     const from   = `${y}-${m}-01`;
-                    const to     = new Date(+y, +m, 0).toISOString().split('T')[0];
+                    const to     = Utils.monthEndLocal(filters.month);
                     q = q.gte('date', from).lte('date', to);
                 }
                 if (filters.from) q = q.gte('date', filters.from);

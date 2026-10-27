@@ -16,7 +16,6 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
     <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
     <link rel="icon" type="image/svg+xml" href="icon.svg">
-    <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.js" integrity="sha384-TcHRA3zBbn+Lexh5n+Oil4guNPOS3rjNDpGRAN46u/s/mB2IZ50ceC6TYDU2yvgK" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js" integrity="sha384-jb8JQMbMoBUzgWatfe6COACi2ljcDdZQ2OxczGA3bGNeWe+6DChMTBJemed7ZnvJ" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" integrity="sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw" crossorigin="anonymous"></script>
@@ -171,6 +170,8 @@
         }
         @media (min-width: 1440px) { html { font-size: 130%; } .tab-page { max-width: 1280px; } }
     </style>
+    <!-- Tailwind compilado no build (npm run build:css) — depois do <style> acima, como o CDN anterior (que anexava seu <style> ao fim do <head>) -->
+    <link rel="stylesheet" href="css/app.css?v=20261027a">
 </head>
 <body class="max-w-md mx-auto min-h-screen relative" style="background:var(--clr-bg)">
 
@@ -1908,13 +1909,13 @@
 
 <script src="js/config.js?v=20261008a"></script>
 <script src="js/auth.js?v=20261008b"></script>
-<script src="js/utils.js?v=20261027a"></script>
-<script src="js/storage.js?v=20261027a"></script>
+<script src="js/utils.js?v=20261027b"></script>
+<script src="js/storage.js?v=20261027b"></script>
 <script src="js/nlp.js?v=20261027a"></script>
-<script src="js/insights.js?v=20260528a"></script>
+<script src="js/insights.js?v=20261027b"></script>
 <script src="js/cofrinhos.js?v=20261027a"></script>
-<script src="js/push.js?v=20261009b"></script>
-<script src="js/app.js?v=20261027a"></script>
+<script src="js/push.js?v=20261027b"></script>
+<script src="js/app.js?v=20261027c"></script>
 
 <script>
 // ── Service Worker + PWA ──────────────────────────────────────────────────────

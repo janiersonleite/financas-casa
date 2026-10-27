@@ -23,3 +23,6 @@ node_modules/
 *.log
 tests/_out/
 _site/
+
+# CSS gerado pelo Tailwind (npm run build:css)
+css/app.css

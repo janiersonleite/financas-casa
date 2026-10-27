@@ -206,7 +206,7 @@ const PushNotif = {
             const reg = await navigator.serviceWorker.ready;
             let sub = await reg.pushManager.getSubscription();
             const stamp = 'push_registered_' + this._uid();
-            const day = new Date().toISOString().slice(0, 10);
+            const day = Utils.todayLocal();
             if (!sub || localStorage.getItem(stamp) !== day) {
                 const key = await this._vapidKey();
                 sub = await this._subscribe(reg, key);
