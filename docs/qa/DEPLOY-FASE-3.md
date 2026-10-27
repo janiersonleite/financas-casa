@@ -16,7 +16,7 @@ Esta fase **não mexe no banco**. São dois PRs, nesta ordem: **3a** (`qa/fase-3
 
 ## Checklist de fumaça (celular e desktop)
 - [ ] Login e logout
-- [ ] **Lançar às 22h**: simule o relógio — Chrome → DevTools → ⋮ → More tools → Sensors não muda a data; use `Date` fixo no console: `Date.now = () => new Date('2026-10-27T22:30:00-03:00').getTime()` não basta (o `new Date()` ignora). O jeito simples: lance um gasto **entre 21h e 23h59 (horário de Brasília)** sem preencher a data e confira que a data padrão é **hoje**, não amanhã; na última noite do mês, confira que o mês exibido não avança.
+- [ ] **Lançar às 22h** (horário de Brasília): entre 21h e 23h59, abra "Novo lançamento" sem mexer na data e confira que a data padrão é **hoje**, não amanhã. Na última noite do mês, confira que o mês exibido no início não avança. (Não dá para simular o relógio do celular; se não puder testar à noite, a suíte `tests/unit/dates.test.js` já cobre 22:30, 21:00, 00:30, fim de mês e virada de ano em 4 fusos.)
 - [ ] Gráficos (aba Resumo) e visual geral sem elementos "sem estilo"
 - [ ] Exportar Excel e PDF
 - [ ] Convite de carteira (enviar e aceitar)
