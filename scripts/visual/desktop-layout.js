@@ -19,7 +19,7 @@ const server = http.createServer((req, res) => {
   if (!f.startsWith(ROOT) || !fs.existsSync(f) || !fs.statSync(f).isFile()) { res.writeHead(404); return res.end(); }
   res.writeHead(200, { 'Content-Type': MIME[path.extname(f)] || 'application/octet-stream', 'Cache-Control': 'no-store' }); fs.createReadStream(f).pipe(res);
 });
-const SIZES = [[1024, 768], [1280, 800], [1440, 900], [1920, 1080], [2560, 1300], [3440, 1400]];
+const SIZES = [[1024, 768], [1280, 800], [1366, 768], [1440, 900], [1920, 1080], [2560, 1300], [3440, 1400]];
 (async () => {
   await new Promise(r => server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${server.address().port}`;
@@ -69,6 +69,10 @@ const SIZES = [[1024, 768], [1280, 800], [1440, 900], [1920, 1080], [2560, 1300]
     m.ok = m.semSobreposicao && m.barraNaColuna && m.navCentralizado && m.scrollW <= m.vw && m.nav.l >= 0 && (m.navColado <= 20 || m.nav.l <= 12);
     rel.medidas.push(m);
     await page.screenshot({ path: path.join(OUT, `inicio.${w}.png`), fullPage: false });
+    if (w === 1366 || w === 1920) for (const t of ['history', 'summary', 'investments']) {
+      await page.evaluate(tab => App.switchTab(tab), t); await page.waitForTimeout(700);
+      await page.screenshot({ path: path.join(OUT, `${t}.${w}.png`), fullPage: false });
+    }
     await ctx.close();
   }
   await browser.close(); server.close();

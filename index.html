@@ -162,21 +162,47 @@
             #toast { bottom: 2rem; }
             #offline-bar { left: 96px; }
         }
-        /* Desktop: fonte maior (tudo em rem escala junto) */
-        @media (min-width: 1024px) { html { font-size: 118%; } .tab-page { max-width: 1120px; } }
-        /* Textos com tamanho fixo em px (rótulos pequenos) também crescem no desktop */
+        /* Desktop compacto: fonte normal (100 %) e uma coluna de 1200 px; rótulos minúsculos em px sobem um pouco para ler bem */
         @media (min-width: 1024px) {
-            [class*="text-[9px]"]  { font-size: 12px !important; }
-            [class*="text-[10px]"] { font-size: 13px !important; }
-            [class*="text-[11px]"] { font-size: 14px !important; }
-            #bottom-nav .nav-tab .nav-label { font-size: 12px; }
+            html { font-size: 100%; }
+            .tab-page { max-width: 1200px; }
+            [class*="text-[9px]"]  { font-size: 10.5px !important; }
+            [class*="text-[10px]"] { font-size: 11.5px !important; }
+            [class*="text-[11px]"] { font-size: 12.5px !important; }
+            #bottom-nav .nav-tab .nav-label { font-size: 11px; }
         }
-        @media (min-width: 1440px) { html { font-size: 130%; } .tab-page { max-width: 1280px; } }
+        /* ═══ Desktop compacto (≥1024 px): blocos em grade, como no protótipo aprovado ═══ */
+        @media (min-width: 1024px) {
+            /* Início: saldo (5/12) + registrar (7/12) · categorias numa fileira · lembretes (5/12) + lançamentos (7/12) */
+            #tab-home:not(.hidden) { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 14px; align-content: start; padding: 16px 4px 32px; }
+            #tab-home > .px-4.pt-4 { display: contents; }                        /* os blocos do meio viram itens da grade */
+            #tab-home .space-y-4 > * { margin-top: 0 !important; }
+            #home-header { grid-column: span 5; border-radius: 16px !important; padding: 14px 16px !important; box-shadow: 0 4px 14px rgba(6,36,26,.18) !important; }
+            #home-header #user-greeting { margin-bottom: 10px !important; }
+            #home-header .text-4xl { font-size: 2.1rem !important; }
+            #tab-home .home-reg { grid-column: span 7; display: flex; flex-direction: column; justify-content: center; }
+            #pwa-install-banner, #ios-install-banner { grid-column: span 12; }
+            #tab-home .home-cats { grid-column: span 12; }
+            #quick-cats-grid { grid-template-columns: repeat(8, minmax(0, 1fr)) !important; }
+            #tab-home .home-rem { grid-column: span 5; align-self: start; }
+            #tab-home .home-lan { grid-column: span 7; align-self: start; }
+            /* Histórico, Resumo e Investir: cabeçalho vira cartão arredondado dentro da coluna */
+            #tab-history { padding: 16px 4px 32px; }
+            #tab-history > .sticky { position: static; border: 1px solid #e5efe9; border-radius: 16px; }
+            #tab-summary { padding: 16px 4px 32px; }
+            #tab-summary > .bg-white { border: 1px solid #e5efe9; border-radius: 16px; }
+            #tab-investments { padding: 16px 4px 32px; }
+            #tab-investments > div:first-child { border-radius: 16px; }
+            /* Resumo: seções em 2 colunas (menos rolagem); no modo de reordenar volta a 1 coluna */
+            #summary-sections:not(.editing) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; align-items: start; }
+            #summary-sections:not(.editing) > * { margin-top: 0 !important; }
+            #summary-sections:not(.editing) > [data-section-id="balance-cards"], #summary-sections:not(.editing) > [data-section-id="trend"], #summary-sections:not(.editing) > [data-section-id="insights"] { grid-column: span 2; }
+        }
         /* Desktop compacto: o menu deixa de colar na borda da tela e passa a ser um painel flutuante, vertical e centralizado,
            encostado na coluna do app (a mesma coluna onde ficam a barra de carteira e as abas). Em telas largas o conjunto
            menu + coluna fica junto no meio; em telas estreitas (sem espaço ao lado da coluna) o menu fica na borda, como antes. */
         @media (min-width: 1024px) {
-            :root { --app-col: 1120px; --nav-w: 84px; --nav-gap: 14px; }
+            :root { --app-col: 1200px; --nav-w: 84px; --nav-gap: 14px; }
             #bottom-nav {
                 left: max(10px, calc((100vw - var(--app-col) - 96px) / 2 + 96px - var(--nav-w) - var(--nav-gap) - 0px)) !important;
                 top: 50% !important; bottom: auto !important; transform: translateY(-50%) !important;
@@ -188,7 +214,6 @@
             /* o fundo da barra de carteira ocupa a largura toda (inclusive sob o espaço antes reservado ao menu) */
             #wallet-bar { margin-left: -96px !important; width: calc(100% + 96px) !important; padding-left: 96px !important; }   /* o conteúdo continua na coluna */
         }
-        @media (min-width: 1440px) { :root { --app-col: 1280px; } }
 
         /* ═══ Barra de carteira ativa (#wallet-bar): fixa no topo de todas as abas ═══ */
         #wallet-bar {
@@ -209,8 +234,7 @@
             display: flex; align-items: center; gap: 10px; height: 100%; box-sizing: border-box;
             max-width: var(--wb-col, none); margin: 0 auto; padding: 0 12px 0 0;
         }
-        @media (min-width: 1024px) { #wallet-bar { --wb-col: 1120px; } }
-        @media (min-width: 1440px) { #wallet-bar { --wb-col: 1280px; } }
+        @media (min-width: 1024px) { #wallet-bar { --wb-col: 1200px; } }
         #wallet-bar:focus-visible { outline: 3px solid #fff; outline-offset: -3px; }
         #wallet-bar .wb-strip { align-self: stretch; flex: none; width: 6px; background: var(--wallet-accent); }
         #wallet-bar .wb-avatar {
@@ -269,7 +293,7 @@
         .wallet-badge-active { flex: none; font-size: 11px; font-weight: 800; color: #06241a; background: var(--wallet-accent, #64748b); border-radius: 9999px; padding: 3px 10px; }
     </style>
     <!-- Tailwind compilado no build (npm run build:css) — depois do <style> acima, como o CDN anterior (que anexava seu <style> ao fim do <head>) -->
-    <link rel="stylesheet" href="css/app.css?v=20261106b">
+    <link rel="stylesheet" href="css/app.css?v=20261107a">
 </head>
 <body class="max-w-md mx-auto min-h-screen relative" style="background:var(--clr-bg)">
 
@@ -531,7 +555,7 @@
         </div>
 
         <!-- Quick Input -->
-        <div class="rounded-2xl overflow-hidden shadow-lg" style="background:linear-gradient(135deg,#4f46e5 0%,#7c3aed 60%,#9333ea 100%)">
+        <div class="home-reg rounded-2xl overflow-hidden shadow-lg" style="background:linear-gradient(135deg,#4f46e5 0%,#7c3aed 60%,#9333ea 100%)">
             <!-- input oculto: mantém compatibilidade com o JS de voz e NLP -->
             <input id="quick-input" type="text" class="hidden" autocomplete="off">
 
@@ -566,7 +590,7 @@
         </div>
 
         <!-- Categories section (Quick Access) -->
-        <div>
+        <div class="home-cats">
             <div class="flex items-center justify-between mb-3">
                 <p class="text-sm font-bold text-gray-800">Categorias</p>
                 <button id="open-categories-btn" class="text-xs text-emerald-600 font-semibold hover:text-emerald-700">Ver tudo</button>
@@ -577,7 +601,7 @@
         </div>
 
         <!-- Reminders Section — styled like "Great Deals" cards -->
-        <div class="bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50 rounded-2xl border border-amber-100 p-3 shadow-sm">
+        <div class="home-rem bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50 rounded-2xl border border-amber-100 p-3 shadow-sm">
             <div class="flex items-center justify-between mb-3 px-1">
                 <p class="text-sm font-bold text-amber-900 flex items-center gap-1.5">
                     <span>🔔</span>
@@ -599,7 +623,7 @@
         </div>
 
         <!-- Recent Transactions -->
-        <div>
+        <div class="home-lan">
             <div class="flex items-center gap-2 mb-2">
                 <p id="home-section-label" class="text-sm font-bold text-gray-800 flex-1">Lançamentos do mês</p>
                 <button id="home-search-toggle"

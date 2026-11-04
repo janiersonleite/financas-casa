@@ -6,12 +6,28 @@ const fs = require('node:fs');
 const path = require('node:path');
 const html = fs.readFileSync(path.join(__dirname, '..', '..', 'index.html'), 'utf8');
 
-test('--app-col acompanha o max-width de .tab-page (1120 px ≥1024, 1280 px ≥1440) — se um mudar, o menu e a barra desalinham', () => {
-  assert.match(html, /@media \(min-width: 1024px\) \{ html \{ font-size: 118%; \} \.tab-page \{ max-width: 1120px; \} \}/);
-  assert.match(html, /@media \(min-width: 1440px\) \{ html \{ font-size: 130%; \} \.tab-page \{ max-width: 1280px; \} \}/);
-  assert.match(html, /:root \{ --app-col: 1120px; --nav-w: 84px; --nav-gap: 14px; \}/);
-  assert.match(html, /@media \(min-width: 1440px\) \{ :root \{ --app-col: 1280px; \} \}/);
-  assert.match(html, /#wallet-bar \{ --wb-col: 1120px; \}/); assert.match(html, /#wallet-bar \{ --wb-col: 1280px; \}/);
+test('coluna única de 1200 px: --app-col, --wb-col e .tab-page iguais; fonte normal (100 %) no desktop', () => {
+  assert.match(html, /\.tab-page \{ max-width: 1200px; \}/);
+  assert.match(html, /:root \{ --app-col: 1200px; --nav-w: 84px; --nav-gap: 14px; \}/);
+  assert.match(html, /@media \(min-width: 1024px\) \{ #wallet-bar \{ --wb-col: 1200px; \} \}/);
+  assert.match(html, /html \{ font-size: 100%; \}/);
+  assert.doesNotMatch(html, /font-size: 118%|font-size: 130%/, 'o aumento de fonte no desktop foi removido');
+});
+
+test('Início em grade (saldo 5/12 + registrar 7/12, categorias em 8 colunas, lembretes 5/12 + lançamentos 7/12) sem quebrar o .hidden das abas', () => {
+  assert.match(html, /#tab-home:not\(\.hidden\) \{ display: grid;/);
+  assert.match(html, /#home-header \{ grid-column: span 5;/);
+  assert.match(html, /#tab-home \.home-reg \{ grid-column: span 7;/);
+  assert.match(html, /#quick-cats-grid \{ grid-template-columns: repeat\(8, minmax\(0, 1fr\)\) !important; \}/);
+  assert.match(html, /#tab-home \.home-rem \{ grid-column: span 5;/);
+  assert.match(html, /#tab-home \.home-lan \{ grid-column: span 7;/);
+  for (const c of ['home-reg', 'home-cats', 'home-rem', 'home-lan']) assert.equal((html.match(new RegExp(`class="${c}[ "]`, 'g')) || []).length, 1, c);
+  assert.doesNotMatch(html, /#tab-home \{ display: grid/, 'display:grid direto em #tab-home sobrepõe .hidden e mostra a Início em todas as abas');
+});
+
+test('Resumo em 2 colunas fora do modo de reordenar; cabeçalhos de Histórico/Resumo/Investir em cartões', () => {
+  assert.match(html, /#summary-sections:not\(\.editing\) \{ display: grid; grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/);
+  assert.match(html, /#tab-history > \.sticky \{ position: static;/);
 });
 
 test('menu lateral flutuante: encostado na coluna, centralizado na vertical, com cantos arredondados; barra de carteira com fundo de largura total', () => {
