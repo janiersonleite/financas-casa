@@ -101,5 +101,5 @@ test('U7: sem classes dinâmicas do Tailwind na barra, ?v= e versão do service 
   assert.doesNotMatch(app.slice(app.indexOf('renderFinancaSwitcher() {'), app.indexOf('bindFinancaUI() {')), /(?:bg|text|border)-\$\{/);
   assert.match(html, /prefers-reduced-motion: no-preference[\s\S]*wb-shimmer/);
   assert.match(html, /<script src="js\/app\.js\?v=\d{8}[a-z]">/);
-  assert.match(read('sw.js'), /app-runtime-v20261104a/);
+  assert.match(read('sw.js'), /app-runtime-v\d{8}[a-z]/);
 });
