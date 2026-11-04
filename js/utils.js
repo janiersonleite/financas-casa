@@ -48,6 +48,18 @@ const Utils = {
         h ^= h >>> 15; h = Math.imul(h, 2246822507) >>> 0; h ^= h >>> 13;   // mistura final (os bits baixos do FNV são fracos)
         return Utils.WALLET_COLORS[(h >>> 0) % Utils.WALLET_COLORS.length];
     },
+    // Chip de tipo da carteira. Fonte da verdade = nº de membros REAIS (linhas de financa_members); o `type` da carteira
+    // NUNCA é consultado (uma carteira criada como "individual" pode ter recebido membros depois).
+    //   memberCount === undefined → ainda não carregou   → { kind: 'loading' }  (esqueleto; jamais "Só você" por padrão)
+    //   memberCount === null / inválido (falha, 0, NaN…) → { kind: 'hidden' }   (sem texto errado)
+    //   1 → { kind: 'solo', text: 'Só você', icon: 'person' }   ·   ≥2 → { kind: 'shared', text: 'Compartilhada · n', icon: 'people' }
+    walletChip(financa, memberCount) {
+        if (memberCount === undefined) return { kind: 'loading', n: null, text: '', icon: null };
+        if (typeof memberCount !== 'number' || !Number.isInteger(memberCount) || memberCount < 1) return { kind: 'hidden', n: null, text: '', icon: null };
+        if (memberCount === 1) return { kind: 'solo', n: 1, text: 'Só você', icon: 'person' };
+        return { kind: 'shared', n: memberCount, text: `Compartilhada · ${memberCount}`, icon: 'people' };
+    },
+
     // Texto seguro para nome de arquivo: sem acentos, minúsculo, sem espaços ("Família 2026" → "familia-2026")
     slugFile(v, fallback = 'carteira') {
         const t = String(v ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);

@@ -383,13 +383,12 @@ const Cofrinhos = {
     _carteira() {
         const f = App.activeFinanca;
         const type = f?.type || 'individual';
-        const labels = { individual: '👤 Individual', familiar: '👨‍👩‍👧 Familiar', compartilhada: '🤝 Compartilhada' };
         const cfg = {
             familiar:      { bg: 'linear-gradient(135deg,#9333ea,#6b21a8)', border: '#7c3aed', soft: 'text-purple-200' },
             compartilhada: { bg: 'linear-gradient(135deg,#0d9488,#0f766e)', border: '#0d9488', soft: 'text-teal-200' },
             individual:    { bg: 'linear-gradient(135deg,#059669,#065f46)', border: '#059669', soft: 'text-emerald-200' }
         };
-        return { name: f?.name || 'Pessoal', emoji: f?.emoji || '💰', type, label: labels[type] || labels.individual, ...(cfg[type] || cfg.individual) };
+        return { name: f?.name || 'Pessoal', emoji: f?.emoji || '💰', type, label: App.walletTypeText(f), ...(cfg[type] || cfg.individual) };
     },
 
     _carteiraCardHtml() {
@@ -402,7 +401,7 @@ const Cofrinhos = {
                 <div class="flex-1 min-w-0">
                     <p class="text-[10px] font-bold uppercase tracking-widest leading-none mb-1 ${w.soft}">● Carteira ativa</p>
                     <p class="text-base font-extrabold text-white truncate leading-tight">${this._esc(w.name)}</p>
-                    <p class="text-xs ${w.soft} mt-0.5">${w.label}${w.type === 'compartilhada' ? ' · membros veem e editam' : ''}</p>
+                    <p class="text-xs ${w.soft} mt-0.5">${w.label}${/Compartilhada/.test(w.label) ? ' · membros veem e editam' : ''}</p>
                 </div>
                 <span class="text-white/60 text-xs flex-shrink-0">trocar ▼</span>
             </button>`;
@@ -417,7 +416,7 @@ const Cofrinhos = {
         el.innerHTML = `<span class="text-xl leading-none flex-shrink-0">${this._esc(w.emoji)}</span>
             <div class="min-w-0 flex-1">
                 <p class="text-[10px] font-bold uppercase tracking-widest leading-none mb-0.5 ${w.soft}">${editing ? 'Carteira do cofrinho' : 'Será criado na carteira'}</p>
-                <p class="text-sm font-extrabold text-white truncate leading-tight">${this._esc(w.name)} <span class="font-normal ${w.soft}">· ${w.label}</span></p>
+                <p class="text-sm font-extrabold text-white truncate leading-tight">${this._esc(w.name)} <span class="font-normal ${w.soft}">${w.label ? '· ' + w.label : ''}</span></p>
             </div>`;
     },
 
