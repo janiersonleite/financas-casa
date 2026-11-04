@@ -17,3 +17,8 @@ Só CSS/HTML de layout em `index.html` (tudo dentro de `@media (min-width: 1024p
 
 **Diferenças conscientes em relação ao protótipo:** o cartão "Registrar lançamento" do app tem só os botões Adicionar e Falar (sem campo de texto, como no app atual); lembretes e lançamentos usam os componentes reais.
 **Como reverter:** `git revert` do commit do layout; nada além de CSS/HTML estático é afetado.
+
+## Ajuste (padronização da Início + botão de ocultar valores)
+- **Padronização:** banner de instalação sempre numa linha própria no topo (antes empurrava o registrar para baixo e deixava um buraco ao lado do saldo); saldo e registrar com a mesma altura; categorias, lembretes e lançamentos com o mesmo cartão (branco, borda, raio 16, padding 16), o mesmo estilo de título e o mesmo "Ver tudo" verde; lembretes em 1 coluna dentro do cartão.
+- **Botão de olho** agora fica na linha do "Saldo do mês", perto dos saldos (celular e desktop).
+- **Ocultar valores NÃO afeta os lançamentos**: só saldo, entradas, saídas e valores dos lembretes viram •••••. (Se quiser os lembretes sempre visíveis também, é uma linha.)

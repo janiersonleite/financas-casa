@@ -30,7 +30,7 @@ const ico = () => btn().innerHTML.includes('M1 1l22 22') ? 'olho-cortado' : 'olh
 
 (async () => {
   App.bindFinancaUI();
-  out.botao = { existe: !!btn(), ehButton: btn().tagName === 'BUTTON', naHome: !!d.getElementById('tab-home').contains(btn()) };
+  out.botao = { existe: !!btn(), ehButton: btn().tagName === 'BUTTON', naHome: !!d.getElementById('tab-home').contains(btn()), pertoDoSaldo: /Saldo do mês/.test(btn().parentElement.textContent) };
   await App.renderHome();
   out.visivel = { ...home(), pressed: btn().getAttribute('aria-pressed'), rotulo: btn().getAttribute('aria-label'), icone: ico() };
   btn().click(); await new Promise(r => setTimeout(r, 50));
