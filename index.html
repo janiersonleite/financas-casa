@@ -186,6 +186,20 @@
             #quick-cats-grid { grid-template-columns: repeat(8, minmax(0, 1fr)) !important; }
             #tab-home .home-rem { grid-column: span 5; align-self: start; }
             #tab-home .home-lan { grid-column: span 7; align-self: start; }
+            /* Padronização: banners numa linha própria no topo; saldo e registrar com a mesma altura; os 4 blocos (categorias, lembretes,
+               lançamentos) com o mesmo cartão (branco, borda, raio 16, padding 16) e o mesmo estilo de título */
+            #pwa-install-banner, #ios-install-banner { order: -1; }
+            #home-header, #tab-home .home-reg { align-self: stretch; }
+            #tab-home .home-cats, #tab-home .home-lan, #tab-home .home-rem {
+                background: #fff !important; border: 1px solid #e5efe9 !important; border-radius: 16px !important;
+                padding: 16px !important; box-shadow: 0 1px 3px rgba(6,36,26,.06) !important;
+            }
+            #tab-home .home-cats > div:first-child, #tab-home .home-rem > div:first-child, #tab-home .home-lan > div:first-child { margin-bottom: 12px !important; padding: 0 !important; }
+            #tab-home .home-cats > div:first-child p, #tab-home .home-rem > div:first-child p, #home-section-label { font-size: 13px !important; font-weight: 700 !important; color: #0f2a20 !important; }
+            #open-categories-btn, #reminders-manage-link { color: #059669 !important; font-size: 12px !important; font-weight: 600 !important; }
+            #tab-home .home-cats .cat-card { background: #f6fbf8 !important; border: 1px solid #e5efe9 !important; box-shadow: none !important; }
+            #tab-home .home-rem .reminder-cards-wrap { grid-template-columns: minmax(0, 1fr) !important; }
+            #tab-home .home-rem .reminder-cards-wrap > * { box-shadow: none !important; border: 1px solid #e5efe9 !important; }
             /* Histórico, Resumo e Investir: cabeçalho vira cartão arredondado dentro da coluna */
             #tab-history { padding: 16px 4px 32px; }
             #tab-history > .sticky { position: static; border: 1px solid #e5efe9; border-radius: 16px; }
@@ -293,7 +307,7 @@
         .wallet-badge-active { flex: none; font-size: 11px; font-weight: 800; color: #06241a; background: var(--wallet-accent, #64748b); border-radius: 9999px; padding: 3px 10px; }
     </style>
     <!-- Tailwind compilado no build (npm run build:css) — depois do <style> acima, como o CDN anterior (que anexava seu <style> ao fim do <head>) -->
-    <link rel="stylesheet" href="css/app.css?v=20261107a">
+    <link rel="stylesheet" href="css/app.css?v=20261108a">
 </head>
 <body class="max-w-md mx-auto min-h-screen relative" style="background:var(--clr-bg)">
 
@@ -436,7 +450,6 @@
             </div>
             <div class="flex items-center gap-1.5 flex-shrink-0">
                 <span id="app-version-label" style="font-size:9px;color:rgba(255,255,255,0.3)"></span>
-                <button id="hide-values-btn" type="button" aria-pressed="false" aria-label="Ocultar valores" title="Ocultar valores" class="w-8 h-8 rounded-full bg-white/10 border border-white/15 flex items-center justify-center text-white/60 hover:bg-white/20 transition-all"></button>
                 <button id="financa-share-btn" class="w-8 h-8 rounded-full bg-white/10 border border-white/15 flex items-center justify-center text-white/60 hover:bg-white/20 transition-all" title="Convidar membros">
                     <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/>
@@ -461,7 +474,10 @@
         </div>
 
         <!-- Row 3: Saldo + balance -->
-        <p class="text-xs text-white/50 font-medium mb-1">Saldo do mês</p>
+        <div class="flex items-center justify-between mb-1">
+            <p class="text-xs text-white/50 font-medium">Saldo do mês</p>
+            <button id="hide-values-btn" type="button" aria-pressed="false" aria-label="Ocultar valores" title="Ocultar valores" class="w-7 h-7 rounded-full bg-white/10 border border-white/15 flex items-center justify-center text-white/60 hover:bg-white/20 transition-all"></button>
+        </div>
         <div id="balance" class="text-4xl font-extrabold text-white tracking-tight leading-none mb-4">R$ 0,00</div>
 
         <!-- Row 6: Income / Expense cards -->
@@ -2050,7 +2066,7 @@
 <script src="js/insights.js?v=20261027b"></script>
 <script src="js/cofrinhos.js?v=20261105a"></script>
 <script src="js/push.js?v=20261027b"></script>
-<script src="js/app.js?v=20261106a"></script>
+<script src="js/app.js?v=20261108a"></script>
 
 <script>
 // ── Service Worker + PWA ──────────────────────────────────────────────────────

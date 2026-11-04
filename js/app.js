@@ -4179,7 +4179,6 @@ const App = {
     },
 
     renderTransactionList(containerId, transactions, highlight = '') {
-        const hide = containerId === 'home-transactions' && this.hideValues;   // "ocultar valores" vale só para a tela inicial
         const container = document.getElementById(containerId);
         if (!container) return;
         if (!transactions.length) {
@@ -4265,8 +4264,8 @@ const App = {
                         ${this.getInserterBadge(t)}
                     </div>
                     <div class="flex flex-col items-end gap-0.5">
-                        ${t.installment_group_id && !isRecurring ? `<div class="text-xs text-gray-400 font-normal">Total ${hide ? this.HIDDEN_MONEY : this.formatCurrency(t.value * t.installment_total)}</div>` : ''}
-                        <div class="font-bold ${color}">${hide ? this.HIDDEN_MONEY : sign + this.formatCurrency(t.value)}</div>
+                        ${t.installment_group_id && !isRecurring ? `<div class="text-xs text-gray-400 font-normal">Total ${this.formatCurrency(t.value * t.installment_total)}</div>` : ''}
+                        <div class="font-bold ${color}">${sign}${this.formatCurrency(t.value)}</div>
                         <button class="text-xs text-gray-300 hover:text-red-400 delete-btn" data-id="${t.id}" data-reminder-id="${t.reminder_id || ''}">✕</button>
                     </div>
                 </div>`;

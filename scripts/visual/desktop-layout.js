@@ -19,7 +19,7 @@ const server = http.createServer((req, res) => {
   if (!f.startsWith(ROOT) || !fs.existsSync(f) || !fs.statSync(f).isFile()) { res.writeHead(404); return res.end(); }
   res.writeHead(200, { 'Content-Type': MIME[path.extname(f)] || 'application/octet-stream', 'Cache-Control': 'no-store' }); fs.createReadStream(f).pipe(res);
 });
-const SIZES = [[1024, 768], [1280, 800], [1366, 768], [1440, 900], [1920, 1080], [2560, 1300], [3440, 1400]];
+const SIZES = [[1024, 768], [1100, 885], [1280, 800], [1366, 768], [1440, 900], [1920, 1080], [2560, 1300], [3440, 1400]];
 (async () => {
   await new Promise(r => server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${server.address().port}`;
@@ -54,6 +54,10 @@ const SIZES = [[1024, 768], [1280, 800], [1366, 768], [1440, 900], [1920, 1080],
       await App.loadFinancas(); await App.refreshWalletMembers();
       const ym = Utils.monthKeyLocal();
       await Storage.addTransaction({ type: 'saida', description: 'Aluguel', value: 6278.23, date: ym + '-06', category: 'Moradia' });
+      for (const [n, d2, v] of [['ENEL', 15, 180], ['Água', 15, 95.4], ['Plano de saúde', 20, 410]]) await Storage.createReminder({ name: n, day: d2, amount: v, category: 'Moradia', type: 'saida', emoji: '🔔' });
+      await Storage.addTransaction({ type: 'saida', description: 'Vestido (2/4)', value: 79.9, date: ym + '-24', category: 'Vestuário' });
+      await App.loadReminders();
+      document.getElementById('pwa-install-banner')?.classList.remove('hidden');   // pior caso: banner de instalação visível
       await App.renderHome();
     });
     await page.waitForTimeout(300);

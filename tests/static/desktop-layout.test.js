@@ -37,3 +37,11 @@ test('menu lateral flutuante: encostado na coluna, centralizado na vertical, com
   assert.match(m[1], /top: 50% !important/); assert.match(m[1], /translateY\(-50%\)/); assert.match(m[1], /border-radius: 22px/);
   assert.match(html, /#wallet-bar \{ margin-left: -96px !important; width: calc\(100% \+ 96px\) !important; padding-left: 96px !important; \}/);
 });
+
+test('Início padronizada: banners no topo, saldo e registrar com a mesma altura, 3 blocos com o mesmo cartão e título, lembretes em 1 coluna', () => {
+  assert.match(html, /#pwa-install-banner, #ios-install-banner \{ order: -1; \}/);
+  assert.match(html, /#home-header, #tab-home \.home-reg \{ align-self: stretch; \}/);
+  assert.match(html, /#tab-home \.home-cats, #tab-home \.home-lan, #tab-home \.home-rem \{[^}]*border-radius: 16px !important;[^}]*padding: 16px !important;/);
+  assert.match(html, /#open-categories-btn, #reminders-manage-link \{ color: #059669 !important;/);
+  assert.match(html, /#tab-home \.home-rem \.reminder-cards-wrap \{ grid-template-columns: minmax\(0, 1fr\) !important; \}/);
+});
