@@ -38,5 +38,11 @@ jobs:
       - name: Testes (banco, Edge Functions, unitários, estáticos)
         run: npm test
 
+      - name: Datas em vários fusos horários (G2)
+        run: |
+          for tz in America/Sao_Paulo UTC Asia/Tokyo America/New_York; do
+            echo "== TZ=$tz"; TZ=$tz node --test tests/unit/dates.test.js
+          done
+
       - name: Conferir hashes SRI contra o CDN real
         run: npm run verify:sri

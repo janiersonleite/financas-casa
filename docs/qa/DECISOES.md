@@ -55,10 +55,34 @@ Usada em: `nlp.js` (voz/texto, inclusive "2 mil", "1,5 mil" e "1.234,56" sem "R$
 
 ## D5. C2 — Parcelamento
 Divisão em centavos inteiros (`Utils.splitMoney`): a **sobra vai uma a uma para as primeiras parcelas** (100/3 → 33,34 + 33,33 + 33,33). A prévia no modal mostra "R$ 33,34 + 2× de R$ 33,33". Total pequeno demais para o nº de parcelas (alguma parcela = R$ 0,00) é recusado com aviso.
-**Não alterado (ADIADO):** MON-05 (datas via `toISOString()` em fusos UTC+), NLP-03 (frases "3 parcelas de 100"): não estavam nos blocos desta fase.
+**Não alterado (ADIADO):** NLP-03 (frases "3 parcelas de 100"): não estavam nos blocos desta fase (MON-05, datas, foi tratado na Fase 3: ver D8).
 
 ## D6. E1/E2 — CDN, SRI e CSP
 - **SRI aplicado** a supabase-js, chart.js, xlsx, jsPDF e jsPDF-autotable, com versão EXATA e `crossorigin="anonymous"`. Os hashes foram calculados dos arquivos do pacote npm (`dist/...`), baixados de **dois hosts de registry** (`registry.npmjs.org` e `registry.yarnpkg.com`; tarballs idênticos, mesmo sha256) — o jsDelivr serve esses arquivos byte a byte. **Não consegui baixar do próprio jsDelivr** (o ambiente bloqueia o host), então a conferência final contra o CDN real fica no `npm run verify:sri`, que roda no CI e **deve rodar antes do deploy** (SRI errado = o script não carrega = app quebrado).
 - Versões fixadas: `@supabase/supabase-js@2.118.0` (era `@2`, hoje resolvia para a mesma), `chart.js@4.5.1` (era sem versão); `xlsx@0.18.5`, `jspdf@2.5.1`, `jspdf-autotable@3.5.28` já estavam fixos.
 - **Tailwind (`cdn.tailwindcss.com`)**: sem SRI (o script é dinâmico e muda). Risco registrado: código de terceiro com acesso total à página. **Tarefa futura:** compilar o Tailwind (CLI `tailwindcss -i ... -o css/tailwind.css --minify`, com `content: ['./index.html','./js/**/*.js']`) e servir o CSS do próprio site; isso também elimina o aviso do "play CDN em produção", acelera o carregamento e permite remover `'unsafe-eval'`/o host da CSP.
 - **CSP**: apenas proposta em `docs/qa/csp-proposta.md` (ver lá por que não foi ativada).
+
+## D8 — Datas de calendário no horário local (G2 / MON-05, Fase 3)
+**Regra:** data de calendário ("hoje", mês corrente, último dia do mês, data padrão do lançamento) usa `Utils.localDateStr/todayLocal/monthKeyLocal/monthEndLocal/parseDateLocal` (js/utils.js). `toISOString()` converte para UTC e, no Brasil (UTC-3), depois das 21h devolve o dia seguinte.
+
+**Substituídos (21 pontos):** `App.currentMonth` inicial; `_addMonths` (parcelas); data padrão do modal; chave diária dos avisos de lembrete; mês exibido/atual (3 pontos); "hoje" de `quickAddFromReminder`, lista de lançamentos, histórico, parcelas e relatórios; `formatDateGroup` (Hoje/Ontem); importação (`_parseImportDate`, "hoje" padrão); insights (projeção, gaps de parcela, `new Date(data + 'T12:00:00')` → parse local); push (`push_registered_<uid>` por dia); storage (data padrão em `_localAdd`, `addTransaction`, `addTransactions`; último dia do mês em `getTransactions` ×2, antes `new Date(+y, +m, 0).toISOString()`).
+
+**Mantidos com `toISOString()` (são INSTANTES, não datas de calendário; o banco guarda timestamptz):**
+| Onde | Motivo |
+|---|---|
+| `created_at` (storage.js ×7, cofrinhos.js ×3) | carimbo de criação |
+| `updated_at` de `user_pix` (storage.js) | carimbo de atualização |
+| `fire_at` (push.js ×2) e o disparo de teste `+40 s` (push.js) | instante absoluto exigido pela Edge Function |
+
+**Mantido sem mudança:** `_parseImportDate` com número serial do Excel usa `getUTC*` (o serial já é "dia sem fuso"); `new Date(raw)` de texto livre só é usado como último recurso.
+
+**Teste:** `tests/unit/dates.test.js` roda 7 cenários × 4 fusos (America/Sao_Paulo, UTC, Asia/Tokyo, America/New_York) com relógio simulado em processo filho, mais um scanner que falha se surgir `toISOString().slice/split` ou `new Date('AAAA-…')` fora da lista acima.
+
+## D9 — Tailwind compilado no build (G3, Fase 3)
+- `cdn.tailwindcss.com` removido. `tailwindcss` **3.4.19** fixado em versão exata (devDependency; o CDN servia a v3). `tailwind.config.js` (sem tema customizado, como no CDN; não havia `tailwind.config = {…}` inline), entrada `css/input.css` (versionada), saída `css/app.css` **gerada e ignorada no git** (`npm run build:css`; `prestart`, `npm test`, `iniciar.bat` e o `deploy.yml` rodam o build).
+- `<link rel="stylesheet" href="css/app.css?v=…">` fica **depois** do `<style>` inline: o CDN anexava seu `<style>` ao fim do `<head>`, então a ordem de cascata é a mesma.
+- **Safelist (classes montadas por interpolação):** `border-${c}-400 bg-${c}-50 text-${c}-700` com `c ∈ {red, green, blue}` (js/app.js, botões de tipo no formulário de categoria — 2 pontos). Nenhuma outra classe Tailwind é montada dinamicamente (varredura de `prefixo-${…}` e de concatenações `'bg-' + x` em index.html e js/*.js; o teste `tests/static/tailwind.test.js` falha se surgir outra).
+- **Atenção para o futuro:** classe nova montada por string (`'bg-' + cor`) não aparece no CSS; usar o nome completo no código ou incluir no safelist.
+- **Netlify:** o CSS agora precisa ser gerado; um deploy que sirva a raiz do repositório sem rodar `npm run build:css` ficaria sem estilo. (O deploy oficial é o GitHub Pages, que roda o build.)
+- **Validação visual** (`scripts/visual/capture.js` e `compare.js`; Chromium, relógio fixo, modo local do app, requisições externas bloqueadas): o "antes" é o *equivalente do CDN* — o CSS é gerado, com a mesma versão do Tailwind, a partir das classes do DOM renderizado, que é exatamente o que o Play CDN faz no navegador (o `cdn.tailwindcss.com` é inacessível neste ambiente). Resultado: 42 capturas (21 telas × celular/desktop), 0 divergências acima de 0,05 % dos pixels (a maior: 4 px). Teste de sanidade: tirando `js/**` do `content`, 25 capturas passam a divergir, ou seja, a comparação detecta classe faltando.

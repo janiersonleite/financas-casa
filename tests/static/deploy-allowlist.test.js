@@ -1,4 +1,4 @@
-// O deploy publica só uma lista de arquivos (deploy.yml, passo "Montar o site"). Garante que (1) tudo que o app carrega está na lista
+// O deploy publica só os arquivos montados por scripts/build-site.js (deploy.yml, passo "Montar o site"). Garante que (1) tudo que o app carrega está na lista
 // e (2) nada sensível/de desenvolvimento está nela.
 'use strict';
 const test = require('node:test');
@@ -9,8 +9,8 @@ const ROOT = path.resolve(__dirname, '..', '..');
 const read = f => fs.readFileSync(path.join(ROOT, f), 'utf8');
 
 const yml = read('.github/workflows/deploy.yml');
-const m = /cp -r ([^\n_]+) _site\//.exec(yml);
-const LISTA = m ? m[1].trim().split(/\s+/) : [];
+// A lista agora é derivada por scripts/build-site.js (pastas/arquivos de topo)
+const LISTA = [...new Set(require('../../scripts/build-site.js').referencias().map(r => r.split('/')[0]))];
 
 test('deploy.yml publica a partir de _site (não da raiz) com lista explícita', () => {
   assert.ok(LISTA.length >= 5, 'lista de publicação não encontrada');

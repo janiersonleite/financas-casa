@@ -13,13 +13,13 @@ const col = createCollector('misc-findings.json');
 test.after(() => col.flush());
 const read = f => fs.readFileSync(path.join(ROOT, f), 'utf8');
 
-test('index.html: CDNs com versão exata + SRI (exceto Tailwind); CSP só como proposta (E1/E2)', () => {
+test('index.html: CDNs com versão exata + SRI (Tailwind agora compilado, G3); CSP só como proposta (E1/E2)', () => {
   const html = read('index.html');
   const tags = [...html.matchAll(/<script\b[^>]*\bsrc="(https?:[^"]+)"[^>]*>/g)].map(m => ({ url: m[1], tag: m[0] }));
-  assert.ok(tags.length >= 6, 'scripts de CDN não encontrados');
+  assert.ok(tags.length >= 5, 'scripts de CDN não encontrados');
   const tailwind = tags.filter(t => /cdn\.tailwindcss\.com/.test(t.url));
   const outros = tags.filter(t => !/cdn\.tailwindcss\.com/.test(t.url));
-  assert.equal(tailwind.length, 1);
+  assert.equal(tailwind.length, 0, 'o CDN do Tailwind foi removido (G3): CSS vem de css/app.css');
   for (const t of outros) {
     assert.ok(/@\d+\.\d+\.\d+\//.test(t.url), 'versão não fixada: ' + t.url);
     assert.match(t.tag, /integrity="sha384-[A-Za-z0-9+/]{64}"/, 'sem SRI sha384: ' + t.url);
@@ -29,7 +29,7 @@ test('index.html: CDNs com versão exata + SRI (exceto Tailwind); CSP só como p
   assert.ok(fs.existsSync(path.join(ROOT, 'scripts', 'verify-sri.js')));
   col.add('SUP-01', 'CORRIGIDO', `${outros.length} scripts de CDN com SRI sha384 + crossorigin`, 'hashes calculados do pacote npm (2 hosts de registry idênticos); conferência contra o CDN real: npm run verify:sri (CI)');
   col.add('SUP-02', 'CORRIGIDO', 'supabase-js (2.118.0) e chart.js (4.5.1) com versão exata', outros.map(t => t.url.replace('https://cdn.jsdelivr.net/npm/', '')).join(' , '));
-  col.add('SUP-03', 'ADIADO', 'cdn.tailwindcss.com continua (script dinâmico: SRI impossível)', 'migração para build do Tailwind registrada em docs/qa/DECISOES.md (D6)');
+  col.add('SUP-03', 'CORRIGIDO', 'cdn.tailwindcss.com removido: Tailwind 3.4.19 compilado no build (css/app.css)', 'Fase 3 / G3 — ver DECISOES.md (D9)');
   const csp = /Content-Security-Policy/i.test(html);
   assert.ok(fs.existsSync(path.join(ROOT, 'docs', 'qa', 'csp-proposta.md')));
   col.add('SUP-04', 'PARCIAL', 'CSP entregue como PROPOSTA (docs/qa/csp-proposta.md), não ativada', csp ? 'ATENÇÃO: já existe CSP no index.html' : 'validada em Chromium sem violações, mas Tailwind real não pôde ser testado');
