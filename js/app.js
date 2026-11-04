@@ -329,6 +329,8 @@ const App = {
 
     bindFinancaUI() {
         // Switcher → open list
+        document.getElementById('hide-values-btn')?.addEventListener('click', () => this.toggleHideValues());
+        this._renderHideValuesBtn();
         document.getElementById('wallet-bar')?.addEventListener('click', () => this.openFinancaModal());
         window.addEventListener('online',  () => this.renderFinancaSwitcher());
         window.addEventListener('offline', () => this.renderFinancaSwitcher());
@@ -2625,7 +2627,7 @@ const App = {
                 ? 'background:linear-gradient(90deg,#4ade80,#22c55e)'
                 : accent.fill;
 
-            const amtTxt = r.amount > 0 ? this.formatCurrency(r.amount) : '—';
+            const amtTxt = r.amount > 0 ? this.homeMoney(r.amount) : '—';
             const dayTxt = `Dia ${r.day}${r.category ? ' · ' + r.category : ''}`;
             const installBadge = this._reminderInstallmentBadge(r, viewMonth);
             const isUnbounded  = this._reminderInstallmentInfo(r, viewMonth).type === 'unbounded';
@@ -3590,16 +3592,18 @@ const App = {
         // Balance com decimal em fonte menor (estilo fintech)
         const balEl = document.getElementById('balance');
         if (balEl) {
-            const formatted = this.formatCurrency(summary.balance);
+            const formatted = this.hideValues ? `R$ ${this.HIDDEN_MONEY}` : this.formatCurrency(summary.balance);
             // Separa parte inteira e decimal: "R$ 1.234,56" → ["R$ 1.234", "56"]
             const commaIdx = formatted.lastIndexOf(',');
             const intPart  = commaIdx >= 0 ? formatted.slice(0, commaIdx) : formatted;
             const decPart  = commaIdx >= 0 ? formatted.slice(commaIdx)    : '';
             balEl.innerHTML = `${intPart}<span class="balance-decimal">${decPart}</span>`;
-            balEl.className = `text-4xl font-extrabold tracking-tight leading-none ${summary.balance >= 0 ? 'text-white' : 'text-red-300'}`;
+            // oculto: cor neutra (a cor vermelha do saldo negativo entregaria o sinal)
+            balEl.className = `text-4xl font-extrabold tracking-tight leading-none ${summary.balance >= 0 || this.hideValues ? 'text-white' : 'text-red-300'}`;
         }
-        document.getElementById('total-income').textContent  = this.formatCurrency(summary.income);
-        document.getElementById('total-expense').textContent = this.formatCurrency(summary.expense);
+        document.getElementById('total-income').textContent  = this.homeMoney(summary.income);
+        document.getElementById('total-expense').textContent = this.homeMoney(summary.expense);
+        this._renderHideValuesBtn();
         this.renderRemindersHome();
 
         const q = this._homeSearch.trim().toLowerCase();
@@ -4175,6 +4179,7 @@ const App = {
     },
 
     renderTransactionList(containerId, transactions, highlight = '') {
+        const hide = containerId === 'home-transactions' && this.hideValues;   // "ocultar valores" vale só para a tela inicial
         const container = document.getElementById(containerId);
         if (!container) return;
         if (!transactions.length) {
@@ -4260,8 +4265,8 @@ const App = {
                         ${this.getInserterBadge(t)}
                     </div>
                     <div class="flex flex-col items-end gap-0.5">
-                        ${t.installment_group_id && !isRecurring ? `<div class="text-xs text-gray-400 font-normal">Total ${this.formatCurrency(t.value * t.installment_total)}</div>` : ''}
-                        <div class="font-bold ${color}">${sign}${this.formatCurrency(t.value)}</div>
+                        ${t.installment_group_id && !isRecurring ? `<div class="text-xs text-gray-400 font-normal">Total ${hide ? this.HIDDEN_MONEY : this.formatCurrency(t.value * t.installment_total)}</div>` : ''}
+                        <div class="font-bold ${color}">${hide ? this.HIDDEN_MONEY : sign + this.formatCurrency(t.value)}</div>
                         <button class="text-xs text-gray-300 hover:text-red-400 delete-btn" data-id="${t.id}" data-reminder-id="${t.reminder_id || ''}">✕</button>
                     </div>
                 </div>`;
@@ -7140,6 +7145,31 @@ const App = {
         const safeQ = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         return safe.replace(new RegExp(`(${safeQ})`, 'gi'),
             '<mark class="bg-yellow-200 text-yellow-900 rounded-sm px-0.5 not-italic">$1</mark>');
+    },
+
+    // ── Ocultar valores na tela inicial (preferência deste aparelho, guardada em localStorage) ──────────────
+    HIDDEN_MONEY: '•••••',
+    get hideValues() { try { return localStorage.getItem('hide_values') === '1'; } catch (_) { return false; } },
+    // Valor da tela inicial: formatado, ou máscara quando "ocultar valores" está ligado
+    homeMoney(value) { return this.hideValues ? this.HIDDEN_MONEY : this.formatCurrency(value); },
+    _HV_ICONS: {
+        eye:    '<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>',
+        eyeOff: '<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17.94 17.94A10.9 10.9 0 0112 20C5 20 1 12 1 12a18.5 18.5 0 015.06-5.94M9.9 4.24A9.1 9.1 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19M14.12 14.12a3 3 0 11-4.24-4.24"/><path d="M1 1l22 22"/></svg>',
+    },
+    // Estado do botão (ícone, aria-pressed e rótulo)
+    _renderHideValuesBtn() {
+        const b = document.getElementById('hide-values-btn');
+        if (!b) return;
+        const on = this.hideValues;
+        b.innerHTML = on ? this._HV_ICONS.eyeOff : this._HV_ICONS.eye;
+        b.setAttribute('aria-pressed', on ? 'true' : 'false');
+        const t = on ? 'Mostrar valores' : 'Ocultar valores';
+        b.setAttribute('aria-label', t); b.title = t;
+    },
+    async toggleHideValues() {
+        try { localStorage.setItem('hide_values', this.hideValues ? '0' : '1'); } catch (_) { this._hvMem = !this._hvMem; }
+        this._renderHideValuesBtn();
+        await this.renderHome();
     },
 
     formatCurrency(value) {

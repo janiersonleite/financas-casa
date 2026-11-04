@@ -1,6 +1,6 @@
 // ─── Service Worker — Minhas Carteiras ──────────────────────────────────────────
 // APP_VERSION: 2026-10-06 12:00  ← atualizar junto com app.js a cada deploy
-const RUNTIME_CACHE = 'app-runtime-v20261105a';
+const RUNTIME_CACHE = 'app-runtime-v20261106a';
 
 self.addEventListener('install', e => {
     e.waitUntil(
