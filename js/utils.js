@@ -37,6 +37,23 @@ const Utils = {
         return Utils.localDateStr(new Date(y, m, 0));
     },
 
+    // ── Cor por carteira (barra de carteira ativa) ────────────────────────────
+    // 8 cores SEM verde nem vermelho (esses já significam entrada e saída). A cor sai de um hash estável do id
+    // da carteira: nada é gravado no banco, e a mesma carteira tem a mesma cor em todos os aparelhos.
+    WALLET_COLORS: ['#60a5fa', '#c4b5fd', '#fbbf24', '#22d3ee', '#f9a8d4', '#fb923c', '#a5b4fc', '#e879f9'],
+    walletColor(id) {
+        const s = String(id ?? '');
+        let h = 2166136261;                                   // FNV-1a 32 bits
+        for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+        h ^= h >>> 15; h = Math.imul(h, 2246822507) >>> 0; h ^= h >>> 13;   // mistura final (os bits baixos do FNV são fracos)
+        return Utils.WALLET_COLORS[(h >>> 0) % Utils.WALLET_COLORS.length];
+    },
+    // Texto seguro para nome de arquivo: sem acentos, minúsculo, sem espaços ("Família 2026" → "familia-2026")
+    slugFile(v, fallback = 'carteira') {
+        const t = String(v ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);
+        return t || fallback;
+    },
+
     // ── Dinheiro (pt-BR) ──────────────────────────────────────────────────────
     // Converte texto monetário em número. Regras (ver docs/qa/DECISOES.md, C1):
     //   "1.234,56" / "R$ 1.234,56" / "1,234.56" → 1234.56   (os dois separadores: o ÚLTIMO é o decimal)

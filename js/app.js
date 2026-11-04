@@ -27,6 +27,9 @@ const App = {
     recognition: null,
     isListening: false,
     currentMonth: Utils.monthKeyLocal(),
+    _financasLoaded: false,       // false = barra de carteira em "carregando"
+    _walletMembers: {},           // id da carteira → nº de membros (cache p/ o chip "Compartilhada · N")
+    _walletMembersAt: {},
     summaryPeriod: null,   // Resumo: null = mês selecionado; { preset|from,to } = período livre
     financas:      [],
     activeFinanca: null,
@@ -169,43 +172,96 @@ const App = {
             const found = storedId ? financas.find(f => f.id === storedId) : null;
             this.activeFinanca = found || financas[0] || null;
             Storage.setActiveFinanca(this.activeFinanca?.id || null);
+            this._financasLoaded = true;
             this.renderFinancaSwitcher();
         } catch (e) {
             console.error('loadFinancas error:', e);
             // Garante que o switcher sempre renderiza
             this.activeFinanca = { id: null, name: 'Pessoal', emoji: '💰', type: 'individual' };
+            this._financasLoaded = true;
             this.renderFinancaSwitcher();
         }
     },
 
+    // ── Barra de carteira ativa (#wallet-bar) ───────────────────────────────────
+    _WALLET_ICONS: {
+        solo:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0116 0"/></svg>',
+        shared: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2 21a7 7 0 0114 0"/><path d="M16 4.5a3.5 3.5 0 010 7M18 21a7 7 0 00-3-5.7"/></svg>',
+    },
+
+    // Tipo de exibição da carteira: 'solo' ("Só você") ou 'shared' ("Compartilhada · N"; n = null enquanto desconhecido)
+    _walletKind(f) {
+        if (!f || f.type === 'individual') return { kind: 'solo', n: 1 };
+        const n = this._walletMembers[f.id];
+        if (Number.isInteger(n)) return n <= 1 ? { kind: 'solo', n: 1 } : { kind: 'shared', n };
+        return Storage.isCloud ? { kind: 'shared', n: null } : { kind: 'solo', n: 1 };
+    },
+
+    // HTML do chip (só texto fixo e número inteiro: nada vem do usuário)
+    _walletChipHtml(f, { compact = true } = {}) {
+        const k = this._walletKind(f);
+        if (k.kind === 'solo') return `${this._WALLET_ICONS.solo}<span class="wb-chip-text">Só você</span>`;
+        return `${this._WALLET_ICONS.shared}<span class="wb-chip-text">Compartilhada</span>`
+            + (k.n ? `<span class="wb-chip-sep">· </span><span class="wb-chip-n">${k.n}</span>` : '');
+    },
+
+    // Quantos membros tem a carteira (cache de 30 s); atualiza a barra quando chegar
+    async _loadWalletMembers(f) {
+        if (!f?.id || f.type === 'individual' || !Storage.isCloud || !navigator.onLine) return;
+        if (Date.now() - (this._walletMembersAt[f.id] || 0) < 30000) return;
+        this._walletMembersAt[f.id] = Date.now();
+        try {
+            const m = await Storage.getMembers(f.id);
+            this._walletMembers[f.id] = m.length;
+            if (this.activeFinanca?.id === f.id) this.renderFinancaSwitcher();
+            if (!document.getElementById('financa-modal')?.classList.contains('hidden')) this.renderFinancaList();
+        } catch (_) { this._walletMembersAt[f.id] = 0; }
+    },
+
     renderFinancaSwitcher() {
         const f = this.activeFinanca;
-        const nameEl  = document.getElementById('financa-switcher-name');
-        const emojiEl = document.getElementById('financa-switcher-emoji');
-        const typeEl  = document.getElementById('financa-switcher-type');
-        const header  = document.getElementById('home-header');
+        const bar = document.getElementById('wallet-bar');
+        const header = document.getElementById('home-header');
+        const state = !this._financasLoaded ? 'loading' : !f ? 'empty' : 'ready';
+        const online = navigator.onLine !== false;
 
-        if (nameEl)  nameEl.textContent  = f?.name  || 'Carteiras';
-        if (emojiEl) emojiEl.textContent = f?.emoji || '💰';
-
-        // Label do tipo
-        const typeLabels = {
-            individual:    '👤 Individual',
-            familiar:      '👨‍👩‍👧 Familiar',
-            compartilhada: '🤝 Compartilhada',
-        };
-        if (typeEl) typeEl.textContent = typeLabels[f?.type] || '👤 Individual';
-
-        // Cor do dot "● Carteira ativa" conforme tipo
-        const activeDot = document.querySelector('#financa-switcher p:first-child');
-        if (activeDot) {
-            activeDot.className = 'text-[10px] font-bold uppercase tracking-widest leading-none mb-1 '
-                + (f?.type === 'familiar'      ? 'text-purple-500'
-                 : f?.type === 'compartilhada' ? 'text-teal-500'
-                 :                               'text-emerald-500');
+        if (bar) {
+            const color = state === 'ready' ? Utils.walletColor(f.id) : '#64748b';
+            bar.dataset.state = state;
+            bar.style.setProperty('--wallet-accent', color);       // cor via custom property (sem classes dinâmicas)
+            const nameEl = document.getElementById('wallet-bar-name'), labelEl = document.getElementById('wallet-bar-label');
+            const avatarEl = document.getElementById('wallet-bar-avatar'), chipEl = document.getElementById('wallet-bar-chip');
+            if (state === 'ready') {
+                const nome = f.name || 'Carteira';
+                const k = this._walletKind(f);
+                nameEl.textContent = nome;
+                labelEl.textContent = 'Carteira ativa';
+                avatarEl.textContent = Utils.cleanEmoji(f.emoji, '💰');
+                if (!online) { chipEl.dataset.kind = 'offline'; chipEl.innerHTML = 'Sem internet'; }
+                else { chipEl.dataset.kind = k.kind; chipEl.innerHTML = this._walletChipHtml(f); }
+                const tipo = !online ? 'sem internet' : k.kind === 'solo' ? 'só você' : `compartilhada${k.n ? ' com ' + k.n + ' membros' : ''}`;
+                bar.setAttribute('aria-label', `Carteira ativa: ${nome} (${tipo}). Toque para trocar de carteira`);
+                document.title = `${nome} · Minhas Carteiras`;
+                this._loadWalletMembers(f);
+            } else if (state === 'empty') {
+                nameEl.textContent = 'Escolha uma carteira';
+                labelEl.textContent = 'Toque para criar ou entrar em uma';
+                avatarEl.textContent = '＋';
+                chipEl.dataset.kind = online ? 'none' : 'offline';
+                chipEl.innerHTML = online ? '' : 'Sem internet';
+                bar.setAttribute('aria-label', 'Nenhuma carteira escolhida. Toque para criar ou entrar em uma');
+                document.title = 'Minhas Carteiras';
+            } else {
+                bar.setAttribute('aria-label', 'Carregando carteira');
+            }
         }
 
-        // Cor do header por tipo de perfil
+        // Rótulos de contexto nas ações (exportar / importar)
+        const nomeCtx = f ? `${Utils.cleanEmoji(f.emoji, '💰')} ${f.name || 'Carteira'}` : '';
+        const exp = document.getElementById('export-wallet-label'); if (exp) exp.textContent = f ? `Carteira: ${nomeCtx}` : '';
+        const imp = document.getElementById('import-wallet-label'); if (imp) imp.textContent = f ? `Entra na carteira: ${nomeCtx}` : '';
+
+        // Cor do header da Home por tipo de perfil
         if (header) {
             const grad = f?.type === 'familiar'
                 ? 'linear-gradient(160deg,#3b0764 0%,#1e0433 100%)'
@@ -216,9 +272,25 @@ const App = {
         }
     },
 
+    // Nome da carteira ativa para nome de arquivo: sem acentos nem espaços ("Família" → "familia")
+    _walletFileSlug() { return Utils.slugFile(this.activeFinanca?.name, 'carteira'); },
+
+    // Aviso "Agora vendo: {nome}" (role=status) com um ponto na cor da carteira, ~2,8 s
+    announceWallet(f) {
+        const el = document.getElementById('wallet-toast'), txt = document.getElementById('wallet-toast-text');
+        if (!el || !txt || !f) return;
+        txt.textContent = `Agora vendo: ${f.name || 'Carteira'}`;
+        el.style.setProperty('--wallet-accent', Utils.walletColor(f.id));
+        el.classList.remove('hidden');
+        clearTimeout(el._t);
+        el._t = setTimeout(() => el.classList.add('hidden'), 2800);
+    },
+
     bindFinancaUI() {
         // Switcher → open list
-        document.getElementById('financa-switcher')?.addEventListener('click', () => this.openFinancaModal());
+        document.getElementById('wallet-bar')?.addEventListener('click', () => this.openFinancaModal());
+        window.addEventListener('online',  () => this.renderFinancaSwitcher());
+        window.addEventListener('offline', () => this.renderFinancaSwitcher());
 
         // Finance list modal
         const fModal = document.getElementById('financa-modal');
@@ -306,13 +378,12 @@ const App = {
                    </div>
                    <div class="text-[11px] text-red-500 mt-1 hidden" data-financa-edit-error></div>`
                 : `<div class="font-semibold text-gray-800 truncate">${this._escHtml(f.name)}</div>
-                   <div class="text-xs text-gray-400">${f.type === 'compartilhada' ? '👥 Compartilhada' : '👤 Individual'}</div>`;
+                   <div class="mt-0.5 flex items-center gap-1.5 flex-wrap"><span class="wallet-chip">${this._walletChipHtml(f).replace(/wb-chip-/g, 'wc-')}</span>${isActive ? '<span class="wallet-badge-active">Ativa</span>' : ''}</div>`;
             const sharing = isOwner && this._sharingFinancaId === f.id;
             return `
-            <div class="flex items-center gap-3 p-3 ${sharing ? 'mb-1' : 'mb-2'} rounded-xl border-2 ${editing ? '' : 'cursor-pointer'} transition-all ${isActive ? 'border-emerald-500 bg-emerald-50' : 'border-gray-100 bg-white hover:border-gray-300'}" data-financa-select="${f.id}">
-                <span class="text-2xl">${Utils.esc(f.emoji || '💰')}</span>
+            <div class="wallet-row flex items-center gap-3 p-3 ${sharing ? 'mb-1' : 'mb-2'} rounded-xl border-2 ${editing ? '' : 'cursor-pointer'} transition-all ${isActive ? 'bg-gray-50' : 'border-gray-100 bg-white hover:border-gray-300'}" data-financa-select="${Utils.esc(f.id)}" style="--wallet-accent:${Utils.walletColor(f.id)};${isActive ? 'border-color:' + Utils.walletColor(f.id) + ';border-left-width:6px' : ''}" ${isActive ? 'aria-current="true"' : ''}>
+                <span class="wr-avatar" aria-hidden="true">${Utils.esc(Utils.cleanEmoji(f.emoji, '💰'))}</span>
                 <div class="flex-1 min-w-0">${nameBlock}</div>
-                ${isActive && !editing ? '<span class="text-emerald-600 text-lg">✓</span>' : ''}
                 ${isOwner && !editing ? `<button class="${sharing ? 'text-emerald-600' : 'text-gray-300 hover:text-emerald-600'} text-base px-1 share-financa-btn" data-financa-share="${f.id}" title="Compartilhar com outras pessoas" aria-label="Compartilhar carteira" aria-expanded="${sharing}">👥</button>` : ''}
                 ${isOwner && !editing ? `<button class="text-gray-300 hover:text-emerald-600 text-base px-1 rename-financa-btn" data-financa-rename="${f.id}" title="Renomear" aria-label="Renomear carteira">✏️</button>` : ''}
                 ${isOwner && !editing ? `<button class="text-gray-300 hover:text-red-400 text-lg px-1 delete-financa-btn" data-financa-del="${f.id}" title="Excluir">🗑</button>` : ''}
@@ -388,10 +459,13 @@ const App = {
                 if (!f) return;
                 this.activeFinanca = f;
                 Storage.setActiveFinanca(f.id);
+                const mesAntes = this.currentMonth;                 // a troca de carteira mantém o mês selecionado
                 this.closeFinancaModal();
                 this.renderFinancaSwitcher();
+                this.announceWallet(f);
                 await Storage.syncCustomTypesFromCloud();
                 await Promise.all([this.loadCategories(), this.loadReminders(), this.loadTransactionTypes()]);
+                this.currentMonth = mesAntes;
                 await this.renderCurrentTab();
                 if (navigator.onLine) this._warmOfflineCache();
                 if (this.currentTab !== 'home') await this.renderHome();
@@ -687,6 +761,7 @@ const App = {
         if (!box) return;
         let members = [], invites = [];
         try { [members, invites] = await Promise.all([Storage.getMembers(fid), Storage.getPendingInvites(fid)]); } catch (_) {}
+        if (members.length) { this._walletMembers[fid] = members.length; this._walletMembersAt[fid] = Date.now(); this.renderFinancaSwitcher(); }
         if (!document.body.contains(box)) return;
         const roleLabel = r => r === 'admin' ? '⭐ Admin' : r === 'visualizador' ? '👁 Só ver' : '👤 Membro';
         const row = (icon, title, sub, actions) => `
@@ -5969,7 +6044,7 @@ const App = {
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows),    'Lançamentos');
             XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sumRows), 'Resumo');
-            XLSX.writeFile(wb, `financas-${rng.slug}.xlsx`);
+            XLSX.writeFile(wb, `lancamentos-${this._walletFileSlug()}-${rng.slug}.xlsx`);
             this.showToast('✅ Excel exportado!');
         } catch (e) {
             this.showToast('❌ Erro ao exportar: ' + e.message, true);
@@ -6038,7 +6113,7 @@ const App = {
                 alternateRowStyles: { fillColor: [248, 250, 252] }
             });
 
-            doc.save(`financas-${rng.slug}.pdf`);
+            doc.save(`lancamentos-${this._walletFileSlug()}-${rng.slug}.pdf`);
             this.showToast('✅ PDF exportado!');
         } catch (e) {
             this.showToast('❌ Erro ao exportar: ' + e.message, true);
@@ -6123,8 +6198,7 @@ const App = {
             XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(remRows.length        ? remRows        : [{ '': 'Sem dados' }]), 'Lembretes');
             XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(infoRows),                                                       'Info');
 
-            const safeName = fname.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-            XLSX.writeFile(wb, `backup_${safeName}_${today}.xlsx`);
+            XLSX.writeFile(wb, `backup-${this._walletFileSlug()}-${today}.xlsx`);
             this.showToast(`✅ Backup exportado — ${allTxns.length} lançamentos`);
         } catch (e) {
             this.showToast('❌ Erro ao gerar backup: ' + e.message, true);
