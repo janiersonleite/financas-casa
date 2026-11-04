@@ -615,6 +615,7 @@ const Storage = {
                 email:      Auth.user?.email,
                 role:       'admin'
             });
+            this._membersChanged();
             return data;
         }
         const d = this._localGet();
@@ -642,6 +643,7 @@ const Storage = {
         if (this.isCloud) {
             const { error } = await this.db.from('financas').delete().eq('id', id).eq('owner_id', this.userId());
             if (error) throw error;
+            this._membersChanged();
             return;
         }
         const d = this._localGet();
@@ -650,6 +652,27 @@ const Storage = {
     },
 
     // ── Members ───────────────────────────────────────────────────────────────
+    // Avisa o app que a composição das carteiras mudou (o chip de tipo recarrega a contagem de membros)
+    _membersChanged() { try { if (typeof App !== 'undefined' && App.invalidateWalletMembers) App.invalidateWalletMembers(); } catch (_) {} },
+
+    // Nº de membros de TODAS as carteiras visíveis, numa única consulta a financa_members (a policy members_select mostra todos
+    // os membros das carteiras de que o usuário participa). Também devolve em quais carteiras o usuário é admin e quantos
+    // convites pendentes cada uma tem (só admin enxerga convites; falha nos convites não derruba a contagem).
+    async getMemberCounts() {
+        if (!this.isCloud) return { counts: {}, admin: {}, invites: {} };
+        const me = this.userId();
+        const { data, error } = await this.db.from('financa_members').select('financa_id,user_id,role').limit(10000);
+        if (error) throw error;
+        const counts = {}, admin = {};
+        for (const r of data || []) { counts[r.financa_id] = (counts[r.financa_id] || 0) + 1; if (r.user_id === me && r.role === 'admin') admin[r.financa_id] = true; }
+        const invites = {};
+        try {
+            const { data: inv, error: e2 } = await this.db.from('financa_invites').select('financa_id').is('accepted_at', null).limit(10000);
+            if (!e2) for (const r of inv || []) invites[r.financa_id] = (invites[r.financa_id] || 0) + 1;
+        } catch (_) {}
+        return { counts, admin, invites };
+    },
+
     async getMembers(financaId) {
         if (this.isCloud) {
             const { data, error } = await this.db
@@ -668,6 +691,7 @@ const Storage = {
             const { error } = await this.db
                 .from('financa_members').delete().eq('id', memberId).eq('financa_id', financaId);
             if (error) throw error;
+            this._membersChanged();
         }
     },
 
@@ -680,6 +704,7 @@ const Storage = {
             member_role:  role
         });
         if (error) throw error;
+        this._membersChanged();
         return data; // 'added' | 'invited'
     },
 
@@ -702,6 +727,7 @@ const Storage = {
         if (this.isCloud) {
             const { error } = await this.db.from('financa_invites').delete().eq('id', inviteId);
             if (error) throw error;
+            this._membersChanged();
         }
     },
 
@@ -738,6 +764,7 @@ const Storage = {
         // O servidor valida o convite (e-mail, confirmação, validade) e usa o papel DO CONVITE.
         const { error } = await this.db.rpc('accept_invite', { p_invite_id: inviteId });
         if (error) throw error;
+        this._membersChanged();
     },
 
     // ── Categories ───────────────────────────────────────────────────────────

@@ -162,30 +162,79 @@
             #toast { bottom: 2rem; }
             #offline-bar { left: 96px; }
         }
-        /* Desktop: fonte maior (tudo em rem escala junto) */
-        @media (min-width: 1024px) { html { font-size: 118%; } .tab-page { max-width: 1120px; } }
-        /* Textos com tamanho fixo em px (rótulos pequenos) também crescem no desktop */
+        /* Desktop compacto: fonte normal (100 %) e uma coluna de 1200 px; rótulos minúsculos em px sobem um pouco para ler bem */
         @media (min-width: 1024px) {
-            [class*="text-[9px]"]  { font-size: 12px !important; }
-            [class*="text-[10px]"] { font-size: 13px !important; }
-            [class*="text-[11px]"] { font-size: 14px !important; }
-            #bottom-nav .nav-tab .nav-label { font-size: 12px; }
+            html { font-size: 100%; }
+            .tab-page { max-width: 1200px; }
+            [class*="text-[9px]"]  { font-size: 10.5px !important; }
+            [class*="text-[10px]"] { font-size: 11.5px !important; }
+            [class*="text-[11px]"] { font-size: 12.5px !important; }
+            #bottom-nav .nav-tab .nav-label { font-size: 11px; }
         }
-        @media (min-width: 1440px) { html { font-size: 130%; } .tab-page { max-width: 1280px; } }
+        /* ═══ Desktop compacto (≥1024 px): blocos em grade, como no protótipo aprovado ═══ */
+        @media (min-width: 1024px) {
+            /* Início: saldo (5/12) + registrar (7/12) · categorias numa fileira · lembretes (5/12) + lançamentos (7/12) */
+            #tab-home:not(.hidden) { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 14px; align-content: start; padding: 16px 4px 32px; }
+            #tab-home > .px-4.pt-4 { display: contents; }                        /* os blocos do meio viram itens da grade */
+            #tab-home .space-y-4 > * { margin-top: 0 !important; }
+            #home-header { grid-column: span 5; border-radius: 16px !important; padding: 14px 16px !important; box-shadow: 0 4px 14px rgba(6,36,26,.18) !important; }
+            #home-header #user-greeting { margin-bottom: 10px !important; }
+            #home-header .text-4xl { font-size: 2.1rem !important; }
+            #tab-home .home-reg { grid-column: span 7; display: flex; flex-direction: column; justify-content: center; }
+            #pwa-install-banner, #ios-install-banner { grid-column: span 12; }
+            #tab-home .home-cats { grid-column: span 12; }
+            #quick-cats-grid { grid-template-columns: repeat(8, minmax(0, 1fr)) !important; }
+            #tab-home .home-rem { grid-column: span 5; align-self: start; }
+            #tab-home .home-lan { grid-column: span 7; align-self: start; }
+            /* Histórico, Resumo e Investir: cabeçalho vira cartão arredondado dentro da coluna */
+            #tab-history { padding: 16px 4px 32px; }
+            #tab-history > .sticky { position: static; border: 1px solid #e5efe9; border-radius: 16px; }
+            #tab-summary { padding: 16px 4px 32px; }
+            #tab-summary > .bg-white { border: 1px solid #e5efe9; border-radius: 16px; }
+            #tab-investments { padding: 16px 4px 32px; }
+            #tab-investments > div:first-child { border-radius: 16px; }
+            /* Resumo: seções em 2 colunas (menos rolagem); no modo de reordenar volta a 1 coluna */
+            #summary-sections:not(.editing) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; align-items: start; }
+            #summary-sections:not(.editing) > * { margin-top: 0 !important; }
+            #summary-sections:not(.editing) > [data-section-id="balance-cards"], #summary-sections:not(.editing) > [data-section-id="trend"], #summary-sections:not(.editing) > [data-section-id="insights"] { grid-column: span 2; }
+        }
+        /* Desktop compacto: o menu deixa de colar na borda da tela e passa a ser um painel flutuante, vertical e centralizado,
+           encostado na coluna do app (a mesma coluna onde ficam a barra de carteira e as abas). Em telas largas o conjunto
+           menu + coluna fica junto no meio; em telas estreitas (sem espaço ao lado da coluna) o menu fica na borda, como antes. */
+        @media (min-width: 1024px) {
+            :root { --app-col: 1200px; --nav-w: 84px; --nav-gap: 14px; }
+            #bottom-nav {
+                left: max(10px, calc((100vw - var(--app-col) - 96px) / 2 + 96px - var(--nav-w) - var(--nav-gap) - 0px)) !important;
+                top: 50% !important; bottom: auto !important; transform: translateY(-50%) !important;
+                width: var(--nav-w) !important; height: auto !important;
+                border-radius: 22px !important; padding: 10px 0 !important;
+                box-shadow: 0 10px 30px rgba(6,36,26,.35) !important;
+            }
+            #bottom-nav > div { padding: 0 6px; }
+            /* o fundo da barra de carteira ocupa a largura toda (inclusive sob o espaço antes reservado ao menu) */
+            #wallet-bar { margin-left: -96px !important; width: calc(100% + 96px) !important; padding-left: 96px !important; }   /* o conteúdo continua na coluna */
+        }
 
         /* ═══ Barra de carteira ativa (#wallet-bar): fixa no topo de todas as abas ═══ */
         #wallet-bar {
             --wallet-accent: #64748b;
             position: sticky; top: 0; z-index: 30;
-            display: flex; align-items: center; gap: 10px;
+            display: block;
             width: 100%; box-sizing: border-box;
             height: calc(58px + env(safe-area-inset-top)); min-height: 58px;
-            padding: env(safe-area-inset-top) 12px 0 0; margin: 0;
+            padding: env(safe-area-inset-top) 0 0 0; margin: 0;
             background: #06241a; color: #fff;
             border: 0; border-bottom: 3px solid var(--wallet-accent);
             font: inherit; text-align: left; cursor: pointer;
             -webkit-appearance: none; appearance: none;
         }
+        /* O FUNDO ocupa a largura toda; o CONTEÚDO fica numa coluna com a mesma largura e centralização do app
+           (celular/tablet: a própria largura do body; desktop ≥1024: max-width de .tab-page, ao lado do menu lateral). */
+        #wallet-bar .wb-inner {
+            display: flex; align-items: center; gap: 10px; height: 100%; box-sizing: border-box;
+            max-width: var(--wb-col, none); margin: 0 auto; padding: 0 12px 0 0;
+        }
+        @media (min-width: 1024px) { #wallet-bar { --wb-col: 1200px; } }
         #wallet-bar:focus-visible { outline: 3px solid #fff; outline-offset: -3px; }
         #wallet-bar .wb-strip { align-self: stretch; flex: none; width: 6px; background: var(--wallet-accent); }
         #wallet-bar .wb-avatar {
@@ -204,6 +253,7 @@
         #wallet-bar .wb-chip svg { width: 14px; height: 14px; flex: none; }
         #wallet-bar .wb-chip[data-kind="offline"] { background: #fbbf24; color: #451a03; }
         #wallet-bar .wb-chip[data-kind="none"] { display: none; }
+        #wallet-bar .wb-chip[data-kind="loading"] { width: 84px; height: 26px; padding: 0; background: #3f4b46; }
         #wallet-bar .wb-chevron { flex: none; font-size: 18px; line-height: 1; color: rgba(255,255,255,.78); }
         #wallet-bar .wb-skel { display: none; align-items: center; gap: 10px; flex: 1 1 auto; min-width: 0; }
         #wallet-bar .wb-skel i { display: block; background: #3f4b46; border-radius: 8px; }
@@ -211,14 +261,15 @@
         #wallet-bar[data-state="loading"] .wb-avatar, #wallet-bar[data-state="loading"] .wb-text,
         #wallet-bar[data-state="loading"] .wb-chip, #wallet-bar[data-state="loading"] .wb-chevron { display: none; }
         @media (max-width: 359px) {
-            #wallet-bar { gap: 8px; padding-right: 8px; }
+            #wallet-bar .wb-inner { gap: 8px; padding-right: 8px; }
             #wallet-bar .wb-chip[data-kind="shared"] .wb-chip-text, #wallet-bar .wb-chip[data-kind="shared"] .wb-chip-sep { display: none; }
             #wallet-bar .wb-name { font-size: 16px; }
+            #wallet-bar .wb-chip[data-kind="loading"] { width: 52px; }
         }
         @media (prefers-reduced-motion: no-preference) {
             #wallet-bar { transition: background-color .15s; }
             #wallet-bar:active { background: #0a3324; }
-            #wallet-bar .wb-skel i { animation: wb-shimmer 1.2s ease-in-out infinite; }
+            #wallet-bar .wb-skel i, #wallet-bar .wb-chip[data-kind="loading"], .wallet-skel { animation: wb-shimmer 1.2s ease-in-out infinite; }
             @keyframes wb-shimmer { 0%,100% { opacity: .55; } 50% { opacity: 1; } }
             #wallet-toast { transition: opacity .2s; }
         }
@@ -237,10 +288,12 @@
         .wallet-row .wr-avatar { width: 38px; height: 38px; border-radius: 9999px; box-sizing: border-box; flex: none; display: flex; align-items: center; justify-content: center; font-size: 20px; border: 2px solid var(--wallet-accent, #64748b); background: #f8fafc; }
         .wallet-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; color: #475569; background: #f1f5f9; border-radius: 9999px; padding: 2px 8px; }
         .wallet-chip svg { width: 12px; height: 12px; }
+        .wallet-skel { background: #e2e8f0; color: transparent; }
+        .wallet-invite { font-size: 11px; font-weight: 600; color: #b45309; }
         .wallet-badge-active { flex: none; font-size: 11px; font-weight: 800; color: #06241a; background: var(--wallet-accent, #64748b); border-radius: 9999px; padding: 3px 10px; }
     </style>
     <!-- Tailwind compilado no build (npm run build:css) — depois do <style> acima, como o CDN anterior (que anexava seu <style> ao fim do <head>) -->
-    <link rel="stylesheet" href="css/app.css?v=20261106a">
+    <link rel="stylesheet" href="css/app.css?v=20261107a">
 </head>
 <body class="max-w-md mx-auto min-h-screen relative" style="background:var(--clr-bg)">
 
@@ -337,6 +390,7 @@
 
 <!-- Barra de carteira ativa: sempre visível, em todas as abas. Toque = trocar de carteira. -->
 <button id="wallet-bar" type="button" data-state="loading" aria-haspopup="dialog" aria-label="Carregando carteira">
+  <span class="wb-inner">
     <span class="wb-strip" aria-hidden="true"></span>
     <span class="wb-skel" role="status" aria-label="Carregando carteira">
         <i style="width:34px;height:34px;border-radius:9999px"></i>
@@ -350,6 +404,7 @@
     </span>
     <span class="wb-chip" id="wallet-bar-chip" data-kind="none"></span>
     <span class="wb-chevron" aria-hidden="true">▾</span>
+  </span>
 </button>
 
 <!-- Invite banner (shown when user has pending invites) -->
@@ -500,7 +555,7 @@
         </div>
 
         <!-- Quick Input -->
-        <div class="rounded-2xl overflow-hidden shadow-lg" style="background:linear-gradient(135deg,#4f46e5 0%,#7c3aed 60%,#9333ea 100%)">
+        <div class="home-reg rounded-2xl overflow-hidden shadow-lg" style="background:linear-gradient(135deg,#4f46e5 0%,#7c3aed 60%,#9333ea 100%)">
             <!-- input oculto: mantém compatibilidade com o JS de voz e NLP -->
             <input id="quick-input" type="text" class="hidden" autocomplete="off">
 
@@ -535,7 +590,7 @@
         </div>
 
         <!-- Categories section (Quick Access) -->
-        <div>
+        <div class="home-cats">
             <div class="flex items-center justify-between mb-3">
                 <p class="text-sm font-bold text-gray-800">Categorias</p>
                 <button id="open-categories-btn" class="text-xs text-emerald-600 font-semibold hover:text-emerald-700">Ver tudo</button>
@@ -546,7 +601,7 @@
         </div>
 
         <!-- Reminders Section — styled like "Great Deals" cards -->
-        <div class="bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50 rounded-2xl border border-amber-100 p-3 shadow-sm">
+        <div class="home-rem bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50 rounded-2xl border border-amber-100 p-3 shadow-sm">
             <div class="flex items-center justify-between mb-3 px-1">
                 <p class="text-sm font-bold text-amber-900 flex items-center gap-1.5">
                     <span>🔔</span>
@@ -568,7 +623,7 @@
         </div>
 
         <!-- Recent Transactions -->
-        <div>
+        <div class="home-lan">
             <div class="flex items-center gap-2 mb-2">
                 <p id="home-section-label" class="text-sm font-bold text-gray-800 flex-1">Lançamentos do mês</p>
                 <button id="home-search-toggle"
@@ -1989,11 +2044,11 @@
 
 <script src="js/config.js?v=20261008a"></script>
 <script src="js/auth.js?v=20261008b"></script>
-<script src="js/utils.js?v=20261104a"></script>
-<script src="js/storage.js?v=20261027b"></script>
+<script src="js/utils.js?v=20261105a"></script>
+<script src="js/storage.js?v=20261105a"></script>
 <script src="js/nlp.js?v=20261027a"></script>
 <script src="js/insights.js?v=20261027b"></script>
-<script src="js/cofrinhos.js?v=20261027a"></script>
+<script src="js/cofrinhos.js?v=20261105a"></script>
 <script src="js/push.js?v=20261027b"></script>
 <script src="js/app.js?v=20261106a"></script>
 

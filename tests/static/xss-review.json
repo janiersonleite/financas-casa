@@ -294,5 +294,37 @@
   "expr": "e === f.emoji ? 'border-emerald-500 bg-emerald-50' : 'border-gray-200'",
   "cls": "NAO_CONTROLADO",
   "note": "rótulo/cálculo interno (períodos, tiles, classes CSS)"
+ },
+ {
+  "file": "js/app.js",
+  "key": "app.js|return `<span class=\"wallet-chip\">${ico}<span>${c.text}</span></span>`|c.text",
+  "line": 315,
+  "expr": "c.text",
+  "cls": "NAO_CONTROLADO",
+  "note": "rótulo do tipo da carteira: Utils.walletChip/App.walletTypeText = texto fixo + inteiro (nº de membros); nada vem do usuário"
+ },
+ {
+  "file": "js/cofrinhos.js",
+  "key": "cofrinhos.js|<p class=\"text-xs ${w.soft} mt-0.5\">${w.label}${/Compartilhada/.test(w.label) ? ' · membros veem e editam' : ''}</p>|w.label",
+  "line": 404,
+  "expr": "w.label",
+  "cls": "NAO_CONTROLADO",
+  "note": "rótulo do tipo da carteira: Utils.walletChip/App.walletTypeText = texto fixo + inteiro (nº de membros); nada vem do usuário"
+ },
+ {
+  "file": "js/cofrinhos.js",
+  "key": "cofrinhos.js|<p class=\"text-xs ${w.soft} mt-0.5\">${w.label}${/Compartilhada/.test(w.label) ? ' · membros veem e editam' : ''}</p>|/Compartilhada/.test(w.label) ? ' · membros veem e editam' : ''",
+  "line": 404,
+  "expr": "/Compartilhada/.test(w.label) ? ' · membros veem e editam' : ''",
+  "cls": "NAO_CONTROLADO",
+  "note": "rótulo do tipo da carteira: Utils.walletChip/App.walletTypeText = texto fixo + inteiro (nº de membros); nada vem do usuário"
+ },
+ {
+  "file": "js/cofrinhos.js",
+  "key": "cofrinhos.js|<p class=\"text-sm font-extrabold text-white truncate leading-tight\">${this._esc(w.name)} <span class=\"font-normal ${w.soft}\">${w.label ? '· ' + w.label : ''}</span></p>|w.label ? '· ' + w.label : ''",
+  "line": 419,
+  "expr": "w.label ? '· ' + w.label : ''",
+  "cls": "NAO_CONTROLADO",
+  "note": "rótulo do tipo da carteira: Utils.walletChip/App.walletTypeText = texto fixo + inteiro (nº de membros); nada vem do usuário"
  }
 ]

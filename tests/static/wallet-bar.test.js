@@ -36,7 +36,7 @@ test('U1/U2: carteira individual — nome, cor do hash, chip "Só você", aria-l
   const s = o.individual;
   assert.equal(s.state, 'ready'); assert.equal(s.nome, 'Pessoal'); assert.equal(s.chip, 'Só você'); assert.equal(s.chipKind, 'solo');
   assert.equal(s.cor, s.corEsperada);
-  assert.equal(s.aria, 'Carteira ativa: Pessoal (só você). Toque para trocar de carteira');
+  assert.equal(s.aria, 'Carteira ativa: Pessoal, só você. Toque para trocar de carteira');
   assert.equal(s.titulo, 'Pessoal · Minhas Carteiras');
 });
 
@@ -44,7 +44,7 @@ test('U3: lista "Trocar de carteira" — título, selo "Ativa" só na atual, cor
   const l = o.lista;
   assert.equal(l.titulo, 'Trocar de carteira'); assert.equal(l.linhas, 5); assert.equal(l.ativa.length, 1);
   assert.equal(l.botoes.fechar, 'Fechar'); assert.equal(l.botoes.nova, '+ Nova carteira');
-  assert.match(l.chipB, /Compartilhada\s*·\s*3/);
+  assert.match(l.chipB, /Compartilhada\s*·\s*2/);
   assert.match(l.corLinhaB, /^#[0-9a-f]{6}$/); assert.equal(l.imgs, 0);
 });
 
@@ -52,8 +52,8 @@ test('U3 (T2): trocar de carteira atualiza nome, cor, chip e toast; mantém o m�
   const t = o.troca;
   assert.ok(t.ativa && t.modalFechado);
   assert.equal(t.nome, 'Família'); assert.equal(t.cor, t.corEsperada); assert.notEqual(t.cor, o.individual.cor);
-  assert.equal(t.chipKind, 'shared'); assert.match(t.chip, /Compartilhada\s*·\s*3/);
-  assert.match(t.aria, /^Carteira ativa: Família \(compartilhada com 3 membros\)\. Toque para trocar de carteira$/);
+  assert.equal(t.chipKind, 'shared'); assert.match(t.chip, /Compartilhada\s*·\s*2/);
+  assert.match(t.aria, /^Carteira ativa: Família, compartilhada com 2 membros\. Toque para trocar de carteira$/);
   assert.equal(t.titulo, 'Família · Minhas Carteiras');
   assert.equal(t.mes, '2026-03', 'o mês selecionado deve ser mantido');
   assert.deepEqual(t.renders, [{ aba: 'history', mes: '2026-03' }], 're-renderiza a aba atual (uma vez) com o mês mantido');
@@ -102,4 +102,58 @@ test('U7: sem classes dinâmicas do Tailwind na barra, ?v= e versão do service 
   assert.match(html, /prefers-reduced-motion: no-preference[\s\S]*wb-shimmer/);
   assert.match(html, /<script src="js\/app\.js\?v=\d{8}[a-z]">/);
   assert.match(read('sw.js'), /app-runtime-v\d{8}[a-z]/);
+});
+
+// ── Correção 1: o chip vem dos membros reais (financa_members), nunca de financas.type ─────────────────────────────────────
+test('C1: carteira criada como "individual" com 2 membros mostra "Compartilhada · 2" na barra E na lista de troca', () => {
+  assert.equal(o.doisMembros.chipKind, 'shared'); assert.match(o.doisMembros.chip, /^Compartilhada\s*·\s*2$/);
+  assert.match(o.doisMembros.aria, /compartilhada com 2 membros/);
+  const L = o.contagemCarregada.lista, fam = Object.values(L).find(x => /Compartilhada/.test(x.chip));
+  assert.match(fam.chip, /^Compartilhada · 2$/);
+  assert.equal(Object.values(L).filter(x => x.chip === 'Só você').length, 4, 'as outras 4 (1 membro cada) mostram "Só você"');
+});
+
+test('C1: contagem ainda não carregada → esqueleto na barra e na lista; NUNCA "Só você" por padrão', () => {
+  assert.equal(o.carregandoContagem.barra.chipKind, 'loading'); assert.equal(o.carregandoContagem.chipTexto, '');
+  assert.equal(o.carregandoContagem.lista.skel, true); assert.equal(o.carregandoContagem.lista.chip, '');
+  assert.doesNotMatch(JSON.stringify(o.carregandoContagem), /Só você/);
+});
+
+test('C1: uma única consulta (financa_members) carrega a contagem de TODAS as carteiras', () => {
+  assert.equal(o.carregandoContagem.consultas, 1); assert.equal(o.contagemCarregada.consultas, 1);
+  assert.equal(o.consultaUnica.consultas, 1);
+  assert.equal(Object.keys(o.consultaUnica.contagem).length, 5);
+  assert.equal(Object.values(o.consultaUnica.contagem).filter(n => n === 2).length, 1);
+});
+
+test('C1: remover um membro faz o chip voltar a "Só você" sem recarregar a página (barra e lista); aceitar convite volta a "Compartilhada · 2"', () => {
+  assert.match(o.removerMembro.antes.barra, /Compartilhada\s*·\s*2/); assert.equal(o.removerMembro.antes.lista, 'Compartilhada · 2');
+  assert.equal(o.removerMembro.depois.barra, 'Só você'); assert.equal(o.removerMembro.depois.lista, 'Só você'); assert.equal(o.removerMembro.depois.kind, 'solo');
+  assert.match(o.aceitarConvite.barra, /Compartilhada\s*·\s*2/); assert.equal(o.aceitarConvite.lista, 'Compartilhada · 2');
+});
+
+test('C1: falha ao carregar a contagem → chip oculto (sem texto errado), na barra e na lista', () => {
+  assert.equal(o.falha.chipKind, 'none'); assert.equal(o.falha.chipTexto, ''); assert.equal(o.falha.lista, '');
+  assert.doesNotMatch(o.falha.barra, /só você|compartilhada/i);
+});
+
+test('C1: convite pendente não conta como membro; "· 1 convite" só no painel de troca (admin), nunca na barra', () => {
+  assert.equal(o.convites.lista.chip, 'Compartilhada · 2'); assert.equal(o.convites.lista.convite, '· 1 convite');
+  assert.doesNotMatch(o.convites.barra, /convite/); assert.equal(o.convites.outraCarteira, '');
+});
+
+test('C1: troca de carteira recarrega a contagem; o tipo aparece igual no #financa-select-modal, no novo lançamento e na importação', () => {
+  assert.ok(o.troca.recarregouContagem);
+  assert.deepEqual(o.contagemCarregada.select, ['👤 Só você', '👥 Compartilhada · 2', '👤 Só você', '👤 Só você', '👤 Só você']);
+  assert.equal(o.tipoNosRotulos.novoLancamento, '👥 Compartilhada · 2'); assert.equal(o.tipoNosRotulos.importar, '👥 Compartilhada · 2');
+});
+
+test('C1: nenhum ponto do app decide o rótulo por `type` (só Utils.walletChip)', () => {
+  for (const f of ['js/app.js', 'js/cofrinhos.js']) {
+    const t = read(f);
+    assert.doesNotMatch(t, /type === 'compartilhada' \? '(?:👥|🤝) Compartilhada/, f);
+    assert.doesNotMatch(t, /'👤 Individual'|'👨‍👩‍👧 Familiar'|'🤝 Compartilhada'/, f + ': rótulo de tipo antigo');
+  }
+  const app = read('js/app.js');
+  assert.match(app, /Utils\.walletChip\(f, this\.walletCount\(f\)\)/);
 });

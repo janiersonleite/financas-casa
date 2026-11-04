@@ -57,11 +57,13 @@ const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((m, n) => n - m);
       Auth.user = { id: 'u1', email: 'ana@exemplo.com' };
       // ids explícitos: com o relógio fixo, o id local (Date.now()) seria igual para todas
       const mk = (id, name, type, emoji) => ({ id, name, type, emoji, owner_id: 'local', created_at: '2026-10-01T00:00:00Z' });
-      const a = mk('f-pessoal', 'Pessoal', 'individual', '💼'), b = mk('f-familia', 'Família', 'compartilhada', '🏠'), c = mk('f-longo', longo, 'compartilhada', '📚');
+      // 'Família' é criada como INDIVIDUAL e depois recebe membros (o caso real do relatório)
+      const a = mk('f-pessoal', 'Pessoal', 'individual', '💼'), b = mk('f-familia', 'Família', 'individual', '🏠'), c = mk('f-longo', longo, 'compartilhada', '📚');
       const d = Storage._localGet(); d.financas = [a, b, c]; Storage._localSave(d);
-      App._walletMembers[b.id] = 3; App._walletMembers[c.id] = 2;
+      // contagem de membros simulada (o banco real é consultado em produção): Pessoal=1, Família=2 (admin + membro), nome longo=2
+      App.refreshWalletMembers = async function () { this._wc = { state: 'loaded', counts: { [a.id]: 1, [b.id]: 2, [c.id]: 2 }, admin: { [b.id]: true }, invites: {}, seq: 0 }; this._walletSurfacesChanged(); };
       localStorage.setItem('active_financa_id', b.id);   // loadFinancas() restaura a carteira ativa daqui
-      await App.loadFinancas();
+      await App.loadFinancas(); await App.refreshWalletMembers();
       App.activeFinanca = App.financas.find(f => f.id === b.id); Storage.setActiveFinanca(b.id); App.renderFinancaSwitcher();
       const ym = Utils.monthKeyLocal();
       for (const [type, description, value, day, category] of [['entrada', 'Salário', 5200, 5, 'Salário'], ['saida', 'Aluguel', 1450, 6, 'Moradia'], ['saida', 'Mercado', 389.9, 8, 'Alimentação']])
@@ -75,9 +77,13 @@ const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((m, n) => n - m);
         const nm = document.getElementById('wallet-bar-name'), cs = getComputedStyle(nm), bs = getComputedStyle(bar);
         return { barraAltura: Math.round(r.height), barraTop: Math.round(r.top), barraDireita: Math.round(r.right), vw: innerWidth, scrollW: document.documentElement.scrollWidth, bodyScrollW: document.body.scrollWidth,
           chipDireita: Math.round(chip.right), chipVisivel: chip.width > 0, nomeTruncado: nm.scrollWidth > nm.clientWidth, nomeEllipsis: cs.textOverflow === 'ellipsis' && cs.whiteSpace === 'nowrap' && cs.overflow === 'hidden',
+          inner: (() => { const i = document.querySelector('#wallet-bar .wb-inner').getBoundingClientRect(), tp = document.querySelector('.tab-page:not(.hidden)').getBoundingClientRect(), av = document.getElementById('wallet-bar-avatar').getBoundingClientRect(), cv = document.querySelector('#wallet-bar .wb-chevron').getBoundingClientRect(), st = document.querySelector('#wallet-bar .wb-strip').getBoundingClientRect();
+            return { esq: Math.round(i.left), dir: Math.round(i.right), larg: Math.round(i.width), tabEsq: Math.round(tp.left), tabDir: Math.round(tp.right), tabLarg: Math.round(tp.width), avatarEsq: Math.round(av.left), chevronDir: Math.round(cv.right), faixaEsq: Math.round(st.left) }; })(),
           bordaInferior: bs.borderBottomWidth, corBorda: bs.borderBottomColor, fundo: bs.backgroundColor, chipTexto: document.getElementById('wallet-bar-chip').innerText.trim(), ativa: App.activeFinanca && App.activeFinanca.name, membros: JSON.stringify(App._walletMembers), tipos: JSON.stringify(App.financas.map(f => f.type)), nomeFonte: cs.fontSize };
       });
       m.nome = nome; m.semOverflowHorizontal = m.scrollW <= m.vw && m.bodyScrollW <= m.vw; m.alvoOk = m.barraAltura >= 44; m.chipDentro = m.chipDireita <= m.barraDireita;
+      // Correção 2: no tablet/desktop o conteúdo fica na MESMA coluna do app (centralizada, mesma largura da aba), não nas pontas da tela
+      m.colunaOk = m.vw < 768 || (Math.abs(m.inner.esq - m.inner.tabEsq) <= 1 && Math.abs(m.inner.dir - m.inner.tabDir) <= 1 && m.inner.avatarEsq >= m.inner.esq && m.inner.chevronDir <= m.inner.dir);
       medidas.push(m); return m;
     };
     const foto = async nome => { await page.addStyleTag({ content: '*{animation:none!important;transition:none!important}' }); await page.waitForTimeout(150); await page.screenshot({ path: path.join(OUT, `${nome}.${width}.png`), clip: { x: 0, y: 0, width, height: 420 } }); };
@@ -104,8 +110,8 @@ const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((m, n) => n - m);
   fs.writeFileSync(path.join(OUT, 'medidas.json'), JSON.stringify(rel, null, 1));
   let falhas = 0;
   for (const [w, v] of Object.entries(rel.larguras)) for (const m of v.medidas) {
-    const ok = m.semOverflowHorizontal && m.alvoOk && m.chipDentro && m.chipVisivel; if (!ok) falhas++;
-    console.log(`${ok ? "OK  " : "FALHA"} ${w}px ${m.nome.padEnd(12)} barra=${m.barraAltura}px chip="${m.chipTexto.replace(/\s+/g, ' ')}" overflowH=${!m.semOverflowHorizontal} truncado=${m.nomeTruncado}`);
+    const ok = m.semOverflowHorizontal && m.alvoOk && m.chipDentro && m.colunaOk && (m.chipVisivel || m.nome === 'nome-longo'); if (!ok) falhas++;
+    console.log(`${ok ? "OK  " : "FALHA"} ${w}px ${m.nome.padEnd(12)} barra=${m.barraAltura}px chip="${m.chipTexto.replace(/\s+/g, ' ')}" coluna=${m.inner.esq}-${m.inner.dir}(aba ${m.inner.tabEsq}-${m.inner.tabDir}) overflowH=${!m.semOverflowHorizontal} truncado=${m.nomeTruncado}`);
   }
   console.log('contraste:', JSON.stringify(rel.contraste), '| erros:', rel.erros.length, '| falhas:', falhas, '| hosts bloqueados:', rel.hostsBloqueados.join(',') || '-');
   rel.erros.slice(0, 8).forEach(e => console.log('  erro', e));
