@@ -1,6 +1,6 @@
 // ─── Service Worker — Minhas Carteiras ──────────────────────────────────────────
 // APP_VERSION: 2026-10-06 12:00  ← atualizar junto com app.js a cada deploy
-const RUNTIME_CACHE = 'app-runtime-v20261108a';
+const RUNTIME_CACHE = 'app-runtime-v20261109a';
 
 self.addEventListener('install', e => {
     e.waitUntil(
@@ -45,7 +45,7 @@ self.addEventListener('fetch', event => {
                 }
                 return response;
             })
-            .catch(() => caches.match(event.request)
+            .catch(() => caches.match(event.request, { ignoreSearch: event.request.mode === 'navigate' })   // atalhos do ícone: ./?action=… serve o index em cache
                 .then(cached => cached || caches.match(self.registration.scope + 'index.html'))
             )
     );

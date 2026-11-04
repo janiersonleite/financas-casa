@@ -16,7 +16,7 @@ function boot() {
   w.matchMedia = w.matchMedia || (() => ({ matches: false, addEventListener() {}, addListener() {} }));
   const ctx = dom.getInternalVMContext();
   // scripts separados no mesmo contexto: o `const App/Storage` do topo fica no escopo global compartilhado
-  for (const f of ['utils.js', 'storage.js', 'nlp.js', 'insights.js', 'app.js']) new vm.Script(fs.readFileSync(path.join(ROOT, 'js', f), 'utf8'), { filename: f }).runInContext(ctx);
+  for (const f of ['utils.js', 'storage.js', 'nlp.js', 'insights.js', 'metrics.js', 'favorites.js', 'favorites-ui.js', 'app.js']) new vm.Script(fs.readFileSync(path.join(ROOT, 'js', f), 'utf8'), { filename: f }).runInContext(ctx);
   new vm.Script("var Auth = { user: { id: 'me', email: 'me@x.com' } };").runInContext(ctx);
   const get = n => new vm.Script(n).runInContext(ctx);
   return { w, App: get('App'), Storage: get('Storage') };

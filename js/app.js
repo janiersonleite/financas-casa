@@ -30,7 +30,7 @@ const App = {
     _financasLoaded: false,       // false = barra de carteira em "carregando"
     // Cache de membros por carteira (fonte da verdade do chip de tipo). state: idle | loading | loaded | error.
     // counts = { financaId: nº de linhas em financa_members }; admin = { financaId: true }; invites = { financaId: nº de convites pendentes }
-    _wc: { state: 'idle', counts: {}, admin: {}, invites: {}, seq: 0 },
+    _wc: { state: 'idle', counts: {}, admin: {}, roles: {}, invites: {}, seq: 0 },
     summaryPeriod: null,   // Resumo: null = mês selecionado; { preset|from,to } = período livre
     financas:      [],
     activeFinanca: null,
@@ -62,6 +62,7 @@ const App = {
 
     // ─── Init ─────────────────────────────────────────────────────────────────
     async init() {
+        this._captureLaunchAction();   // ?action= do atalho do ícone (guardado até o login/carteiras carregarem)
         await Auth.init();
         Auth.bindUI();
         if (Auth._recovering) return;   // definindo nova senha: o app só carrega depois, no login
@@ -74,6 +75,7 @@ const App = {
         this._loadSummaryPeriod();
         this.bindSummaryPeriod();
         this.bindFinancaUI();
+        FavoritesUI.init();
         this.bindCategoryUI();
         this.bindExportButtons();
         this.bindImportUI();
@@ -97,6 +99,7 @@ const App = {
         await this.loadReminders();
         await this.renderHome();
         this.refreshMonthDisplay();
+        this.runPendingAction();       // atalho do ícone (Novo gasto / Nova entrada / Histórico), depois de login + carteiras
         // Aquece o cache offline em segundo plano (não bloqueia a UI)
         if (navigator.onLine) {
             this._warmOfflineCache();
@@ -220,7 +223,7 @@ const App = {
     async refreshWalletMembers() {
         const c = this._wc, seq = ++c.seq;
         if (!Storage.isCloud) {                                              // modo local: 1 pessoa por definição
-            c.counts = Object.fromEntries((this.financas || []).filter(f => f.id).map(f => [f.id, 1])); c.admin = {}; c.invites = {}; c.state = 'loaded';
+            c.counts = Object.fromEntries((this.financas || []).filter(f => f.id).map(f => [f.id, 1])); c.admin = {}; c.roles = {}; c.invites = {}; c.state = 'loaded';
             return this._walletSurfacesChanged();
         }
         if (navigator.onLine === false) return;                              // offline: mantém o cache que houver
@@ -228,12 +231,21 @@ const App = {
         try {
             const r = await Storage.getMemberCounts();
             if (seq !== c.seq) return;                                       // chegou uma consulta mais nova
-            c.counts = r.counts; c.admin = r.admin; c.invites = r.invites; c.state = 'loaded';
+            c.counts = r.counts; c.admin = r.admin; c.roles = r.roles || {}; c.invites = r.invites; c.state = 'loaded';
         } catch (_) {
             if (seq !== c.seq) return;
             c.state = 'error';
         }
         this._walletSurfacesChanged();
+    },
+
+    // Papel do usuário na carteira: 'admin' | 'membro' | 'visualizador' | undefined (ainda não carregou). Dono = admin.
+    myRole(f) {
+        if (!f) return undefined;
+        if (!Storage.isCloud || f.owner_id === 'local' || (Auth.user?.id && f.owner_id === Auth.user.id)) return 'admin';
+        const c = this._wc;
+        if (f.id in c.roles) return c.roles[f.id];
+        return c.state === 'loaded' ? 'membro' : undefined;
     },
 
     // Invalida e recarrega (convite aceito, membro adicionado/removido, carteira criada/excluída, troca de carteira)
@@ -246,6 +258,7 @@ const App = {
         if (!document.getElementById('financa-select-modal')?.classList.contains('hidden') && this._financaSelectCallback) this.openFinancaSelectModal(this._financaSelectCallback);
         if (document.getElementById('modal-financa-type')) this._renderModalFinancaPicker?.();
         if (document.getElementById('import-financa-type')) this._renderImportFinancaBanner?.();
+        if (typeof FavoritesUI !== 'undefined') FavoritesUI.renderHome();     // o papel (visualizador) pode ter acabado de chegar
     },
 
     renderFinancaSwitcher() {
@@ -980,6 +993,33 @@ const App = {
         await this.renderCurrentTab();
     },
 
+    // ─── Atalhos do ícone do app (manifest "shortcuts" → ?action=) ──────────────────────────────────────
+    LAUNCH_ACTIONS: ['new-expense', 'new-income', 'history'],          // allowlist fixa: qualquer outro valor é ignorado
+    _cleanActionUrl() {
+        try { const u = new URL(location.href); u.searchParams.delete('action'); history.replaceState(null, '', u.pathname + u.search + u.hash); } catch (_) {}
+    },
+    _captureLaunchAction() {
+        try {
+            const u = new URL(location.href);
+            if (!u.searchParams.has('action')) return;
+            const a = u.searchParams.get('action');
+            if (this.LAUNCH_ACTIONS.includes(a)) sessionStorage.setItem('pending_action', a);
+            else this._cleanActionUrl();                              // valor desconhecido: ignora e limpa
+        } catch (_) {}
+    },
+    // Executa a ação pendente SÓ depois do login e das carteiras carregadas; então limpa a URL
+    runPendingAction() {
+        let a = null; try { a = sessionStorage.getItem('pending_action'); } catch (_) {}
+        if (!a || !this.LAUNCH_ACTIONS.includes(a)) return;
+        const logado = (typeof IS_SUPABASE_CONFIGURED !== 'undefined' ? !IS_SUPABASE_CONFIGURED : true) || !!Auth.user;
+        if (!logado || !this._financasLoaded) return;
+        try { sessionStorage.removeItem('pending_action'); } catch (_) {}
+        this._cleanActionUrl();
+        if (a === 'history') return this.switchTab('history');
+        Metrics.begin('atalho', 0);
+        return this.openModal({ type: a === 'new-income' ? 'entrada' : 'saida', focusValue: true });
+    },
+
     // ─── Quick Input ──────────────────────────────────────────────────────────
     bindQuickInput() {
         const input = document.getElementById('quick-input');
@@ -1007,6 +1047,7 @@ const App = {
         const text   = input.value.trim();
         if (!text) { this.openModal({ focusValue: true }); return; }
         input.value  = '';
+        Metrics.begin('texto', 1);
         // Comando composto? ("gasolina 200 e mercado 150")
         if (this.handleCompoundCommand(text)) return;
         const parsed = NLP.parse(text);
@@ -1515,6 +1556,7 @@ const App = {
     },
 
     async openModal(data = {}) {
+        if (!this.editingId && !Metrics._cur) Metrics.begin('formulario', 1);   // métrica local: método = formulário (texto/atalho já iniciaram o seu)
         // ── Se novo lançamento e usuário tem >1 perfil, pergunta qual usar antes de abrir ──
         if (!data.id && !data._financaChosen && this.financas.length > 1) {
             // Salva o _reminderSourceId atual (pode estar setado por quickAddFromReminder)
@@ -1681,6 +1723,7 @@ const App = {
     },
 
     closeModal() {
+        Metrics.cancel();               // fechou sem salvar (ao salvar, Metrics.end() já rodou)
         document.getElementById('modal-overlay').classList.add('hidden');
         this.editingId         = null;
         this._reminderSourceId = null;
@@ -1996,6 +2039,7 @@ const App = {
             const paidReminderId   = this._reminderSourceId;
             // Captura carteira-alvo ANTES de closeModal() limpá-la
             const savedToFinancaId = !this.editingId ? this._modalFinancaId : null;
+            if (!wasEditing) Metrics.end();   // lançamento novo salvo: registra método, toques e segundos
 
             this.closeModal();
 
@@ -3605,6 +3649,7 @@ const App = {
         document.getElementById('total-expense').textContent = this.homeMoney(summary.expense);
         this._renderHideValuesBtn();
         this.renderRemindersHome();
+        FavoritesUI.renderHome();      // favoritos de um toque (não bloqueia a Home)
 
         const q = this._homeSearch.trim().toLowerCase();
         const label = document.getElementById('home-section-label');

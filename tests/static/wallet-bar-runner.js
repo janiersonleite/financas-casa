@@ -12,7 +12,7 @@ const w = dom.window, d = w.document;
 w.Chart = function () { return { destroy() {}, update() {} }; };
 w.matchMedia = w.matchMedia || (() => ({ matches: false, addEventListener() {}, addListener() {} }));
 const ctx = dom.getInternalVMContext();
-for (const f of ['utils.js', 'storage.js', 'nlp.js', 'insights.js', 'app.js']) new vm.Script(fs.readFileSync(path.join(ROOT, 'js', f), 'utf8'), { filename: f }).runInContext(ctx);
+for (const f of ['utils.js', 'storage.js', 'nlp.js', 'insights.js', 'metrics.js', 'favorites.js', 'favorites-ui.js', 'app.js']) new vm.Script(fs.readFileSync(path.join(ROOT, 'js', f), 'utf8'), { filename: f }).runInContext(ctx);
 new vm.Script("var Auth = { user: { id: 'me', email: 'ana@exemplo.com' }, init: () => new Promise(() => {}) };   // App.init (DOMContentLoaded) fica parado aqui").runInContext(ctx);
 const get = n => new vm.Script(n).runInContext(ctx);
 const App = get('App'), Storage = get('Storage'), Utils = get('Utils');
