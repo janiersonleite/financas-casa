@@ -86,3 +86,35 @@ Divisão em centavos inteiros (`Utils.splitMoney`): a **sobra vai uma a uma para
 - **Atenção para o futuro:** classe nova montada por string (`'bg-' + cor`) não aparece no CSS; usar o nome completo no código ou incluir no safelist.
 - **Netlify:** o CSS agora precisa ser gerado; um deploy que sirva a raiz do repositório sem rodar `npm run build:css` ficaria sem estilo. (O deploy oficial é o GitHub Pages, que roda o build.)
 - **Validação visual** (`scripts/visual/capture.js` e `compare.js`; Chromium, relógio fixo, modo local do app, requisições externas bloqueadas): o "antes" é o *equivalente do CDN* — o CSS é gerado, com a mesma versão do Tailwind, a partir das classes do DOM renderizado, que é exatamente o que o Play CDN faz no navegador (o `cdn.tailwindcss.com` é inacessível neste ambiente). Resultado: 42 capturas (21 telas × celular/desktop), 0 divergências acima de 0,05 % dos pixels (a maior: 4 px). Teste de sanidade: tirando `js/**` do `content`, 25 capturas passam a divergir, ou seja, a comparação detecta classe faltando.
+
+## D10 — CSP ativa (G4, Fase 3b)
+`<meta http-equiv="Content-Security-Policy">` no `index.html` (antes de qualquer script) + `<meta name="referrer" content="strict-origin-when-cross-origin">`.
+
+```
+default-src 'none';
+script-src  'self' https://cdn.jsdelivr.net 'unsafe-hashes' <sha256 do <script> inline> <sha256 dos 6 onclick>;
+style-src   'self' 'unsafe-inline';
+img-src 'self' data: blob:;  font-src 'self' data:;
+connect-src 'self' https://<ref>.supabase.co wss://<ref>.supabase.co;
+manifest-src 'self';  worker-src 'self';
+object-src 'none';  base-uri 'self';  form-action 'self'
+```
+Sem `'unsafe-eval'` (o Tailwind em runtime saiu no G3). Todos os scripts de `cdn.jsdelivr.net` têm SRI.
+
+**Inventário de inline (exigido pelo item):** 1 bloco `<script>` inline (registro do Service Worker), **6** atributos `onclick=` (3 modais: fechar no fundo e no ✕), 0 handlers/`<script>` gerados por JS (teste), 3 blocos `<style>` e 47 atributos `style=` no HTML (mais `style=` em templates de JS).
+
+**Concessões — registradas uma a uma:**
+| Concessão | Onde | Por quê | Como eliminar |
+|---|---|---|---|
+| **`script-src` com hashes + `'unsafe-hashes'`** (em vez de `'unsafe-inline'`) | 1 `<script>` inline + 6 `onclick` | `'unsafe-inline'` liberaria QUALQUER script injetado; com hashes só o texto exato destes 7 trechos roda. `tests/static/csp.test.js` recalcula os hashes (`node scripts/csp-hashes.js`) e **falha** se o inline mudar sem atualizar a `<meta>` (senão o app quebraria). **Custo:** `'unsafe-hashes'` exige Chrome ≥ 69, Firefox ≥ 105, Safari ≥ 15.4; em navegador mais antigo só os 6 `onclick` dos modais deixam de funcionar (o resto do app usa `addEventListener`). Se isso for um problema, a alternativa simples é trocar por `'unsafe-inline'` (pior segurança) | **Tarefa futura (NÃO aplicada):** mover o bloco do SW para `js/sw-register.js` e trocar os 6 `onclick` por `addEventListener`; aí remover os hashes e o `'unsafe-hashes'` |
+| **`style-src 'unsafe-inline'`** | blocos `<style>` e atributos `style=` (HTML e templates de JS) | CSS inline não executa código; o risco é exfiltração por CSS e "defacement", bem menor que script. Sem isso o visual quebra | Mover estilos para classes/CSS externo (tarefa futura) |
+| `img-src data: blob:` / `font-src data:` | exigência do item G4 (`img-src 'self' data: blob:`) e margem para `data:`/`blob:` gerados pelo navegador; o app não carrega imagem, fonte ou frame externos (teste) | sem impacto prático; pode ser apertado depois | — |
+| `connect-src` com o domínio do Supabase em `https` e `wss` | REST, Auth, Functions e Realtime | únicos destinos de rede do app (conferido: nenhum outro `fetch`/WebSocket) | — |
+
+**Limites conhecidos:**
+- **`frame-ancestors` não funciona via `<meta>`** (nem `report-uri`/`sandbox`); a proteção contra clickjacking só vem por **cabeçalho HTTP** e o GitHub Pages não permite configurar cabeçalhos. Não incluí a diretiva (o navegador a ignora e avisa no console). Mitigação possível no futuro: hospedar atrás de um proxy/CDN que injete cabeçalhos.
+- A CSP por `<meta>` não tem modo *report-only*.
+- `https://wa.me` é só navegação (links), não precisa de diretiva.
+
+**Validação** (`scripts/visual/csp-check.js`, Chromium, Supabase simulado, rede externa bloqueada; resultado em `docs/qa/csp-validacao.json`): 16 passos — carga do app com SRI, 4 abas, gráficos (Chart.js), criar lançamento pela interface, **exportar Excel e PDF**, **importar planilha**, cofrinho (criar e depositar), lembretes, os 3 modais com `onclick` inline, **service worker** (registra, ativa e controla), push, login pela interface, lançamento em modo nuvem, **Realtime (wss)** e Edge Function — **0 violações `securitypolicyviolation`, 0 erros de console**. Controle negativo (mesma suíte com uma CSP propositalmente restrita: sem CDN nem hashes): **30 violações** (24 `script-src-elem`, 6 `script-src-attr`), provando que a detecção funciona.
+**Limitações da validação:** só Chromium (sem Firefox/WebKit neste ambiente); push real e o envio de e-mail dependem de serviços externos, então foram exercitados só os caminhos de código; o `closePersonDetail` do `#person-detail-modal` (✕) **não existe** no `app.js` (modal sem uso) — bug pré-existente, sem relação com a CSP (o handler inline executa, o que é o que a CSP precisa permitir).
