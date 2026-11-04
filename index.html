@@ -240,7 +240,7 @@
         .wallet-badge-active { flex: none; font-size: 11px; font-weight: 800; color: #06241a; background: var(--wallet-accent, #64748b); border-radius: 9999px; padding: 3px 10px; }
     </style>
     <!-- Tailwind compilado no build (npm run build:css) — depois do <style> acima, como o CDN anterior (que anexava seu <style> ao fim do <head>) -->
-    <link rel="stylesheet" href="css/app.css?v=20261104a">
+    <link rel="stylesheet" href="css/app.css?v=20261106a">
 </head>
 <body class="max-w-md mx-auto min-h-screen relative" style="background:var(--clr-bg)">
 
@@ -381,6 +381,7 @@
             </div>
             <div class="flex items-center gap-1.5 flex-shrink-0">
                 <span id="app-version-label" style="font-size:9px;color:rgba(255,255,255,0.3)"></span>
+                <button id="hide-values-btn" type="button" aria-pressed="false" aria-label="Ocultar valores" title="Ocultar valores" class="w-8 h-8 rounded-full bg-white/10 border border-white/15 flex items-center justify-center text-white/60 hover:bg-white/20 transition-all"></button>
                 <button id="financa-share-btn" class="w-8 h-8 rounded-full bg-white/10 border border-white/15 flex items-center justify-center text-white/60 hover:bg-white/20 transition-all" title="Convidar membros">
                     <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/>
@@ -1994,7 +1995,7 @@
 <script src="js/insights.js?v=20261027b"></script>
 <script src="js/cofrinhos.js?v=20261027a"></script>
 <script src="js/push.js?v=20261027b"></script>
-<script src="js/app.js?v=20261104a"></script>
+<script src="js/app.js?v=20261106a"></script>
 
 <script>
 // ── Service Worker + PWA ──────────────────────────────────────────────────────
