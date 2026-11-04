@@ -177,15 +177,23 @@
         #wallet-bar {
             --wallet-accent: #64748b;
             position: sticky; top: 0; z-index: 30;
-            display: flex; align-items: center; gap: 10px;
+            display: block;
             width: 100%; box-sizing: border-box;
             height: calc(58px + env(safe-area-inset-top)); min-height: 58px;
-            padding: env(safe-area-inset-top) 12px 0 0; margin: 0;
+            padding: env(safe-area-inset-top) 0 0 0; margin: 0;
             background: #06241a; color: #fff;
             border: 0; border-bottom: 3px solid var(--wallet-accent);
             font: inherit; text-align: left; cursor: pointer;
             -webkit-appearance: none; appearance: none;
         }
+        /* O FUNDO ocupa a largura toda; o CONTEÚDO fica numa coluna com a mesma largura e centralização do app
+           (celular/tablet: a própria largura do body; desktop ≥1024: max-width de .tab-page, ao lado do menu lateral). */
+        #wallet-bar .wb-inner {
+            display: flex; align-items: center; gap: 10px; height: 100%; box-sizing: border-box;
+            max-width: var(--wb-col, none); margin: 0 auto; padding: 0 12px 0 0;
+        }
+        @media (min-width: 1024px) { #wallet-bar { --wb-col: 1120px; } }
+        @media (min-width: 1440px) { #wallet-bar { --wb-col: 1280px; } }
         #wallet-bar:focus-visible { outline: 3px solid #fff; outline-offset: -3px; }
         #wallet-bar .wb-strip { align-self: stretch; flex: none; width: 6px; background: var(--wallet-accent); }
         #wallet-bar .wb-avatar {
@@ -204,6 +212,7 @@
         #wallet-bar .wb-chip svg { width: 14px; height: 14px; flex: none; }
         #wallet-bar .wb-chip[data-kind="offline"] { background: #fbbf24; color: #451a03; }
         #wallet-bar .wb-chip[data-kind="none"] { display: none; }
+        #wallet-bar .wb-chip[data-kind="loading"] { width: 84px; height: 26px; padding: 0; background: #3f4b46; }
         #wallet-bar .wb-chevron { flex: none; font-size: 18px; line-height: 1; color: rgba(255,255,255,.78); }
         #wallet-bar .wb-skel { display: none; align-items: center; gap: 10px; flex: 1 1 auto; min-width: 0; }
         #wallet-bar .wb-skel i { display: block; background: #3f4b46; border-radius: 8px; }
@@ -211,14 +220,15 @@
         #wallet-bar[data-state="loading"] .wb-avatar, #wallet-bar[data-state="loading"] .wb-text,
         #wallet-bar[data-state="loading"] .wb-chip, #wallet-bar[data-state="loading"] .wb-chevron { display: none; }
         @media (max-width: 359px) {
-            #wallet-bar { gap: 8px; padding-right: 8px; }
+            #wallet-bar .wb-inner { gap: 8px; padding-right: 8px; }
             #wallet-bar .wb-chip[data-kind="shared"] .wb-chip-text, #wallet-bar .wb-chip[data-kind="shared"] .wb-chip-sep { display: none; }
             #wallet-bar .wb-name { font-size: 16px; }
+            #wallet-bar .wb-chip[data-kind="loading"] { width: 52px; }
         }
         @media (prefers-reduced-motion: no-preference) {
             #wallet-bar { transition: background-color .15s; }
             #wallet-bar:active { background: #0a3324; }
-            #wallet-bar .wb-skel i { animation: wb-shimmer 1.2s ease-in-out infinite; }
+            #wallet-bar .wb-skel i, #wallet-bar .wb-chip[data-kind="loading"], .wallet-skel { animation: wb-shimmer 1.2s ease-in-out infinite; }
             @keyframes wb-shimmer { 0%,100% { opacity: .55; } 50% { opacity: 1; } }
             #wallet-toast { transition: opacity .2s; }
         }
@@ -237,10 +247,12 @@
         .wallet-row .wr-avatar { width: 38px; height: 38px; border-radius: 9999px; box-sizing: border-box; flex: none; display: flex; align-items: center; justify-content: center; font-size: 20px; border: 2px solid var(--wallet-accent, #64748b); background: #f8fafc; }
         .wallet-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; color: #475569; background: #f1f5f9; border-radius: 9999px; padding: 2px 8px; }
         .wallet-chip svg { width: 12px; height: 12px; }
+        .wallet-skel { background: #e2e8f0; color: transparent; }
+        .wallet-invite { font-size: 11px; font-weight: 600; color: #b45309; }
         .wallet-badge-active { flex: none; font-size: 11px; font-weight: 800; color: #06241a; background: var(--wallet-accent, #64748b); border-radius: 9999px; padding: 3px 10px; }
     </style>
     <!-- Tailwind compilado no build (npm run build:css) — depois do <style> acima, como o CDN anterior (que anexava seu <style> ao fim do <head>) -->
-    <link rel="stylesheet" href="css/app.css?v=20261104a">
+    <link rel="stylesheet" href="css/app.css?v=20261105a">
 </head>
 <body class="max-w-md mx-auto min-h-screen relative" style="background:var(--clr-bg)">
 
@@ -337,6 +349,7 @@
 
 <!-- Barra de carteira ativa: sempre visível, em todas as abas. Toque = trocar de carteira. -->
 <button id="wallet-bar" type="button" data-state="loading" aria-haspopup="dialog" aria-label="Carregando carteira">
+  <span class="wb-inner">
     <span class="wb-strip" aria-hidden="true"></span>
     <span class="wb-skel" role="status" aria-label="Carregando carteira">
         <i style="width:34px;height:34px;border-radius:9999px"></i>
@@ -350,6 +363,7 @@
     </span>
     <span class="wb-chip" id="wallet-bar-chip" data-kind="none"></span>
     <span class="wb-chevron" aria-hidden="true">▾</span>
+  </span>
 </button>
 
 <!-- Invite banner (shown when user has pending invites) -->
@@ -1988,13 +2002,13 @@
 
 <script src="js/config.js?v=20261008a"></script>
 <script src="js/auth.js?v=20261008b"></script>
-<script src="js/utils.js?v=20261104a"></script>
-<script src="js/storage.js?v=20261027b"></script>
+<script src="js/utils.js?v=20261105a"></script>
+<script src="js/storage.js?v=20261105a"></script>
 <script src="js/nlp.js?v=20261027a"></script>
 <script src="js/insights.js?v=20261027b"></script>
-<script src="js/cofrinhos.js?v=20261027a"></script>
+<script src="js/cofrinhos.js?v=20261105a"></script>
 <script src="js/push.js?v=20261027b"></script>
-<script src="js/app.js?v=20261104a"></script>
+<script src="js/app.js?v=20261105a"></script>
 
 <script>
 // ── Service Worker + PWA ──────────────────────────────────────────────────────

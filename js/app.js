@@ -28,8 +28,9 @@ const App = {
     isListening: false,
     currentMonth: Utils.monthKeyLocal(),
     _financasLoaded: false,       // false = barra de carteira em "carregando"
-    _walletMembers: {},           // id da carteira → nº de membros (cache p/ o chip "Compartilhada · N")
-    _walletMembersAt: {},
+    // Cache de membros por carteira (fonte da verdade do chip de tipo). state: idle | loading | loaded | error.
+    // counts = { financaId: nº de linhas em financa_members }; admin = { financaId: true }; invites = { financaId: nº de convites pendentes }
+    _wc: { state: 'idle', counts: {}, admin: {}, invites: {}, seq: 0 },
     summaryPeriod: null,   // Resumo: null = mês selecionado; { preset|from,to } = período livre
     financas:      [],
     activeFinanca: null,
@@ -174,6 +175,7 @@ const App = {
             Storage.setActiveFinanca(this.activeFinanca?.id || null);
             this._financasLoaded = true;
             this.renderFinancaSwitcher();
+            this.invalidateWalletMembers();             // contagem de membros de todas as carteiras (1 consulta)
         } catch (e) {
             console.error('loadFinancas error:', e);
             // Garante que o switcher sempre renderiza
@@ -189,33 +191,61 @@ const App = {
         shared: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2 21a7 7 0 0114 0"/><path d="M16 4.5a3.5 3.5 0 010 7M18 21a7 7 0 00-3-5.7"/></svg>',
     },
 
-    // Tipo de exibição da carteira: 'solo' ("Só você") ou 'shared' ("Compartilhada · N"; n = null enquanto desconhecido)
-    _walletKind(f) {
-        if (!f || f.type === 'individual') return { kind: 'solo', n: 1 };
-        const n = this._walletMembers[f.id];
-        if (Number.isInteger(n)) return n <= 1 ? { kind: 'solo', n: 1 } : { kind: 'shared', n };
-        return Storage.isCloud ? { kind: 'shared', n: null } : { kind: 'solo', n: 1 };
+    // Nº de membros da carteira para o chip: number | undefined (ainda não carregou) | null (falhou / sem dado)
+    walletCount(f) {
+        if (!f?.id) return Storage.isCloud ? undefined : 1;                 // carteira "Pessoal" local sem id: só você (modo local não tem membros)
+        const c = this._wc;
+        if (c.state === 'error') return null;
+        if (f.id in c.counts) return c.counts[f.id];
+        return c.state === 'loaded' ? null : undefined;                    // carregado e a carteira não veio: sem dado → oculto (nunca "Só você")
+    },
+    _walletChip(f) { return Utils.walletChip(f, this.walletCount(f)); },
+
+    // HTML do chip da barra (só texto fixo e inteiro: nada vem do usuário)
+    _walletChipHtml(f) {
+        const c = this._walletChip(f);
+        if (c.kind === 'solo') return `${this._WALLET_ICONS.solo}<span class="wb-chip-text">Só você</span>`;
+        if (c.kind === 'shared') return `${this._WALLET_ICONS.shared}<span class="wb-chip-text">Compartilhada</span><span class="wb-chip-sep">· </span><span class="wb-chip-n">${c.n}</span>`;
+        return '';
     },
 
-    // HTML do chip (só texto fixo e número inteiro: nada vem do usuário)
-    _walletChipHtml(f, { compact = true } = {}) {
-        const k = this._walletKind(f);
-        if (k.kind === 'solo') return `${this._WALLET_ICONS.solo}<span class="wb-chip-text">Só você</span>`;
-        return `${this._WALLET_ICONS.shared}<span class="wb-chip-text">Compartilhada</span>`
-            + (k.n ? `<span class="wb-chip-sep">· </span><span class="wb-chip-n">${k.n}</span>` : '');
+    // Texto simples do tipo, para os rótulos que usam textContent ('' enquanto carrega ou se falhou)
+    walletTypeText(f) {
+        const c = this._walletChip(f);
+        return c.kind === 'solo' ? '👤 Só você' : c.kind === 'shared' ? `👥 ${c.text}` : '';
     },
 
-    // Quantos membros tem a carteira (cache de 30 s); atualiza a barra quando chegar
-    async _loadWalletMembers(f) {
-        if (!f?.id || f.type === 'individual' || !Storage.isCloud || !navigator.onLine) return;
-        if (Date.now() - (this._walletMembersAt[f.id] || 0) < 30000) return;
-        this._walletMembersAt[f.id] = Date.now();
+    // Carrega a contagem de membros de TODAS as carteiras numa única consulta (financa_id → n) e guarda em cache.
+    // Mantém o valor antigo na tela enquanto recarrega; se falhar, o chip some (nunca mostra texto errado).
+    async refreshWalletMembers() {
+        const c = this._wc, seq = ++c.seq;
+        if (!Storage.isCloud) {                                              // modo local: 1 pessoa por definição
+            c.counts = Object.fromEntries((this.financas || []).filter(f => f.id).map(f => [f.id, 1])); c.admin = {}; c.invites = {}; c.state = 'loaded';
+            return this._walletSurfacesChanged();
+        }
+        if (navigator.onLine === false) return;                              // offline: mantém o cache que houver
+        if (c.state !== 'loaded') c.state = 'loading';
         try {
-            const m = await Storage.getMembers(f.id);
-            this._walletMembers[f.id] = m.length;
-            if (this.activeFinanca?.id === f.id) this.renderFinancaSwitcher();
-            if (!document.getElementById('financa-modal')?.classList.contains('hidden')) this.renderFinancaList();
-        } catch (_) { this._walletMembersAt[f.id] = 0; }
+            const r = await Storage.getMemberCounts();
+            if (seq !== c.seq) return;                                       // chegou uma consulta mais nova
+            c.counts = r.counts; c.admin = r.admin; c.invites = r.invites; c.state = 'loaded';
+        } catch (_) {
+            if (seq !== c.seq) return;
+            c.state = 'error';
+        }
+        this._walletSurfacesChanged();
+    },
+
+    // Invalida e recarrega (convite aceito, membro adicionado/removido, carteira criada/excluída, troca de carteira)
+    invalidateWalletMembers() { return this.refreshWalletMembers(); },
+
+    // Repinta tudo que mostra o tipo da carteira
+    _walletSurfacesChanged() {
+        this.renderFinancaSwitcher();
+        if (!document.getElementById('financa-modal')?.classList.contains('hidden')) this.renderFinancaList();
+        if (!document.getElementById('financa-select-modal')?.classList.contains('hidden') && this._financaSelectCallback) this.openFinancaSelectModal(this._financaSelectCallback);
+        if (document.getElementById('modal-financa-type')) this._renderModalFinancaPicker?.();
+        if (document.getElementById('import-financa-type')) this._renderImportFinancaBanner?.();
     },
 
     renderFinancaSwitcher() {
@@ -233,16 +263,16 @@ const App = {
             const avatarEl = document.getElementById('wallet-bar-avatar'), chipEl = document.getElementById('wallet-bar-chip');
             if (state === 'ready') {
                 const nome = f.name || 'Carteira';
-                const k = this._walletKind(f);
+                const chip = this._walletChip(f);
                 nameEl.textContent = nome;
                 labelEl.textContent = 'Carteira ativa';
                 avatarEl.textContent = Utils.cleanEmoji(f.emoji, '💰');
                 if (!online) { chipEl.dataset.kind = 'offline'; chipEl.innerHTML = 'Sem internet'; }
-                else { chipEl.dataset.kind = k.kind; chipEl.innerHTML = this._walletChipHtml(f); }
-                const tipo = !online ? 'sem internet' : k.kind === 'solo' ? 'só você' : `compartilhada${k.n ? ' com ' + k.n + ' membros' : ''}`;
-                bar.setAttribute('aria-label', `Carteira ativa: ${nome} (${tipo}). Toque para trocar de carteira`);
+                else { chipEl.dataset.kind = chip.kind === 'hidden' ? 'none' : chip.kind; chipEl.innerHTML = this._walletChipHtml(f); chipEl.setAttribute('aria-hidden', chip.kind === 'loading' ? 'true' : 'false'); }
+                const tipo = !online ? ', sem internet' : chip.kind === 'solo' ? ', só você' : chip.kind === 'shared' ? `, compartilhada com ${chip.n} membros` : '';
+                bar.setAttribute('aria-label', `Carteira ativa: ${nome}${tipo}. Toque para trocar de carteira`);
                 document.title = `${nome} · Minhas Carteiras`;
-                this._loadWalletMembers(f);
+                if (this._wc.state === 'idle') this.refreshWalletMembers();
             } else if (state === 'empty') {
                 nameEl.textContent = 'Escolha uma carteira';
                 labelEl.textContent = 'Toque para criar ou entrar em uma';
@@ -274,6 +304,17 @@ const App = {
 
     // Nome da carteira ativa para nome de arquivo: sem acentos nem espaços ("Família" → "familia")
     _walletFileSlug() { return Utils.slugFile(this.activeFinanca?.name, 'carteira'); },
+
+    // Chip da lista "Trocar de carteira": esqueleto enquanto carrega, oculto se falhou, "· N convite(s)" só para admin
+    _walletListChipHtml(f, isOwner) {
+        const c = this._walletChip(f);
+        if (c.kind === 'loading') return '<span class="wallet-chip wallet-skel" aria-hidden="true">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>';
+        if (c.kind === 'hidden') return '';
+        const ico = c.kind === 'solo' ? this._WALLET_ICONS.solo : this._WALLET_ICONS.shared;
+        const nInv = (isOwner || this._wc.admin[f.id]) ? (this._wc.invites[f.id] || 0) : 0;
+        return `<span class="wallet-chip">${ico}<span>${c.text}</span></span>`
+            + (nInv ? `<span class="wallet-invite">· ${nInv} convite${nInv > 1 ? 's' : ''}</span>` : '');
+    },
 
     // Aviso "Agora vendo: {nome}" (role=status) com um ponto na cor da carteira, ~2,8 s
     announceWallet(f) {
@@ -378,7 +419,7 @@ const App = {
                    </div>
                    <div class="text-[11px] text-red-500 mt-1 hidden" data-financa-edit-error></div>`
                 : `<div class="font-semibold text-gray-800 truncate">${this._escHtml(f.name)}</div>
-                   <div class="mt-0.5 flex items-center gap-1.5 flex-wrap"><span class="wallet-chip">${this._walletChipHtml(f).replace(/wb-chip-/g, 'wc-')}</span>${isActive ? '<span class="wallet-badge-active">Ativa</span>' : ''}</div>`;
+                   <div class="mt-0.5 flex items-center gap-1.5 flex-wrap">${this._walletListChipHtml(f, isOwner)}${isActive ? '<span class="wallet-badge-active">Ativa</span>' : ''}</div>`;
             const sharing = isOwner && this._sharingFinancaId === f.id;
             return `
             <div class="wallet-row flex items-center gap-3 p-3 ${sharing ? 'mb-1' : 'mb-2'} rounded-xl border-2 ${editing ? '' : 'cursor-pointer'} transition-all ${isActive ? 'bg-gray-50' : 'border-gray-100 bg-white hover:border-gray-300'}" data-financa-select="${Utils.esc(f.id)}" style="--wallet-accent:${Utils.walletColor(f.id)};${isActive ? 'border-color:' + Utils.walletColor(f.id) + ';border-left-width:6px' : ''}" ${isActive ? 'aria-current="true"' : ''}>
@@ -463,6 +504,7 @@ const App = {
                 this.closeFinancaModal();
                 this.renderFinancaSwitcher();
                 this.announceWallet(f);
+                this.invalidateWalletMembers();
                 await Storage.syncCustomTypesFromCloud();
                 await Promise.all([this.loadCategories(), this.loadReminders(), this.loadTransactionTypes()]);
                 this.currentMonth = mesAntes;
@@ -761,7 +803,6 @@ const App = {
         if (!box) return;
         let members = [], invites = [];
         try { [members, invites] = await Promise.all([Storage.getMembers(fid), Storage.getPendingInvites(fid)]); } catch (_) {}
-        if (members.length) { this._walletMembers[fid] = members.length; this._walletMembersAt[fid] = Date.now(); this.renderFinancaSwitcher(); }
         if (!document.body.contains(box)) return;
         const roleLabel = r => r === 'admin' ? '⭐ Admin' : r === 'visualizador' ? '👁 Só ver' : '👤 Membro';
         const row = (icon, title, sub, actions) => `
@@ -1225,7 +1266,7 @@ const App = {
                 <span class="text-2xl">${Utils.esc(f.emoji || '💰')}</span>
                 <div class="flex-1 text-left">
                     <p class="font-semibold text-gray-800 text-sm">${Utils.esc(f.name)}</p>
-                    <p class="text-xs text-gray-400">${f.type === 'compartilhada' ? '👥 Compartilhada' : '👤 Individual'}</p>
+                    <p class="text-xs text-gray-400">${Utils.esc(this.walletTypeText(f))}</p>
                 </div>
                 ${isActive ? '<span class="text-emerald-600 text-lg">✓</span>' : ''}
             </button>`;
@@ -1258,13 +1299,8 @@ const App = {
         document.getElementById('modal-financa-emoji').textContent = emoji;
         document.getElementById('modal-financa-name').textContent  = name;
 
-        const typeLabels = {
-            individual:    '👤 Individual',
-            familiar:      '👨‍👩‍👧 Familiar',
-            compartilhada: '🤝 Compartilhada',
-        };
         const typeEl = document.getElementById('modal-financa-type');
-        if (typeEl) typeEl.textContent = typeLabels[type] || '👤 Individual';
+        if (typeEl) typeEl.textContent = this.walletTypeText(f || { id: null });
 
         // Gradiente e cor do dot conforme tipo
         const btn = document.getElementById('modal-financa-picker');
@@ -6242,8 +6278,7 @@ const App = {
                 const f = selectedId ? this.financas.find(x => x.id === selectedId) : null;
                 document.getElementById('import-financa-emoji').textContent = f?.emoji || this.activeFinanca?.emoji || '💰';
                 document.getElementById('import-financa-name').textContent  = f?.name  || this.activeFinanca?.name  || 'Pessoal';
-                document.getElementById('import-financa-type').textContent  =
-                    (f?.type || this.activeFinanca?.type) === 'compartilhada' ? '👥 Compartilhada' : '👤 Individual';
+                document.getElementById('import-financa-type').textContent  = this.walletTypeText(f || this.activeFinanca);
             });
         });
     },
@@ -6273,7 +6308,7 @@ const App = {
         const typeEl  = document.getElementById('import-financa-type');
         if (emojiEl) emojiEl.textContent = f.emoji || '💰';
         if (nameEl)  nameEl.textContent  = f.name  || 'Pessoal';
-        if (typeEl)  typeEl.textContent  = f.type === 'compartilhada' ? '👥 Compartilhada' : '👤 Individual';
+        if (typeEl)  typeEl.textContent  = this.walletTypeText(f);
     },
 
     async handleImportFile(file) {
