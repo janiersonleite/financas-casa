@@ -172,6 +172,23 @@
             #bottom-nav .nav-tab .nav-label { font-size: 12px; }
         }
         @media (min-width: 1440px) { html { font-size: 130%; } .tab-page { max-width: 1280px; } }
+        /* Desktop compacto: o menu deixa de colar na borda da tela e passa a ser um painel flutuante, vertical e centralizado,
+           encostado na coluna do app (a mesma coluna onde ficam a barra de carteira e as abas). Em telas largas o conjunto
+           menu + coluna fica junto no meio; em telas estreitas (sem espaço ao lado da coluna) o menu fica na borda, como antes. */
+        @media (min-width: 1024px) {
+            :root { --app-col: 1120px; --nav-w: 84px; --nav-gap: 14px; }
+            #bottom-nav {
+                left: max(10px, calc((100vw - var(--app-col) - 96px) / 2 + 96px - var(--nav-w) - var(--nav-gap) - 0px)) !important;
+                top: 50% !important; bottom: auto !important; transform: translateY(-50%) !important;
+                width: var(--nav-w) !important; height: auto !important;
+                border-radius: 22px !important; padding: 10px 0 !important;
+                box-shadow: 0 10px 30px rgba(6,36,26,.35) !important;
+            }
+            #bottom-nav > div { padding: 0 6px; }
+            /* o fundo da barra de carteira ocupa a largura toda (inclusive sob o espaço antes reservado ao menu) */
+            #wallet-bar { margin-left: -96px !important; width: calc(100% + 96px) !important; padding-left: 96px !important; }   /* o conteúdo continua na coluna */
+        }
+        @media (min-width: 1440px) { :root { --app-col: 1280px; } }
 
         /* ═══ Barra de carteira ativa (#wallet-bar): fixa no topo de todas as abas ═══ */
         #wallet-bar {
@@ -252,7 +269,7 @@
         .wallet-badge-active { flex: none; font-size: 11px; font-weight: 800; color: #06241a; background: var(--wallet-accent, #64748b); border-radius: 9999px; padding: 3px 10px; }
     </style>
     <!-- Tailwind compilado no build (npm run build:css) — depois do <style> acima, como o CDN anterior (que anexava seu <style> ao fim do <head>) -->
-    <link rel="stylesheet" href="css/app.css?v=20261105a">
+    <link rel="stylesheet" href="css/app.css?v=20261106b">
 </head>
 <body class="max-w-md mx-auto min-h-screen relative" style="background:var(--clr-bg)">
 
