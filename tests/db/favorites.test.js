@@ -35,7 +35,7 @@ test('docs/qa/verificacao-favoritos.sql: os 33 casos passam (e o resultado é re
   const falhas = rows.filter(r => !r.ok);
   assert.deepEqual(falhas.map(r => `${r.n}. ${r.caso} → esperado "${r.esperado}", obtido "${r.obtido}"`), []);
   fs.mkdirSync(path.join(ROOT, 'tests', '_out'), { recursive: true });
-  fs.writeFileSync(path.join(ROOT, 'tests', '_out', 'favoritos-resultado.json'), JSON.stringify(rows, null, 1));
+  fs.writeFileSync(path.join(ROOT, 'tests', '_out', 'favoritos-resultado.txt'), JSON.stringify(rows, null, 1));
 });
 
 test('rollback (docs/qa/rollback-favorite-entries.sql) remove tabela e funções novas e deixa o resto intacto', async () => {
