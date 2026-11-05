@@ -1,0 +1,2322 @@
+{
+ "larguras": {
+  "320": [
+   {
+    "vw": 320,
+    "scrollW": 320,
+    "alvos": [
+     {
+      "id": "fav-edit-btn",
+      "w": 50,
+      "h": 44
+     },
+     {
+      "id": "rounded-xl text-whit",
+      "w": 98,
+      "h": 44
+     }
+    ],
+    "pequenos": [],
+    "nome": "home-0",
+    "semOverflow": true,
+    "alvosOk": true
+   },
+   {
+    "vw": 320,
+    "scrollW": 320,
+    "alvos": [
+     {
+      "id": "fav-edit-btn",
+      "w": 50,
+      "h": 44
+     },
+     {
+      "id": "fav-btn t-saida",
+      "w": 89,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-entrada",
+      "w": 89,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-saida",
+      "w": 89,
+      "h": 84
+     }
+    ],
+    "pequenos": [],
+    "nome": "home-3",
+    "semOverflow": true,
+    "alvosOk": true
+   },
+   {
+    "vw": 320,
+    "scrollW": 320,
+    "alvos": [
+     {
+      "id": "fav-edit-btn",
+      "w": 50,
+      "h": 44
+     },
+     {
+      "id": "fav-btn t-saida",
+      "w": 89,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-entrada",
+      "w": 89,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-saida",
+      "w": 89,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-entrada",
+      "w": 89,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-saida",
+      "w": 89,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-entrada",
+      "w": 89,
+      "h": 84
+     }
+    ],
+    "pequenos": [],
+    "nome": "home-6",
+    "semOverflow": true,
+    "alvosOk": true
+   },
+   {
+    "vw": 320,
+    "scrollW": 320,
+    "alvos": [
+     {
+      "id": "fav-edit-btn",
+      "w": 50,
+      "h": 44
+     },
+     {
+      "id": "fav-btn t-saida",
+      "w": 89,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-entrada",
+      "w": 89,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-saida",
+      "w": 89,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-entrada",
+      "w": 89,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-saida",
+      "w": 89,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-entrada",
+      "w": 89,
+      "h": 84
+     },
+     {
+      "id": "fav-panel-close",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "fav-key",
+      "w": 91,
+      "h": 52
+     },
+     {
+      "id": "fav-key",
+      "w": 91,
+      "h": 52
+     },
+     {
+      "id": "fav-key",
+      "w": 91,
+      "h": 52
+     },
+     {
+      "id": "fav-key",
+      "w": 91,
+      "h": 52
+     },
+     {
+      "id": "fav-key",
+      "w": 91,
+      "h": 52
+     },
+     {
+      "id": "fav-key",
+      "w": 91,
+      "h": 52
+     },
+     {
+      "id": "fav-key",
+      "w": 91,
+      "h": 52
+     },
+     {
+      "id": "fav-key",
+      "w": 91,
+      "h": 52
+     },
+     {
+      "id": "fav-key",
+      "w": 91,
+      "h": 52
+     },
+     {
+      "id": "fav-key",
+      "w": 91,
+      "h": 52
+     },
+     {
+      "id": "fav-key",
+      "w": 91,
+      "h": 52
+     },
+     {
+      "id": "fav-key",
+      "w": 91,
+      "h": 52
+     },
+     {
+      "id": "fav-cta",
+      "w": 288,
+      "h": 52
+     }
+    ],
+    "pequenos": [],
+    "nome": "painel-saida",
+    "semOverflow": true,
+    "alvosOk": true
+   },
+   {
+    "vw": 320,
+    "scrollW": 320,
+    "alvos": [
+     {
+      "id": "fav-edit-btn",
+      "w": 50,
+      "h": 44
+     },
+     {
+      "id": "fav-btn t-saida",
+      "w": 89,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-entrada",
+      "w": 89,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-saida",
+      "w": 89,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-entrada",
+      "w": 89,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-saida",
+      "w": 89,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-entrada",
+      "w": 89,
+      "h": 84
+     },
+     {
+      "id": "fav-panel-close",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "fav-key",
+      "w": 91,
+      "h": 52
+     },
+     {
+      "id": "fav-key",
+      "w": 91,
+      "h": 52
+     },
+     {
+      "id": "fav-key",
+      "w": 91,
+      "h": 52
+     },
+     {
+      "id": "fav-key",
+      "w": 91,
+      "h": 52
+     },
+     {
+      "id": "fav-key",
+      "w": 91,
+      "h": 52
+     },
+     {
+      "id": "fav-key",
+      "w": 91,
+      "h": 52
+     },
+     {
+      "id": "fav-key",
+      "w": 91,
+      "h": 52
+     },
+     {
+      "id": "fav-key",
+      "w": 91,
+      "h": 52
+     },
+     {
+      "id": "fav-key",
+      "w": 91,
+      "h": 52
+     },
+     {
+      "id": "fav-key",
+      "w": 91,
+      "h": 52
+     },
+     {
+      "id": "fav-key",
+      "w": 91,
+      "h": 52
+     },
+     {
+      "id": "fav-key",
+      "w": 91,
+      "h": 52
+     },
+     {
+      "id": "fav-cta",
+      "w": 288,
+      "h": 52
+     }
+    ],
+    "pequenos": [],
+    "nome": "painel-entrada",
+    "semOverflow": true,
+    "alvosOk": true
+   },
+   {
+    "vw": 320,
+    "scrollW": 320,
+    "alvos": [
+     {
+      "id": "fav-edit-btn",
+      "w": 50,
+      "h": 44
+     },
+     {
+      "id": "fav-btn t-saida",
+      "w": 89,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-entrada",
+      "w": 89,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-saida",
+      "w": 89,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-entrada",
+      "w": 89,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-saida",
+      "w": 89,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-entrada",
+      "w": 89,
+      "h": 84
+     },
+     {
+      "id": "fav-undo",
+      "w": 94,
+      "h": 44
+     }
+    ],
+    "pequenos": [],
+    "nome": "toast",
+    "semOverflow": true,
+    "alvosOk": true
+   },
+   {
+    "vw": 320,
+    "scrollW": 320,
+    "alvos": [
+     {
+      "id": "fav-edit-btn",
+      "w": 50,
+      "h": 44
+     },
+     {
+      "id": "fav-btn t-saida",
+      "w": 89,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-entrada",
+      "w": 89,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-saida",
+      "w": 89,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-entrada",
+      "w": 89,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-saida",
+      "w": 89,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-entrada",
+      "w": 89,
+      "h": 84
+     },
+     {
+      "id": "fav-manage-close",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "fav-add",
+      "w": 288,
+      "h": 48
+     },
+     {
+      "id": "rounded-xl text-whit",
+      "w": 94,
+      "h": 44
+     }
+    ],
+    "pequenos": [],
+    "nome": "gerenciar",
+    "semOverflow": true,
+    "alvosOk": true
+   },
+   {
+    "vw": 320,
+    "scrollW": 320,
+    "alvos": [
+     {
+      "id": "fav-edit-btn",
+      "w": 50,
+      "h": 44
+     },
+     {
+      "id": "fav-btn t-saida",
+      "w": 89,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-entrada",
+      "w": 89,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-saida",
+      "w": 89,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-entrada",
+      "w": 89,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-saida",
+      "w": 89,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-entrada",
+      "w": 89,
+      "h": 84
+     },
+     {
+      "id": "fav-manage-close",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "fav-add",
+      "w": 288,
+      "h": 48
+     },
+     {
+      "id": "rounded-xl text-whit",
+      "w": 94,
+      "h": 44
+     },
+     {
+      "id": "fav-edit-close",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "flex-1 rounded-xl te",
+      "w": 138,
+      "h": 44
+     },
+     {
+      "id": "flex-1 rounded-xl te",
+      "w": 138,
+      "h": 44
+     },
+     {
+      "id": "fav-name",
+      "w": 288,
+      "h": 48
+     },
+     {
+      "id": "fav-cat",
+      "w": 288,
+      "h": 46
+     },
+     {
+      "id": "fav-edit-cancel",
+      "w": 140,
+      "h": 48
+     },
+     {
+      "id": "fav-edit-save",
+      "w": 140,
+      "h": 48
+     }
+    ],
+    "pequenos": [],
+    "nome": "editor",
+    "semOverflow": true,
+    "alvosOk": true
+   }
+  ],
+  "390": [
+   {
+    "vw": 390,
+    "scrollW": 390,
+    "alvos": [
+     {
+      "id": "fav-edit-btn",
+      "w": 50,
+      "h": 44
+     },
+     {
+      "id": "rounded-xl text-whit",
+      "w": 98,
+      "h": 44
+     }
+    ],
+    "pequenos": [],
+    "nome": "home-0",
+    "semOverflow": true,
+    "alvosOk": true
+   },
+   {
+    "vw": 390,
+    "scrollW": 390,
+    "alvos": [
+     {
+      "id": "fav-edit-btn",
+      "w": 50,
+      "h": 44
+     },
+     {
+      "id": "fav-btn t-saida",
+      "w": 113,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-entrada",
+      "w": 113,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-saida",
+      "w": 113,
+      "h": 84
+     }
+    ],
+    "pequenos": [],
+    "nome": "home-3",
+    "semOverflow": true,
+    "alvosOk": true
+   },
+   {
+    "vw": 390,
+    "scrollW": 390,
+    "alvos": [
+     {
+      "id": "fav-edit-btn",
+      "w": 50,
+      "h": 44
+     },
+     {
+      "id": "fav-btn t-saida",
+      "w": 113,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-entrada",
+      "w": 113,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-saida",
+      "w": 113,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-entrada",
+      "w": 113,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-saida",
+      "w": 113,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-entrada",
+      "w": 113,
+      "h": 84
+     }
+    ],
+    "pequenos": [],
+    "nome": "home-6",
+    "semOverflow": true,
+    "alvosOk": true
+   },
+   {
+    "vw": 390,
+    "scrollW": 390,
+    "alvos": [
+     {
+      "id": "fav-edit-btn",
+      "w": 50,
+      "h": 44
+     },
+     {
+      "id": "fav-btn t-saida",
+      "w": 113,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-entrada",
+      "w": 113,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-saida",
+      "w": 113,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-entrada",
+      "w": 113,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-saida",
+      "w": 113,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-entrada",
+      "w": 113,
+      "h": 84
+     },
+     {
+      "id": "fav-panel-close",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "fav-key",
+      "w": 114,
+      "h": 52
+     },
+     {
+      "id": "fav-key",
+      "w": 114,
+      "h": 52
+     },
+     {
+      "id": "fav-key",
+      "w": 114,
+      "h": 52
+     },
+     {
+      "id": "fav-key",
+      "w": 114,
+      "h": 52
+     },
+     {
+      "id": "fav-key",
+      "w": 114,
+      "h": 52
+     },
+     {
+      "id": "fav-key",
+      "w": 114,
+      "h": 52
+     },
+     {
+      "id": "fav-key",
+      "w": 114,
+      "h": 52
+     },
+     {
+      "id": "fav-key",
+      "w": 114,
+      "h": 52
+     },
+     {
+      "id": "fav-key",
+      "w": 114,
+      "h": 52
+     },
+     {
+      "id": "fav-key",
+      "w": 114,
+      "h": 52
+     },
+     {
+      "id": "fav-key",
+      "w": 114,
+      "h": 52
+     },
+     {
+      "id": "fav-key",
+      "w": 114,
+      "h": 52
+     },
+     {
+      "id": "fav-cta",
+      "w": 358,
+      "h": 52
+     }
+    ],
+    "pequenos": [],
+    "nome": "painel-saida",
+    "semOverflow": true,
+    "alvosOk": true
+   },
+   {
+    "vw": 390,
+    "scrollW": 390,
+    "alvos": [
+     {
+      "id": "fav-edit-btn",
+      "w": 50,
+      "h": 44
+     },
+     {
+      "id": "fav-btn t-saida",
+      "w": 113,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-entrada",
+      "w": 113,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-saida",
+      "w": 113,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-entrada",
+      "w": 113,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-saida",
+      "w": 113,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-entrada",
+      "w": 113,
+      "h": 84
+     },
+     {
+      "id": "fav-panel-close",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "fav-key",
+      "w": 114,
+      "h": 52
+     },
+     {
+      "id": "fav-key",
+      "w": 114,
+      "h": 52
+     },
+     {
+      "id": "fav-key",
+      "w": 114,
+      "h": 52
+     },
+     {
+      "id": "fav-key",
+      "w": 114,
+      "h": 52
+     },
+     {
+      "id": "fav-key",
+      "w": 114,
+      "h": 52
+     },
+     {
+      "id": "fav-key",
+      "w": 114,
+      "h": 52
+     },
+     {
+      "id": "fav-key",
+      "w": 114,
+      "h": 52
+     },
+     {
+      "id": "fav-key",
+      "w": 114,
+      "h": 52
+     },
+     {
+      "id": "fav-key",
+      "w": 114,
+      "h": 52
+     },
+     {
+      "id": "fav-key",
+      "w": 114,
+      "h": 52
+     },
+     {
+      "id": "fav-key",
+      "w": 114,
+      "h": 52
+     },
+     {
+      "id": "fav-key",
+      "w": 114,
+      "h": 52
+     },
+     {
+      "id": "fav-cta",
+      "w": 358,
+      "h": 52
+     }
+    ],
+    "pequenos": [],
+    "nome": "painel-entrada",
+    "semOverflow": true,
+    "alvosOk": true
+   },
+   {
+    "vw": 390,
+    "scrollW": 390,
+    "alvos": [
+     {
+      "id": "fav-edit-btn",
+      "w": 50,
+      "h": 44
+     },
+     {
+      "id": "fav-btn t-saida",
+      "w": 113,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-entrada",
+      "w": 113,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-saida",
+      "w": 113,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-entrada",
+      "w": 113,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-saida",
+      "w": 113,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-entrada",
+      "w": 113,
+      "h": 84
+     },
+     {
+      "id": "fav-undo",
+      "w": 94,
+      "h": 44
+     }
+    ],
+    "pequenos": [],
+    "nome": "toast",
+    "semOverflow": true,
+    "alvosOk": true
+   },
+   {
+    "vw": 390,
+    "scrollW": 390,
+    "alvos": [
+     {
+      "id": "fav-edit-btn",
+      "w": 50,
+      "h": 44
+     },
+     {
+      "id": "fav-btn t-saida",
+      "w": 113,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-entrada",
+      "w": 113,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-saida",
+      "w": 113,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-entrada",
+      "w": 113,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-saida",
+      "w": 113,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-entrada",
+      "w": 113,
+      "h": 84
+     },
+     {
+      "id": "fav-manage-close",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "fav-add",
+      "w": 358,
+      "h": 48
+     },
+     {
+      "id": "rounded-xl text-whit",
+      "w": 94,
+      "h": 44
+     }
+    ],
+    "pequenos": [],
+    "nome": "gerenciar",
+    "semOverflow": true,
+    "alvosOk": true
+   },
+   {
+    "vw": 390,
+    "scrollW": 390,
+    "alvos": [
+     {
+      "id": "fav-edit-btn",
+      "w": 50,
+      "h": 44
+     },
+     {
+      "id": "fav-btn t-saida",
+      "w": 113,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-entrada",
+      "w": 113,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-saida",
+      "w": 113,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-entrada",
+      "w": 113,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-saida",
+      "w": 113,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-entrada",
+      "w": 113,
+      "h": 84
+     },
+     {
+      "id": "fav-manage-close",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "fav-add",
+      "w": 358,
+      "h": 48
+     },
+     {
+      "id": "rounded-xl text-whit",
+      "w": 94,
+      "h": 44
+     },
+     {
+      "id": "fav-edit-close",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "flex-1 rounded-xl te",
+      "w": 173,
+      "h": 44
+     },
+     {
+      "id": "flex-1 rounded-xl te",
+      "w": 173,
+      "h": 44
+     },
+     {
+      "id": "fav-name",
+      "w": 358,
+      "h": 48
+     },
+     {
+      "id": "fav-cat",
+      "w": 358,
+      "h": 46
+     },
+     {
+      "id": "fav-edit-cancel",
+      "w": 175,
+      "h": 48
+     },
+     {
+      "id": "fav-edit-save",
+      "w": 175,
+      "h": 48
+     }
+    ],
+    "pequenos": [],
+    "nome": "editor",
+    "semOverflow": true,
+    "alvosOk": true
+   }
+  ],
+  "768": [
+   {
+    "vw": 768,
+    "scrollW": 768,
+    "alvos": [
+     {
+      "id": "fav-edit-btn",
+      "w": 50,
+      "h": 44
+     },
+     {
+      "id": "rounded-xl text-whit",
+      "w": 98,
+      "h": 44
+     }
+    ],
+    "pequenos": [],
+    "nome": "home-0",
+    "semOverflow": true,
+    "alvosOk": true
+   },
+   {
+    "vw": 768,
+    "scrollW": 768,
+    "alvos": [
+     {
+      "id": "fav-edit-btn",
+      "w": 50,
+      "h": 44
+     },
+     {
+      "id": "fav-btn t-saida",
+      "w": 236,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-entrada",
+      "w": 236,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-saida",
+      "w": 236,
+      "h": 84
+     }
+    ],
+    "pequenos": [],
+    "nome": "home-3",
+    "semOverflow": true,
+    "alvosOk": true
+   },
+   {
+    "vw": 768,
+    "scrollW": 768,
+    "alvos": [
+     {
+      "id": "fav-edit-btn",
+      "w": 50,
+      "h": 44
+     },
+     {
+      "id": "fav-btn t-saida",
+      "w": 236,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-entrada",
+      "w": 236,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-saida",
+      "w": 236,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-entrada",
+      "w": 236,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-saida",
+      "w": 236,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-entrada",
+      "w": 236,
+      "h": 84
+     }
+    ],
+    "pequenos": [],
+    "nome": "home-6",
+    "semOverflow": true,
+    "alvosOk": true
+   },
+   {
+    "vw": 768,
+    "scrollW": 768,
+    "alvos": [
+     {
+      "id": "fav-edit-btn",
+      "w": 50,
+      "h": 44
+     },
+     {
+      "id": "fav-btn t-saida",
+      "w": 236,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-entrada",
+      "w": 236,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-saida",
+      "w": 236,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-entrada",
+      "w": 236,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-saida",
+      "w": 236,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-entrada",
+      "w": 236,
+      "h": 84
+     },
+     {
+      "id": "fav-panel-close",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "fav-key",
+      "w": 165,
+      "h": 52
+     },
+     {
+      "id": "fav-key",
+      "w": 165,
+      "h": 52
+     },
+     {
+      "id": "fav-key",
+      "w": 165,
+      "h": 52
+     },
+     {
+      "id": "fav-key",
+      "w": 165,
+      "h": 52
+     },
+     {
+      "id": "fav-key",
+      "w": 165,
+      "h": 52
+     },
+     {
+      "id": "fav-key",
+      "w": 165,
+      "h": 52
+     },
+     {
+      "id": "fav-key",
+      "w": 165,
+      "h": 52
+     },
+     {
+      "id": "fav-key",
+      "w": 165,
+      "h": 52
+     },
+     {
+      "id": "fav-key",
+      "w": 165,
+      "h": 52
+     },
+     {
+      "id": "fav-key",
+      "w": 165,
+      "h": 52
+     },
+     {
+      "id": "fav-key",
+      "w": 165,
+      "h": 52
+     },
+     {
+      "id": "fav-key",
+      "w": 165,
+      "h": 52
+     },
+     {
+      "id": "fav-cta",
+      "w": 512,
+      "h": 52
+     }
+    ],
+    "pequenos": [],
+    "nome": "painel-saida",
+    "semOverflow": true,
+    "alvosOk": true
+   },
+   {
+    "vw": 768,
+    "scrollW": 768,
+    "alvos": [
+     {
+      "id": "fav-edit-btn",
+      "w": 50,
+      "h": 44
+     },
+     {
+      "id": "fav-btn t-saida",
+      "w": 236,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-entrada",
+      "w": 236,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-saida",
+      "w": 236,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-entrada",
+      "w": 236,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-saida",
+      "w": 236,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-entrada",
+      "w": 236,
+      "h": 84
+     },
+     {
+      "id": "fav-panel-close",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "fav-key",
+      "w": 165,
+      "h": 52
+     },
+     {
+      "id": "fav-key",
+      "w": 165,
+      "h": 52
+     },
+     {
+      "id": "fav-key",
+      "w": 165,
+      "h": 52
+     },
+     {
+      "id": "fav-key",
+      "w": 165,
+      "h": 52
+     },
+     {
+      "id": "fav-key",
+      "w": 165,
+      "h": 52
+     },
+     {
+      "id": "fav-key",
+      "w": 165,
+      "h": 52
+     },
+     {
+      "id": "fav-key",
+      "w": 165,
+      "h": 52
+     },
+     {
+      "id": "fav-key",
+      "w": 165,
+      "h": 52
+     },
+     {
+      "id": "fav-key",
+      "w": 165,
+      "h": 52
+     },
+     {
+      "id": "fav-key",
+      "w": 165,
+      "h": 52
+     },
+     {
+      "id": "fav-key",
+      "w": 165,
+      "h": 52
+     },
+     {
+      "id": "fav-key",
+      "w": 165,
+      "h": 52
+     },
+     {
+      "id": "fav-cta",
+      "w": 512,
+      "h": 52
+     }
+    ],
+    "pequenos": [],
+    "nome": "painel-entrada",
+    "semOverflow": true,
+    "alvosOk": true
+   },
+   {
+    "vw": 768,
+    "scrollW": 768,
+    "alvos": [
+     {
+      "id": "fav-edit-btn",
+      "w": 50,
+      "h": 44
+     },
+     {
+      "id": "fav-btn t-saida",
+      "w": 236,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-entrada",
+      "w": 236,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-saida",
+      "w": 236,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-entrada",
+      "w": 236,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-saida",
+      "w": 236,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-entrada",
+      "w": 236,
+      "h": 84
+     },
+     {
+      "id": "fav-undo",
+      "w": 94,
+      "h": 44
+     }
+    ],
+    "pequenos": [],
+    "nome": "toast",
+    "semOverflow": true,
+    "alvosOk": true
+   },
+   {
+    "vw": 768,
+    "scrollW": 768,
+    "alvos": [
+     {
+      "id": "fav-edit-btn",
+      "w": 50,
+      "h": 44
+     },
+     {
+      "id": "fav-btn t-saida",
+      "w": 236,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-entrada",
+      "w": 236,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-saida",
+      "w": 236,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-entrada",
+      "w": 236,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-saida",
+      "w": 236,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-entrada",
+      "w": 236,
+      "h": 84
+     },
+     {
+      "id": "fav-manage-close",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "fav-add",
+      "w": 512,
+      "h": 48
+     },
+     {
+      "id": "rounded-xl text-whit",
+      "w": 94,
+      "h": 44
+     }
+    ],
+    "pequenos": [],
+    "nome": "gerenciar",
+    "semOverflow": true,
+    "alvosOk": true
+   },
+   {
+    "vw": 768,
+    "scrollW": 768,
+    "alvos": [
+     {
+      "id": "fav-edit-btn",
+      "w": 50,
+      "h": 44
+     },
+     {
+      "id": "fav-btn t-saida",
+      "w": 236,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-entrada",
+      "w": 236,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-saida",
+      "w": 236,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-entrada",
+      "w": 236,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-saida",
+      "w": 236,
+      "h": 84
+     },
+     {
+      "id": "fav-btn t-entrada",
+      "w": 236,
+      "h": 84
+     },
+     {
+      "id": "fav-manage-close",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "BUTTON",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "fav-add",
+      "w": 512,
+      "h": 48
+     },
+     {
+      "id": "rounded-xl text-whit",
+      "w": 94,
+      "h": 44
+     },
+     {
+      "id": "fav-edit-close",
+      "w": 44,
+      "h": 44
+     },
+     {
+      "id": "flex-1 rounded-xl te",
+      "w": 250,
+      "h": 44
+     },
+     {
+      "id": "flex-1 rounded-xl te",
+      "w": 250,
+      "h": 44
+     },
+     {
+      "id": "fav-name",
+      "w": 512,
+      "h": 48
+     },
+     {
+      "id": "fav-cat",
+      "w": 512,
+      "h": 46
+     },
+     {
+      "id": "fav-edit-cancel",
+      "w": 252,
+      "h": 48
+     },
+     {
+      "id": "fav-edit-save",
+      "w": 252,
+      "h": 48
+     }
+    ],
+    "pequenos": [],
+    "nome": "editor",
+    "semOverflow": true,
+    "alvosOk": true
+   }
+  ]
+ },
+ "erros": [],
+ "hosts": []
+}

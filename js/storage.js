@@ -659,18 +659,18 @@ const Storage = {
     // os membros das carteiras de que o usuário participa). Também devolve em quais carteiras o usuário é admin e quantos
     // convites pendentes cada uma tem (só admin enxerga convites; falha nos convites não derruba a contagem).
     async getMemberCounts() {
-        if (!this.isCloud) return { counts: {}, admin: {}, invites: {} };
+        if (!this.isCloud) return { counts: {}, admin: {}, roles: {}, invites: {} };
         const me = this.userId();
         const { data, error } = await this.db.from('financa_members').select('financa_id,user_id,role').limit(10000);
         if (error) throw error;
-        const counts = {}, admin = {};
-        for (const r of data || []) { counts[r.financa_id] = (counts[r.financa_id] || 0) + 1; if (r.user_id === me && r.role === 'admin') admin[r.financa_id] = true; }
+        const counts = {}, admin = {}, roles = {};
+        for (const r of data || []) { counts[r.financa_id] = (counts[r.financa_id] || 0) + 1; if (r.user_id === me) { roles[r.financa_id] = r.role; if (r.role === 'admin') admin[r.financa_id] = true; } }
         const invites = {};
         try {
             const { data: inv, error: e2 } = await this.db.from('financa_invites').select('financa_id').is('accepted_at', null).limit(10000);
             if (!e2) for (const r of inv || []) invites[r.financa_id] = (invites[r.financa_id] || 0) + 1;
         } catch (_) {}
-        return { counts, admin, invites };
+        return { counts, admin, roles, invites };
     },
 
     async getMembers(financaId) {

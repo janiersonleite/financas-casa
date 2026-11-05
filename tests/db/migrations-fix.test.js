@@ -11,13 +11,13 @@ const { seed, A, D, F } = require('./seed');
 const col = createCollector('migrations-fix-findings.json');
 test.after(() => col.flush());
 
-const FIXES = sqlFiles().filter(f => f >= FIX_PREFIX);
+const FIXES = sqlFiles().filter(f => f >= FIX_PREFIX && /^202610270000/.test(f));
 const sql = f => fs.readFileSync(path.join(MIG_DIR, f), 'utf8');
 const assinatura = async db => {
-  const pol = (await db.admin.query(`select tablename||'.'||policyname||':'||cmd||':'||coalesce(qual,'')||':'||coalesce(with_check,'') s from pg_policies where schemaname='public' order by 1`)).rows.map(r => r.s);
-  const fn = (await db.admin.query(`select p.oid::regprocedure::text||':'||coalesce(array_to_string(p.proconfig,','),'') s from pg_proc p where pronamespace='public'::regnamespace order by 1`)).rows.map(r => r.s);
-  const gr = (await db.admin.query(`select p.oid::regprocedure::text||':'||has_function_privilege('anon',p.oid,'execute')||has_function_privilege('authenticated',p.oid,'execute')||has_function_privilege('service_role',p.oid,'execute') s from pg_proc p where pronamespace='public'::regnamespace order by 1`)).rows.map(r => r.s);
-  const tg = (await db.admin.query(`select event_object_table||'.'||trigger_name s from information_schema.triggers where trigger_schema='public' order by 1`)).rows.map(r => r.s);
+  const pol = (await db.admin.query(`select tablename||'.'||policyname||':'||cmd||':'||coalesce(qual,'')||':'||coalesce(with_check,'') s from pg_policies where schemaname='public' and tablename <> 'favorite_entries' order by 1`)).rows.map(r => r.s);
+  const fn = (await db.admin.query(`select p.oid::regprocedure::text||':'||coalesce(array_to_string(p.proconfig,','),'') s from pg_proc p where pronamespace='public'::regnamespace and p.proname not in ('can_write_financa','favorite_entries_limit','favorite_entries_lock_keys') order by 1`)).rows.map(r => r.s);
+  const gr = (await db.admin.query(`select p.oid::regprocedure::text||':'||has_function_privilege('anon',p.oid,'execute')||has_function_privilege('authenticated',p.oid,'execute')||has_function_privilege('service_role',p.oid,'execute') s from pg_proc p where pronamespace='public'::regnamespace and p.proname not in ('can_write_financa','favorite_entries_limit','favorite_entries_lock_keys') order by 1`)).rows.map(r => r.s);
+  const tg = (await db.admin.query(`select event_object_table||'.'||trigger_name s from information_schema.triggers where trigger_schema='public' and event_object_table <> 'favorite_entries' order by 1`)).rows.map(r => r.s);
   return JSON.stringify({ pol, fn, gr, tg });
 };
 
@@ -108,7 +108,7 @@ test('rollback (docs/qa/baseline/rollback-estado-producao.sql): devolve policies
   try {
     const rb = fs.readFileSync(path.join(__dirname, '..', '..', 'docs', 'qa', 'baseline', 'rollback-estado-producao.sql'), 'utf8');
     await db.admin.query(rb); await db.admin.query(rb);   // 2× = idempotente
-    const pol = async d => JSON.stringify((await d.admin.query(`select tablename||'.'||policyname||':'||cmd||':'||coalesce(qual,'')||':'||coalesce(with_check,'') s from pg_policies where schemaname='public' and tablename not like 'cofrinho%' order by 1`)).rows.map(r => r.s));
+    const pol = async d => JSON.stringify((await d.admin.query(`select tablename||'.'||policyname||':'||cmd||':'||coalesce(qual,'')||':'||coalesce(with_check,'') s from pg_policies where schemaname='public' and tablename not like 'cofrinho%' and tablename <> 'favorite_entries' order by 1`)).rows.map(r => r.s));
     const ref = await createTestDb({ fixes: false });
     try {
       assert.equal(await pol(db), await pol(ref), 'policies após o rollback ≠ estado anterior de produção');

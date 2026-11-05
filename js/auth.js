@@ -42,7 +42,7 @@ const Auth = {
                 this.showApp();
                 // Fresh login (not initial page restore) — reload finances
                 if (event === 'SIGNED_IN' && typeof App !== 'undefined' && App.loadFinancas) {
-                    App.loadFinancas().then(() => App.renderCurrentTab());
+                    App.loadFinancas().then(() => App.renderCurrentTab()).then(() => App.runPendingAction());
                 }
             } else {
                 this.showAuthScreen();
