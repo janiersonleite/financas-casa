@@ -4699,7 +4699,15 @@ const App = {
         if (Cofrinhos.view === 'cofrinhos') { await Cofrinhos.render(body); return; }
 
         // Chave PIX vem da nuvem (igual em todos os aparelhos); não trava a tela se demorar
-        await Promise.race([Storage.syncPixFromCloud().catch(() => false), new Promise(r => setTimeout(r, 2500))]);
+        // Sincroniza a chave PIX; se a nuvem responder depois do timeout e mudar algo, redesenha a aba
+        const pixSync = Storage.syncPixFromCloud(true).catch(() => false);
+        const pixLate = Symbol('late');
+        const pixRes = await Promise.race([pixSync, new Promise(r => setTimeout(() => r(pixLate), 2500))]);
+        if (pixRes === pixLate) {
+            pixSync.then(changed => {
+                if (changed && this.currentTab === 'investments') this.renderInvestmentsTab();
+            });
+        }
 
         let portfolio;
         try { portfolio = await Storage.getInvestmentPortfolio(this.currentMonth); }

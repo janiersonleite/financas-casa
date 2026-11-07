@@ -250,6 +250,7 @@ const Storage = {
     // Traz a chave PIX da nuvem (a nuvem vale, exceto se há alteração local ainda não enviada).
     // Retorna true quando o valor local mudou. No máx. 1 consulta por minuto por carteira.
     _pixSyncedAt: {},
+    pixSyncError: null,
     async syncPixFromCloud(force = false) {
         if (!this.isCloud || !this.isOnline) return false;
         const fid = (this.activeFinancaId && this.activeFinancaId !== 'null') ? this.activeFinancaId : null;
@@ -260,7 +261,8 @@ const Storage = {
             if (dirty) { await this._pushPix(fid); this._pixSyncedAt[scope] = Date.now(); return false; }
             const { data, error } = await this.db.from('user_pix')
                 .select('pix_key,name,bank').eq('user_id', this.userId()).eq('scope', scope).maybeSingle();
-            if (error) return false;   // tabela ausente / sem rede: mantém o local
+            if (error) { this.pixSyncError = error.message || String(error); console.warn('[PIX] falha ao sincronizar:', this.pixSyncError); return false; }
+            this.pixSyncError = null;
             this._pixSyncedAt[scope] = Date.now();
             const local = this.getPixInfo();
             if (!data) {
@@ -272,7 +274,7 @@ const Storage = {
             if (same) return false;
             localStorage.setItem(this._pixKeyKey(fid), JSON.stringify({ key: data.pix_key, name: data.name, bank: data.bank }));
             return true;
-        } catch { return false; }
+        } catch (e) { this.pixSyncError = (e && e.message) || String(e); console.warn('[PIX] falha ao sincronizar:', this.pixSyncError); return false; }
     },
 
     // Carteira de investimentos (modelo "só aportes e resgates"):
