@@ -238,10 +238,22 @@ const Storage = {
         const k = info.key || '', n = info.name || '', b = info.bank || '';
         try {
             const uid = this.userId();
-            const { error } = (k || n || b)
-                ? await this.db.from('user_pix').upsert({ user_id: uid, scope, pix_key: k, name: n, bank: b, updated_at: new Date().toISOString() })
-                : await this.db.from('user_pix').delete().eq('user_id', uid).eq('scope', scope);
-            if (error) return false;   // ex.: migração ainda não aplicada — segue só local
+            const now = new Date().toISOString();
+            const has = !!(k || n || b);
+            let q;
+            if (fid) {   // carteira compartilhada: uma chave para todos os membros
+                q = has ? this.db.from('financa_pix').upsert({ financa_id: fid, pix_key: k, name: n, bank: b, updated_by: uid, updated_at: now })
+                        : this.db.from('financa_pix').delete().eq('financa_id', fid);
+            } else {     // pessoal: só do usuário
+                q = has ? this.db.from('user_pix').upsert({ user_id: uid, scope, pix_key: k, name: n, bank: b, updated_at: now })
+                        : this.db.from('user_pix').delete().eq('user_id', uid).eq('scope', scope);
+            }
+            const { error } = await q;
+            if (error) {
+                // sem permissão (ex.: visualizador): descarta a alteração local pendente, a nuvem vale
+                if (error.code === '42501') localStorage.removeItem('invest_pix_dirty_' + scope);
+                return false;   // ex.: migração ainda não aplicada — segue só local
+            }
             localStorage.removeItem('invest_pix_dirty_' + scope);
             return true;
         } catch { return false; }
@@ -258,9 +270,14 @@ const Storage = {
         if (!force && Date.now() - (this._pixSyncedAt[scope] || 0) < 60000) return false;
         try {
             const dirty = localStorage.getItem('invest_pix_dirty_' + scope);
-            if (dirty) { await this._pushPix(fid); this._pixSyncedAt[scope] = Date.now(); return false; }
-            const { data, error } = await this.db.from('user_pix')
-                .select('pix_key,name,bank').eq('user_id', this.userId()).eq('scope', scope).maybeSingle();
+            if (dirty) {
+                await this._pushPix(fid);
+                this._pixSyncedAt[scope] = Date.now();
+                if (localStorage.getItem('invest_pix_dirty_' + scope)) return false;   // ainda pendente (offline)
+            }
+            const { data, error } = await (fid
+                ? this.db.from('financa_pix').select('pix_key,name,bank').eq('financa_id', fid).maybeSingle()
+                : this.db.from('user_pix').select('pix_key,name,bank').eq('user_id', this.userId()).eq('scope', scope).maybeSingle());
             if (error) { this.pixSyncError = error.message || String(error); console.warn('[PIX] falha ao sincronizar:', this.pixSyncError); return false; }
             this.pixSyncError = null;
             this._pixSyncedAt[scope] = Date.now();
