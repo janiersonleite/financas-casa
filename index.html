@@ -235,10 +235,12 @@
             position: sticky; top: 0; z-index: 30;
             display: block;
             width: 100%; box-sizing: border-box;
-            height: calc(58px + env(safe-area-inset-top)); min-height: 58px;
+            height: calc(68px + env(safe-area-inset-top)); min-height: 68px;
             padding: env(safe-area-inset-top) 0 0 0; margin: 0;
             background: #06241a; color: #fff;
-            border: 0; border-bottom: 3px solid var(--wallet-accent);
+            background: linear-gradient(90deg, color-mix(in srgb, var(--wallet-accent) 42%, #06241a) 0%, #06241a 78%);   /* a cor da carteira "banha" a barra */
+            border: 0; border-bottom: 4px solid var(--wallet-accent);
+            box-shadow: 0 4px 14px rgba(0,0,0,.28);
             font: inherit; text-align: left; cursor: pointer;
             -webkit-appearance: none; appearance: none;
         }
@@ -250,16 +252,16 @@
         }
         @media (min-width: 1024px) { #wallet-bar { --wb-col: 1200px; } }
         #wallet-bar:focus-visible { outline: 3px solid #fff; outline-offset: -3px; }
-        #wallet-bar .wb-strip { align-self: stretch; flex: none; width: 6px; background: var(--wallet-accent); }
+        #wallet-bar .wb-strip { align-self: stretch; flex: none; width: 10px; background: var(--wallet-accent); }
         #wallet-bar .wb-avatar {
-            flex: none; width: 34px; height: 34px; border-radius: 9999px; box-sizing: border-box;
-            display: flex; align-items: center; justify-content: center; font-size: 18px; line-height: 1;
-            background: rgba(255,255,255,.08); border: 2px solid var(--wallet-accent);
+            flex: none; width: 44px; height: 44px; border-radius: 9999px; box-sizing: border-box;
+            display: flex; align-items: center; justify-content: center; font-size: 22px; line-height: 1;
+            background: var(--wallet-accent); border: 3px solid rgba(255,255,255,.9);
         }
         #wallet-bar .wb-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-        #wallet-bar .wb-label { font-size: 11px; line-height: 1.1; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: rgba(255,255,255,.78); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        #wallet-bar .wb-label { font-size: 11px; line-height: 1.1; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--wallet-accent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         #wallet-bar[data-state="empty"] .wb-label { text-transform: none; letter-spacing: 0; font-weight: 500; order: 2; font-size: 12px; }
-        #wallet-bar .wb-name { font-size: 17px; line-height: 1.15; font-weight: 800; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        #wallet-bar .wb-name { font-size: 21px; line-height: 1.15; font-weight: 800; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         #wallet-bar .wb-chip {
             flex: none; display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px; border-radius: 9999px;
             font-size: 12px; line-height: 1.2; font-weight: 600; white-space: nowrap; color: #fff; background: rgba(255,255,255,.14);
@@ -268,16 +270,26 @@
         #wallet-bar .wb-chip[data-kind="offline"] { background: #fbbf24; color: #451a03; }
         #wallet-bar .wb-chip[data-kind="none"] { display: none; }
         #wallet-bar .wb-chip[data-kind="loading"] { width: 84px; height: 26px; padding: 0; background: #3f4b46; }
-        #wallet-bar .wb-chevron { flex: none; font-size: 18px; line-height: 1; color: rgba(255,255,255,.78); }
+        #wallet-bar .wb-chevron { flex: none; font-size: 14px; line-height: 1; font-weight: 800; color: #06241a; background: var(--wallet-accent); border-radius: 9999px; padding: 8px 12px; white-space: nowrap; }   /* pílula "Trocar ▾": parece botão */
+        #wallet-bar .wb-chevron::before { content: 'Trocar '; }
+        #wallet-bar[data-state="empty"] .wb-chevron::before { content: 'Escolher '; }
         #wallet-bar .wb-skel { display: none; align-items: center; gap: 10px; flex: 1 1 auto; min-width: 0; }
         #wallet-bar .wb-skel i { display: block; background: #3f4b46; border-radius: 8px; }
         #wallet-bar[data-state="loading"] .wb-skel { display: flex; }
         #wallet-bar[data-state="loading"] .wb-avatar, #wallet-bar[data-state="loading"] .wb-text,
         #wallet-bar[data-state="loading"] .wb-chip, #wallet-bar[data-state="loading"] .wb-chevron { display: none; }
+        @media (max-width: 479px) {   /* celular: o nome da carteira tem prioridade; selo vira ícone + número e a pílula só a seta */
+            #wallet-bar .wb-chip[data-kind="shared"] .wb-chip-text, #wallet-bar .wb-chip[data-kind="shared"] .wb-chip-sep { display: none; }
+            #wallet-bar .wb-chevron::before, #wallet-bar[data-state="empty"] .wb-chevron::before { content: ''; }
+            #wallet-bar .wb-chevron { padding: 8px 11px; }
+            #wallet-bar .wb-avatar { width: 40px; height: 40px; font-size: 20px; }
+        }
         @media (max-width: 359px) {
             #wallet-bar .wb-inner { gap: 8px; padding-right: 8px; }
             #wallet-bar .wb-chip[data-kind="shared"] .wb-chip-text, #wallet-bar .wb-chip[data-kind="shared"] .wb-chip-sep { display: none; }
-            #wallet-bar .wb-name { font-size: 16px; }
+            #wallet-bar .wb-name { font-size: 18px; }
+            #wallet-bar .wb-chevron::before, #wallet-bar[data-state="empty"] .wb-chevron::before { content: ''; }
+            #wallet-bar .wb-chevron { padding: 8px 10px; }
             #wallet-bar .wb-chip[data-kind="loading"] { width: 52px; }
         }
         @media (prefers-reduced-motion: no-preference) {
